@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+data/cache/
+data/backups/
+*.tmp
+.agents/
+skills-lock.json
