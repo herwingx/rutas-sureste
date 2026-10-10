@@ -1,0 +1,48 @@
+/**
+ * @fileoverview Configuración central del backend de Rutas Sureste.
+ * Carga las variables de entorno desde el archivo `.env` en la raíz del proyecto
+ * utilizando el cargador nativo `process.loadEnvFile` de Node.js LTS y define las
+ * rutas absolutas hacia la capa de persistencia local en `/data`.
+ */
+
+import fs from 'node:fs';
+import path from 'node:path';
+
+/** Directorio raíz del repositorio */
+export const ROOT = path.resolve(import.meta.dirname, '..');
+
+/** Directorio donde viven todos los archivos JSON de persistencia y caché */
+export const DATA_DIR = path.join(ROOT, 'data');
+
+// Carga nativa de variables de entorno (.env) sin dependencias externas (dotenv)
+const envPath = path.join(ROOT, '.env');
+if (fs.existsSync(envPath) && typeof process.loadEnvFile === 'function') {
+  process.loadEnvFile(envPath);
+}
+
+/** Llave de Google Maps Platform restringida a Maps JS API y Routes API */
+export const API_KEY = process.env.GOOGLE_MAPS_API_KEY || '';
+
+/** Puerto HTTP para el servidor de producción (`pnpm start`) */
+export const PORT = Number(process.env.PORT || 3000);
+
+/** Host de escucha por defecto (loopback local) */
+export const HOST = process.env.HOST || '127.0.0.1';
+
+/** Archivo maestro del catálogo de tiendas */
+export const DB_FILE = path.join(DATA_DIR, 'tiendas.json');
+
+/** Archivo de registro histórico de rutas diarias */
+export const HISTORIAL_FILE = path.join(DATA_DIR, 'historial-rutas.json');
+
+/** Carpeta para la caché persistente de tramos carreteros */
+export const CACHE_DIR = path.join(DATA_DIR, 'cache');
+
+/** Carpeta para respaldos automáticos rotativos de `tiendas.json` */
+export const BACKUP_DIR = path.join(DATA_DIR, 'backups');
+
+/** Rendimiento promedio por defecto (kilómetros por litro) */
+export const KM_POR_LITRO = 12.5;
+
+/** Precio base de referencia por litro de combustible ($ MXN) */
+export const PRECIO_LITRO = 23.99;
