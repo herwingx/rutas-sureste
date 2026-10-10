@@ -1,0 +1,287 @@
+[
+    {
+        "nombre": "RESGUARDO TUXTLA",
+        "coords": "16.782074,-93.123710"
+    },
+    {
+        "nombre": "15 ORIENTE.",
+        "coords": "16.744284,-93.104438"
+    },
+    {
+        "nombre": "20 DE NOVIEMBRE ALBANIA ALTA",
+        "coords": "16.77691763,-93.11064766"
+    },
+    {
+        "nombre": "9 SUR",
+        "coords": "16.74538843,-93.11321721"
+    },
+    {
+        "nombre": "ACALA CHIAPAS",
+        "coords": "16.55477049,-92.80541936"
+    },
+    {
+        "nombre": "ALTAMIRANO CENTRO",
+        "coords": "16.73912424,-92.03796746"
+    },
+    {
+        "nombre": "AMBAR",
+        "coords": "16.0903542,-92.83694537"
+    },
+    {
+        "nombre": "AMBAR SIMOJOVEL",
+        "coords": "17.14161031,-92.71533675"
+    },
+    {
+        "nombre": "BARRIO CALVARIO TUXTLA",
+        "coords": "16.7484308,-93.1178835"
+    },
+    {
+        "nombre": "BARRIO CANDELARIA",
+        "coords": "16.69881449,-93.72170987"
+    },
+    {
+        "nombre": "BARRIO SAN DIEGO SC",
+        "coords": "16.731578,-92.6306724"
+    },
+    {
+        "nombre": "BOCHIL",
+        "coords": "16.99496207,-92.89213022"
+    },
+    {
+        "nombre": "CALVARIUM CENTRO",
+        "coords": "16.75060019,-93.11971059"
+    },
+    {
+        "nombre": "CAMPO VIEJO",
+        "coords": "16.23925818,-92.13326729"
+    },
+    {
+        "nombre": "CARDENAS DEL VALLE",
+        "coords": "16.60558109,-93.79303206"
+    },
+    {
+        "nombre": "CARRANZA CHIAPAS",
+        "coords": "16.33892263,-92.56414145"
+    },
+    {
+        "nombre": "CEDIS NETO TUXTLA",
+        "coords": "16.7690469,-93.2999911",
+        "verificada": true
+    },
+    {
+        "nombre": "CIUDAD MAYA",
+        "coords": "16.737046,-93.313963"
+    },
+    {
+        "nombre": "DEMOCRATICA TGZ",
+        "coords": "16.79259781,-93.10985967"
+    },
+    {
+        "nombre": "EL CEDRO",
+        "coords": "16.26078024,-92.13173817"
+    },
+    {
+        "nombre": "EL JOBO",
+        "coords": "16.70407114,-93.1059559"
+    },
+    {
+        "nombre": "EL PARRAL",
+        "coords": "16.36743222,-93.0052977"
+    },
+    {
+        "nombre": "EL POCITO",
+        "coords": "17.15857359,-92.89667865"
+    },
+    {
+        "nombre": "INGENIO PUJILTIC",
+        "coords": "16.27851515,-92.44887292"
+    },
+    {
+        "nombre": "IXTAPA",
+        "coords": "16.80356058,-92.90448777"
+    },
+    {
+        "nombre": "JALTENANGO",
+        "coords": "15.87074947,-92.72257228"
+    },
+    {
+        "nombre": "JIQUIPILAS MERCADITO",
+        "coords": "16.67296807,-93.64520046"
+    },
+    {
+        "nombre": "JITOTOL",
+        "coords": "17.06673112,-92.86030412"
+    },
+    {
+        "nombre": "JOSE TERAN",
+        "coords": "16.74864666,-93.17995632"
+    },
+    {
+        "nombre": "JUAREZ CORZO",
+        "coords": "16.70637769,-93.0076642"
+    },
+    {
+        "nombre": "LA GARZA VF",
+        "coords": "16.3948322,-93.2932261",
+        "coordsAnteriores": "16.41297796,-93.29509502",
+        "verificada": true,
+        "estado": "Chiapas"
+    },
+    {
+        "nombre": "LA TRINITARIA",
+        "coords": "16.11799242,-92.05267757"
+    },
+    {
+        "nombre": "LAS GRANJAS 2",
+        "coords": "16.79379809,-93.10315658"
+    },
+    {
+        "nombre": "LAS GRANJAS TUXTLA",
+        "coords": "16.79144779,-93.09884925"
+    },
+    {
+        "nombre": "LAS ROSAS CHIAPAS",
+        "coords": "16.36341416,-92.36994407"
+    },
+    {
+        "nombre": "LOMA BONITA 2",
+        "coords": "16.73309416,-93.16602364"
+    },
+    {
+        "nombre": "LOS PAJAROS TUXTLA GUTIERREZ",
+        "coords": "16.7341323,-93.08212139"
+    },
+    {
+        "nombre": "MARGARITAS CENTRAL",
+        "coords": "16.31722392,-91.9809998"
+    },
+    {
+        "nombre": "MERCADO BERRIOZABAL",
+        "coords": "16.79966758,-93.27360928"
+    },
+    {
+        "nombre": "MERCADO CHILON",
+        "coords": "17.10575231,-92.27386596"
+    },
+    {
+        "nombre": "MERCADO SAN JUAN TUXTLA",
+        "coords": "16.74586536,-93.09109917"
+    },
+    {
+        "nombre": "MERCADO SUCHIAPA",
+        "coords": "16.62633,-93.101148"
+    },
+    {
+        "nombre": "MERCADO VILLA FLORES",
+        "coords": "16.23553383,-93.2702278"
+    },
+    {
+        "nombre": "MEZCALAPA II",
+        "coords": "17.19008041,-93.60539323"
+    },
+    {
+        "nombre": "NUEVA ESTRELLA INDEPENDENCIA",
+        "coords": "16.2529820,-92.0224974",
+        "verificada": true,
+        "estado": "Chiapas"
+    },
+    {
+        "nombre": "OCOSINGO DEPORTIVA",
+        "coords": "16.90295281,-92.08498258"
+    },
+    {
+        "nombre": "OCOSINGO MERCADO",
+        "coords": "16.9096233,-92.0904792"
+    },
+    {
+        "nombre": "OCOZOCOAUTLA PALACIO",
+        "coords": "16.76186009,-93.37598831"
+    },
+    {
+        "nombre": "OCOZOCOUTLA CENTRO",
+        "coords": "16.76229031,-93.37336895"
+    },
+    {
+        "nombre": "OCUILAPA CENTRAL",
+        "coords": "16.85467978,-93.41069686"
+    },
+    {
+        "nombre": "PLAN DE AYALA 2",
+        "coords": "16.76472471,-93.18407538"
+    },
+    {
+        "nombre": "POTINASPAK",
+        "coords": "16.7811271,-93.11746562"
+    },
+    {
+        "nombre": "RAYON 1",
+        "coords": "17.20018336,-93.0124024"
+    },
+    {
+        "nombre": "REVOLUCIÓN CHIAPAS",
+        "coords": "16.16993208,-93.07520007"
+    },
+    {
+        "nombre": "SAN AGUSTIN I",
+        "coords": "16.25132426,-92.12470815"
+    },
+    {
+        "nombre": "SAN CRISTOBAL LA ISLA",
+        "coords": "16.73977452,-92.64762131"
+    },
+    {
+        "nombre": "SAN FERNANDO CENTRAL",
+        "coords": "16.87056246,-93.20756592"
+    },
+    {
+        "nombre": "SAN JUAN SABINITO",
+        "coords": "16.7328986,-93.101502"
+    },
+    {
+        "nombre": "SAN LUCAS 1",
+        "coords": "16.569592,-92.720719"
+    },
+    {
+        "nombre": "SAN PEDRO BUENAVISTA",
+        "coords": "16.1338130,-93.1654969",
+        "coordsAnteriores": "16.18560892,-93.26845058",
+        "verificada": true,
+        "estado": "Chiapas"
+    },
+    {
+        "nombre": "SAN RAMON",
+        "coords": "16.73817238,-92.65207297"
+    },
+    {
+        "nombre": "SANTA CRUZ CONCORDIA",
+        "coords": "16.11688595,-92.69025638"
+    },
+    {
+        "nombre": "SOCOLTENANGO",
+        "coords": "16.24491644,-92.34973129"
+    },
+    {
+        "nombre": "SOYALO TERMINAL",
+        "coords": "16.8930985,-92.92369945"
+    },
+    {
+        "nombre": "TEOPISCA CENTRAL",
+        "coords": "16.54114594,-92.47272462"
+    },
+    {
+        "nombre": "TZIMOL",
+        "coords": "16.17783883,-92.18627055"
+    },
+    {
+        "nombre": "VIDA MEJOR TUXTLA",
+        "coords": "16.75299099,-93.06110842"
+    },
+    {
+        "nombre": "VILLACORZO",
+        "coords": "16.18497878,-93.268677"
+    },
+    {
+        "nombre": "YAJALON HERRADURA",
+        "coords": "17.17269135,-92.33509889"
+    }
+]
