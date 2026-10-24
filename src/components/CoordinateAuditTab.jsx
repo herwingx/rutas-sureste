@@ -26,6 +26,7 @@ import {
   DownloadSimple,
 } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -45,7 +46,7 @@ import {
   TypographyMuted,
   TypographyMono,
 } from '@/components/ui/typography';
-import { ESTADOS } from '@/lib/brand';
+import { ESTADOS, INGENIEROS } from '@/lib/brand';
 import {
   cn,
   norm,
@@ -79,9 +80,26 @@ export function CoordinateAuditTab({
   const [filtroTexto, setFiltroTexto] = useState('');
   const [estadoFiltro, setEstadoFiltro] = useState('todas');
   const [zonaFiltro, setZonaFiltro] = useState('todas');
+  const [ingenieroFiltro, setIngenieroFiltro] = useState('todos');
   const [coordInput, setCoordInput] = useState('');
 
-  const zonas = useMemo(() => zonasDisponibles(tiendas), [tiendas]);
+  const ingenierosLista = useMemo(() => {
+    const conteo = new Map();
+    tiendas.forEach((t) => {
+      const ing = t.ingeniero || 'SIN ASIGNAR';
+      conteo.set(ing, (conteo.get(ing) || 0) + 1);
+    });
+    return Array.from(conteo.entries()).map(([nombre, total]) => ({
+      nombre,
+      corto: nombre.split(' ')[0] + (nombre.includes('VAZQUEZ') ? ' (Mis tiendas)' : ''),
+      total,
+    }));
+  }, [tiendas]);
+
+  const zonas = useMemo(() => {
+    const base = ingenieroFiltro === 'todos' ? tiendas : tiendas.filter((t) => t.ingeniero === ingenieroFiltro);
+    return zonasDisponibles(base);
+  }, [tiendas, ingenieroFiltro]);
 
   useEffect(() => {
     if (sel && sel.lat != null) {
@@ -92,23 +110,32 @@ export function CoordinateAuditTab({
   }, [sel?.nombre, sel?.lat, sel?.lng, sel?.nueva]);
 
   const stats = useMemo(() => {
-    const total = tiendas.length;
-    const verificadas = tiendas.filter((t) => t.verificada).length;
-    const corregidas = tiendas.filter((t) => t.coordsAnteriores).length;
+    const base = ingenieroFiltro === 'todos' ? tiendas : tiendas.filter((t) => t.ingeniero === ingenieroFiltro);
+    const total = base.length;
+    const verificadas = base.filter((t) => t.verificada).length;
+    const corregidas = base.filter((t) => t.coordsAnteriores).length;
     return { total, verificadas, pendientes: total - verificadas, corregidas };
-  }, [tiendas]);
+  }, [tiendas, ingenieroFiltro]);
 
   const listaFiltrada = useMemo(() => {
     const q = expandirConsulta(filtroTexto);
     return tiendas.filter((t) => {
-      if (q && !norm(`${t.nombre} ${t.estado || ''}`).includes(q)) return false;
+      if (ingenieroFiltro !== 'todos' && t.ingeniero !== ingenieroFiltro) return false;
+      if (
+        q &&
+        !norm(
+          `${t.nombre} ${t.eco || ''} ${t.ceco || ''} ${t.zona || ''} ${t.estado || ''} ${t.ingeniero || ''}`
+        ).includes(q)
+      ) {
+        return false;
+      }
       if (estadoFiltro === 'pendientes' && t.verificada) return false;
       if (estadoFiltro === 'verificadas' && !t.verificada) return false;
       if (estadoFiltro === 'corregidas' && !t.coordsAnteriores) return false;
       if (zonaFiltro !== 'todas' && clasificarZona(t).id !== zonaFiltro) return false;
       return true;
     });
-  }, [tiendas, filtroTexto, estadoFiltro, zonaFiltro]);
+  }, [tiendas, filtroTexto, estadoFiltro, zonaFiltro, ingenieroFiltro]);
 
   const tiendaActualCat = sel && !sel.nueva ? porNombre.get(sel.nombre) : null;
   const deltaM = sel?.orig && sel?.lat != null ? haversineM(sel.orig, sel) : 0;
@@ -171,6 +198,32 @@ export function CoordinateAuditTab({
                 </SelectContent>
               </Select>
             </div>
+
+            {/* Metadatos de ingeniería (ECO, CECO, Zona, Ingeniero) */}
+            {(tiendaActualCat?.eco || tiendaActualCat?.zona || tiendaActualCat?.ingeniero) && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                {tiendaActualCat.eco && tiendaActualCat.eco !== '0' && (
+                  <Badge variant="outline" className="font-mono text-[10px] px-1.5 py-0.5">
+                    ECO {tiendaActualCat.eco}
+                  </Badge>
+                )}
+                {tiendaActualCat.ceco && tiendaActualCat.ceco !== '0' && (
+                  <Badge variant="outline" className="font-mono text-[10px] px-1.5 py-0.5">
+                    CECO {tiendaActualCat.ceco}
+                  </Badge>
+                )}
+                {tiendaActualCat.zona && (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">
+                    {tiendaActualCat.zona}
+                  </Badge>
+                )}
+                {tiendaActualCat.ingeniero && (
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 text-muted-foreground">
+                    {tiendaActualCat.ingeniero.split(' ')[0]}
+                  </Badge>
+                )}
+              </div>
+            )}
 
             {/* Coordenadas o link */}
             <div className="flex items-center gap-1.5">
@@ -360,6 +413,36 @@ export function CoordinateAuditTab({
 
       {/* ================= FILTROS DEL CATÁLOGO ================= */}
       <div className="space-y-2">
+        {/* Selector rápido por Ingeniero */}
+        <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
+          <Button
+            type="button"
+            variant={ingenieroFiltro === 'todos' ? 'default' : 'outline'}
+            size="xs"
+            onClick={() => setIngenieroFiltro('todos')}
+            className="text-[11px] h-6 px-2 shrink-0"
+          >
+            Todos ({tiendas.length})
+          </Button>
+          {ingenierosLista.map((ing) => (
+            <Button
+              key={ing.nombre}
+              type="button"
+              variant={ingenieroFiltro === ing.nombre ? 'default' : 'outline'}
+              size="xs"
+              onClick={() => setIngenieroFiltro(ing.nombre)}
+              className={cn(
+                'text-[11px] h-6 px-2 shrink-0',
+                ing.nombre.includes('HERWING') &&
+                  ingenieroFiltro !== ing.nombre &&
+                  'border-primary/50 text-primary font-medium'
+              )}
+            >
+              {ing.corto} ({ing.total})
+            </Button>
+          ))}
+        </div>
+
         <div className="flex items-center gap-1.5">
           <div className="relative flex-1">
             <MagnifyingGlass
@@ -370,13 +453,13 @@ export function CoordinateAuditTab({
               size="sm"
               value={filtroTexto}
               onChange={(e) => setFiltroTexto(e.target.value)}
-              placeholder="Buscar tienda o estado…"
+              placeholder="Buscar por nombre, ECO, CECO o zona…"
               className="pl-8"
             />
           </div>
           <Select value={zonaFiltro} onValueChange={setZonaFiltro}>
             <SelectTrigger size="sm" className="w-37.5">
-              <SelectValue placeholder="Región" />
+              <SelectValue placeholder="Zona/Región" />
             </SelectTrigger>
             <SelectContent>
               {zonas.map((z) => (
@@ -439,7 +522,15 @@ export function CoordinateAuditTab({
                   </TypographySmall>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <span className="text-[11px] text-muted-foreground">{zona.nombre}</span>
+                  {t.eco && t.eco !== '0' && (
+                    <Badge
+                      variant="outline"
+                      className="font-mono text-[10px] px-1 py-0 text-muted-foreground"
+                    >
+                      {t.eco}
+                    </Badge>
+                  )}
+                  <span className="text-[11px] text-muted-foreground">{t.zona || zona.nombre}</span>
                 </div>
               </div>
             );

@@ -20,3 +20,13 @@ export const ESTADOS = [
   'Veracruz',
   'Oaxaca',
 ];
+
+/** Ingenieros de campo y soporte técnico del Sureste */
+export const INGENIEROS = [
+  'HERWING EDUARDO VAZQUEZ MACIAS',
+  'BRAYAN ALEJANDRO CASTRO ALVAREZ',
+  'ROMAN ALEJANDRO ITZA COLLI',
+  'VICTOR CASTRO CRUZ',
+  'OMAR SANCHEZ MORALES',
+];
+

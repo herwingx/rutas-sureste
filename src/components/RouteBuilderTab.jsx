@@ -124,28 +124,35 @@ export function RouteBuilderTab({
   const enRutaSet = useMemo(() => new Set(ruta.paradas.map((p) => p.nombre)), [ruta.paradas]);
 
   const buscarTiendas = (q) => {
-    const nq = expandirConsulta(q);
+    const rawTrim = q.trim();
+    const nq = expandirConsulta(rawTrim);
     if (!nq) return [];
     const tokens = nq.split(' ').filter(Boolean);
-    const requeridos = q.trim().split(/\s+/).length;
+    const requeridos = rawTrim.split(/\s+/).length;
     const out = [];
 
     for (const t of tiendas) {
-      const n = norm(`${t.nombre} ${t.estado || ''}`);
-      const palabras = n.split(' ');
+      const fullSearch = norm(
+        `${t.nombre} ${t.eco || ''} ${t.ceco || ''} ${t.zona || ''} ${t.estado || ''} ${t.ingeniero || ''}`
+      );
+      const palabras = fullSearch.split(' ');
       let score = 0;
       let coincidencias = 0;
+
+      if (t.eco && (t.eco === rawTrim || t.eco.startsWith(rawTrim))) score += 12;
+      if (t.ceco && (t.ceco === rawTrim || t.ceco.startsWith(rawTrim))) score += 10;
+
       for (const tk of tokens) {
         if (palabras.some((w) => w.startsWith(tk))) {
           score += 3;
           coincidencias++;
-        } else if (n.includes(tk)) {
+        } else if (fullSearch.includes(tk)) {
           score += 1;
           coincidencias++;
         }
       }
-      if (coincidencias < Math.min(requeridos, tokens.length)) continue;
-      if (n.startsWith(nq)) score += 5;
+      if (coincidencias < Math.min(requeridos, tokens.length) && score < 8) continue;
+      if (norm(t.nombre).startsWith(nq)) score += 5;
       if (enRutaSet.has(t.nombre)) score -= 2;
       const distKm = ultimoPunto ? haversineM(ultimoPunto, t) / 1000 : 0;
       out.push({ t, score, enRuta: enRutaSet.has(t.nombre), distKm, zona: clasificarZona(t) });
@@ -332,7 +339,7 @@ export function RouteBuilderTab({
                 onMutateRuta((r) => ({ ...r, paradas: r.paradas.slice(0, -1) }));
               }
             }}
-            placeholder="Buscar tienda, ciudad o pegar coordenadas…"
+            placeholder="Buscar tienda, ECO, ciudad o coordenadas…"
             className="pl-9 pr-24 rounded-lg"
           />
           <div className="absolute right-2 flex items-center gap-1">
@@ -389,6 +396,14 @@ export function RouteBuilderTab({
                   ) : (
                     <>
                       <div className="flex items-center gap-2 min-w-0">
+                        {r.t.eco && r.t.eco !== '0' && (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] px-1 py-0 font-mono text-muted-foreground shrink-0"
+                          >
+                            {r.t.eco}
+                          </Badge>
+                        )}
                         <TypographySmall className="truncate font-medium">
                           {r.t.nombre}
                         </TypographySmall>
@@ -399,7 +414,9 @@ export function RouteBuilderTab({
                         )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-[11px] text-muted-foreground">{r.zona.nombre}</span>
+                        <span className="text-[11px] text-muted-foreground">
+                          {r.t.zona || r.zona.nombre}
+                        </span>
                         <TypographyMono className="text-[11px] text-muted-foreground w-14 text-right tabular-nums">
                           {r.distKm < 1
                             ? `${Math.round(r.distKm * 1000)} m`

@@ -111,9 +111,15 @@ const rutas = {
     }
     const estado = String(body.estado || '').trim();
     const nueva = {
+      eco: String(body.eco || '').trim() || '0',
+      ceco: String(body.ceco || '').trim() || '0',
       nombre,
       coords: db.formatCoords(c.lat, c.lng),
       ...(estado ? { estado } : {}),
+      ...(body.region ? { region: String(body.region).trim() } : {}),
+      ...(body.empresa ? { empresa: String(body.empresa).trim() } : {}),
+      ...(body.zona ? { zona: String(body.zona).trim() } : {}),
+      ...(body.ingeniero ? { ingeniero: String(body.ingeniero).trim() } : {}),
       ...(body.verificada
         ? { verificada: true, fechaVerificacion: new Date().toISOString().slice(0, 10) }
         : {}),
@@ -136,6 +142,13 @@ const rutas = {
       }
       actual.nombre = nuevo;
     }
+
+    if (body.eco !== undefined) actual.eco = String(body.eco).trim();
+    if (body.ceco !== undefined) actual.ceco = String(body.ceco).trim();
+    if (body.region !== undefined) actual.region = String(body.region).trim();
+    if (body.empresa !== undefined) actual.empresa = String(body.empresa).trim();
+    if (body.zona !== undefined) actual.zona = String(body.zona).trim();
+    if (body.ingeniero !== undefined) actual.ingeniero = String(body.ingeniero).trim();
 
     if (body.lat !== undefined || body.texto) {
       const prev = db.parseCoords(actual.coords);

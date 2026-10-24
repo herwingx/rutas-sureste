@@ -317,10 +317,20 @@ export function MapCanvas({
       {tab === 'corregir' && sel && (
         <Card className="pointer-events-auto absolute bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3 rounded-lg border-border bg-card/95 px-3.5 py-2 shadow-lg backdrop-blur-md max-w-[92%]">
           <div className="flex flex-col min-w-0">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {sel.eco && sel.eco !== '0' && (
+                <Badge variant="outline" className="font-mono text-[10px] px-1 py-0 text-muted-foreground">
+                  ECO {sel.eco}
+                </Badge>
+              )}
               <TypographySmall className="truncate font-semibold">
                 {sel.nombre || 'Nueva tienda'}
               </TypographySmall>
+              {sel.zona && (
+                <span className="text-[10px] text-muted-foreground font-normal">
+                  ({sel.zona})
+                </span>
+              )}
               {deltaMeters > 1 && (
                 <Badge variant="secondary" className="text-[10px]">
                   {deltaMeters < 1000

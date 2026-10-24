@@ -207,6 +207,11 @@ export function expandirConsulta(q) {
  * @returns {{ id: string, nombre: string }}
  */
 export function clasificarZona(tienda) {
+  if (tienda.zona && tienda.zona.trim()) {
+    const z = tienda.zona.trim();
+    return { id: norm(z).replace(/ /g, '-'), nombre: z };
+  }
+
   const estado = tienda.estado && norm(tienda.estado) !== 'chiapas' ? tienda.estado : null;
   if (estado) return { id: `edo-${norm(estado).replace(/ /g, '-')}`, nombre: estado };
 
