@@ -170,3 +170,4 @@ Uso de scripts/sync-supabase.js:
   node scripts/sync-supabase.js --pull   Descarga tiendas desde Supabase a data/tiendas.json
 `);
 }
+

@@ -136,3 +136,4 @@ returns table (
       and st_dwithin(t.geom, st_setsrid(st_makepoint(origen_lng, origen_lat), 4326)::geography, radio_metros)
     order by distancia_metros asc;
 $$;
+
