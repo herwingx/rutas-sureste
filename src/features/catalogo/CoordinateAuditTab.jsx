@@ -26,6 +26,7 @@ import {
   DownloadSimple,
   LockKey,
   LockKeyOpen,
+  MapTrifold,
 } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -80,6 +81,7 @@ export function CoordinateAuditTab({
   onPatchStore,
   onDeleteSelected,
   onExportJson,
+  onShowMap,
   isAdmin = false,
   userSession = null,
   onRequireAuth = null,
@@ -150,33 +152,34 @@ export function CoordinateAuditTab({
   const rumbo = sel?.orig && sel?.lat != null ? rumboCardinal(sel.orig, sel) : '';
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 min-w-0">
       {/* ================= BARRA SUPERIOR DE CATÁLOGO ================= */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5">
+      <div className="flex flex-wrap items-center justify-between gap-1.5 min-w-0">
+        <div className="flex flex-wrap items-center gap-1.5 min-w-0">
           <Button size="sm" onClick={() => onOpenNewStoreModal?.()}>
             <PlusCircle weight="duotone" />
-            Nueva tienda
+            <span>Nueva tienda</span>
           </Button>
           {stats.pendientes > 0 && (
             <Button variant="outline" size="sm" onClick={() => onNextPending('')}>
-              Siguiente por revisar ({stats.pendientes})
+              <FastForward weight="duotone" />
+              <span>Siguiente ({stats.pendientes})</span>
             </Button>
           )}
         </div>
         <ActionTooltip label="Descargar respaldo completo del catálogo (JSON)">
-          <Button variant="outline" size="xs" onClick={onExportJson}>
+          <Button variant="outline" size="xs" onClick={onExportJson} className="shrink-0">
             <DownloadSimple weight="duotone" />
-            Descargar JSON ({tiendas.length})
+            <span>JSON ({tiendas.length})</span>
           </Button>
         </ActionTooltip>
       </div>
 
       {/* ================= EDITOR DE TIENDA SELECCIONADA ================= */}
       {sel && (
-        <Card className="border-foreground/30 bg-muted/20 shadow-xs">
-          <CardContent className="p-3 space-y-2.5">
-            <div className="flex items-center gap-1.5">
+        <Card className="border-foreground/30 bg-muted/20 shadow-xs min-w-0">
+          <CardContent className="p-3 space-y-2.5 min-w-0">
+            <div className="flex items-center gap-1.5 min-w-0">
               <Input
                 size="sm"
                 value={sel.nombreEdit ?? sel.nombre}
@@ -189,14 +192,14 @@ export function CoordinateAuditTab({
                   }
                 }}
                 placeholder="Nombre de tienda (ej. VILLAHERMOSA CENTRO)"
-                className="font-semibold bg-card flex-1"
+                className="font-semibold bg-card flex-1 min-w-0"
               />
               <Select
                 value={sel.estado || 'Chiapas'}
                 disabled={bloqueada}
                 onValueChange={(v) => onUpdateSelectedState?.(v)}
               >
-                <SelectTrigger size="sm" className="w-33 bg-card">
+                <SelectTrigger size="sm" className="w-28 sm:w-32 bg-card shrink-0">
                   <SelectValue placeholder="Estado" />
                 </SelectTrigger>
                 <SelectContent>
@@ -387,21 +390,33 @@ export function CoordinateAuditTab({
             )}
 
             {/* Guardar / Siguiente */}
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
               {!bloqueada && (
-                <Button size="sm" className="flex-1" onClick={() => onSaveSelected()}>
+                <Button size="sm" className="flex-1 min-w-44" onClick={() => onSaveSelected()}>
                   <CheckCircle weight="duotone" />
-                  Verificar y bloquear ubicación (Enter)
+                  <span>Verificar y bloquear GPS</span>
+                </Button>
+              )}
+              {onShowMap && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="lg:hidden"
+                  onClick={onShowMap}
+                >
+                  <MapTrifold weight="duotone" />
+                  <span>Ver pin en mapa</span>
                 </Button>
               )}
               {!sel.nueva && stats.pendientes > 0 && (
                 <Button
                   variant="outline"
                   size="sm"
-                  className={cn(bloqueada && 'w-full')}
+                  className={cn(bloqueada && 'flex-1')}
                   onClick={() => onNextPending()}
                 >
-                  Siguiente pendiente ({stats.pendientes})
+                  <span>Siguiente ({stats.pendientes})</span>
                   <FastForward weight="duotone" />
                 </Button>
               )}
@@ -502,22 +517,22 @@ export function CoordinateAuditTab({
           ))}
         </div>
 
-        <div className="flex items-center gap-1.5">
-          <div className="relative flex-1">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <div className="relative flex-1 min-w-0">
             <MagnifyingGlass
               weight="bold"
-              className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground"
+              className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground"
             />
             <Input
               size="sm"
               value={filtroTexto}
               onChange={(e) => setFiltroTexto(e.target.value)}
-              placeholder="Buscar por nombre, ECO, CECO o zona…"
+              placeholder="Buscar sucursal, ECO o zona…"
               className="pl-8"
             />
           </div>
           <Select value={zonaFiltro} onValueChange={setZonaFiltro}>
-            <SelectTrigger size="sm" className="w-37.5">
+            <SelectTrigger size="sm" className="w-32 sm:w-36 shrink-0">
               <SelectValue placeholder="Zona/Región" />
             </SelectTrigger>
             <SelectContent>

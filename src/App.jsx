@@ -14,23 +14,7 @@
  */
 
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import {
-  Path,
-  Storefront,
-  ClockCounterClockwise,
-  SlidersHorizontal,
-  SunDim,
-  MoonStars,
-  Keyboard,
-  CheckCircle,
-  WarningCircle,
-  FileXls,
-  ShieldCheck,
-  CrownSimple,
-  SignOut,
-  MapTrifold,
-  ArrowLeft,
-} from '@phosphor-icons/react';
+import { CheckCircle, WarningCircle } from '@phosphor-icons/react';
 import { BrandLogo } from '@/components/ui/brand-logo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -54,22 +38,20 @@ import {
   DialogDescription,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { TooltipProvider, ActionTooltip } from '@/components/ui/tooltip';
-import {
-  TypographyH4,
-  TypographySmall,
-  TypographyMuted,
-} from '@/components/ui/typography';
-import { RouteBuilderTab } from '@/components/RouteBuilderTab';
-import { CoordinateAuditTab } from '@/components/CoordinateAuditTab';
-import { HistoryAnalyticsTab } from '@/components/HistoryAnalyticsTab';
-import { AdminTeamTab } from '@/components/AdminTeamTab';
-import { BitacoraGeneratorModal } from '@/components/BitacoraGeneratorModal';
-import { EngineerProfileModal, esFichaCompleta } from '@/components/EngineerProfileModal';
-import { AuthModal } from '@/components/AuthModal';
-import { AuthScreen } from '@/components/AuthScreen';
-import { NewStoreModal } from '@/components/NewStoreModal';
-import { MapCanvas } from '@/components/MapCanvas';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { TypographySmall, TypographyMuted } from '@/components/ui/typography';
+import { RouteBuilderTab } from '@/features/rutas/RouteBuilderTab';
+import { CoordinateAuditTab } from '@/features/catalogo/CoordinateAuditTab';
+import { HistoryAnalyticsTab } from '@/features/rutas/HistoryAnalyticsTab';
+import { AdminTeamTab } from '@/features/equipo/AdminTeamTab';
+import { BitacoraGeneratorModal } from '@/features/rutas/BitacoraGeneratorModal';
+import { EngineerProfileModal, esFichaCompleta } from '@/features/equipo/EngineerProfileModal';
+import { AuthScreen } from '@/features/auth/AuthScreen';
+import { NewStoreModal } from '@/features/catalogo/NewStoreModal';
+import { MapCanvas } from '@/features/rutas/MapCanvas';
+import { AccountMenu } from '@/app/AccountMenu';
+import { BottomNav } from '@/app/BottomNav';
+import { navVisible } from '@/app/nav';
 import { supabase } from '@/lib/supabase';
 import { BRAND, INGENIEROS } from '@/lib/brand';
 import {
@@ -148,7 +130,6 @@ export default function App() {
       localStorage.setItem('neto_modo_operativo', modo);
     } catch {}
   }, []);
-  const [authModalOpen, setAuthModalOpen] = useState(false);
   const [newStoreModalOpen, setNewStoreModalOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [isOnboardingMode, setIsOnboardingMode] = useState(false);
@@ -659,8 +640,7 @@ export default function App() {
     async (modo = modoOperativo) => {
       if (!ruta.paradas.length) return toast('La ruta está vacía');
       if (!userSession) {
-        toast('Inicia sesión con tu cuenta corporativa @soyneto.com para guardar rutas en el historial', 'err');
-        setAuthModalOpen(true);
+        toast('Tu sesión expiró. Inicia sesión de nuevo para guardar.', 'err');
         return;
       }
       try {
@@ -1031,7 +1011,7 @@ export default function App() {
   // 1. Pantalla de carga mientras se verifica el estado de sesión
   if (authLoading) {
     return (
-      <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-950 text-foreground gap-3">
+      <div className="h-dvh w-full flex flex-col items-center justify-center bg-background text-foreground gap-3">
         <img
           src="/logo-app.png"
           alt="Tiendas Neto"
@@ -1084,173 +1064,65 @@ export default function App() {
 
   return (
     <TooltipProvider delayDuration={200}>
-      <div className="grid h-screen w-screen grid-cols-1 lg:grid-cols-[460px_1fr] bg-background text-foreground overflow-hidden">
-        {/* ================= PANEL LATERAL ================= */}
+      <div className="flex h-dvh w-full flex-col overflow-hidden bg-background text-foreground lg:grid lg:grid-cols-[440px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]">
+        {/* ================= PANEL (cabecera + vistas) ================= */}
         <aside
           className={cn(
-            'h-full flex-col border-r border-border bg-card min-h-0',
-            mobileTab === 'mapa' ? 'hidden lg:flex' : 'flex'
+            'min-h-0 min-w-0 flex-1 flex-col border-border bg-card lg:flex lg:border-r',
+            mobileTab === 'mapa' ? 'hidden' : 'flex'
           )}
         >
-          {/* Cabecera */}
-          <header className="flex items-center justify-between gap-2 border-b border-border px-4 py-2.5">
-            <div className="flex items-center gap-2.5 min-w-0">
-              <BrandLogo className="h-8 w-8 shadow-xs" />
+          <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-2.5 pt-safe">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <BrandLogo className="h-9 w-9" />
               <div className="min-w-0">
-                <TypographyH4 className="text-sm font-semibold tracking-tight leading-none">
+                <h1 className="truncate text-sm font-semibold leading-tight tracking-tight">
                   {BRAND.nombre}
-                </TypographyH4>
-                <TypographyMuted className="text-[11px] truncate mt-0.5">
-                  Base: {ajustes.base || 'RESGUARDO'}
-                </TypographyMuted>
+                </h1>
+                <p className="truncate text-[11px] leading-tight text-muted-foreground">
+                  {ajustes.base || 'Sin base asignada'}
+                </p>
               </div>
             </div>
-
-            <div className="flex items-center gap-1">
-              {/* Botón flotante para ver Mapa en móvil */}
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={() => setMobileTab('mapa')}
-                className="lg:hidden flex items-center gap-1 text-[11px] font-semibold h-7 px-2 border-primary/30 text-primary bg-primary/5 hover:bg-primary/10 mr-1"
-              >
-                <MapTrifold weight="duotone" className="h-3.5 w-3.5" />
-                <span>Mapa</span>
-              </Button>
-              {userSession ? (
-                <div className="flex items-center gap-1">
-                  <ActionTooltip
-                    label={
-                      perfilCompleto
-                        ? `Ficha: ${perfilActivo?.automovil || 'Auto'} ${perfilActivo?.placas || ''} · Clic para actualizar odómetro o datos`
-                        : '⚠️ Ficha vehicular incompleta · Clic para configurar'
-                    }
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsOnboardingMode(false);
-                        setProfileModalOpen(true);
-                      }}
-                      className={cn(
-                        'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition-all hover:opacity-90 shadow-xs border',
-                        isAdmin
-                          ? 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300'
-                          : perfilCompleto
-                          ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-700 dark:text-emerald-400'
-                          : 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-400 animate-pulse'
-                      )}
-                    >
-                      {isAdmin ? (
-                        <CrownSimple weight="fill" className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                      ) : (
-                        <CarProfile weight="duotone" className="h-3.5 w-3.5 shrink-0" />
-                      )}
-                      <span className="truncate max-w-28 font-semibold">
-                        {isAdmin ? 'Herwing (Admin)' : userSession.email.split('@')[0]}
-                      </span>
-                      {!perfilCompleto && (
-                        <span className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
-                      )}
-                    </button>
-                  </ActionTooltip>
-
-                  <ActionTooltip label="Cerrar sesión">
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        await supabase.auth.signOut();
-                        setUserSession(null);
-                        toast('Sesión cerrada');
-                      }}
-                      className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors ml-0.5"
-                      title="Cerrar sesión"
-                    >
-                      <SignOut weight="bold" className="h-3.5 w-3.5" />
-                    </button>
-                  </ActionTooltip>
-                </div>
-              ) : (
-                <ActionTooltip label="Iniciar sesión con @soyneto.com">
-                  <Button
-                    variant="outline"
-                    size="xs"
-                    onClick={() => setAuthModalOpen(true)}
-                    className="rounded-full text-[11px] font-medium h-7 px-2.5 border-primary/30 text-primary bg-primary/5 hover:bg-primary/10 gap-1.5"
-                  >
-                    <span className="h-2 w-2 rounded-full bg-primary/60 animate-pulse" />
-                    <span>Neto ID</span>
-                  </Button>
-                </ActionTooltip>
-              )}
-
-              <ActionTooltip label="Generar Bitácora Oficial Tiendas Neto (.xlsx)">
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
-                  onClick={() => setBitacoraOpen(true)}
-                >
-                  <FileXls weight="duotone" className="h-4 w-4" />
-                </Button>
-              </ActionTooltip>
-              <ActionTooltip label="Atajos de teclado">
-                <Button variant="ghost" size="icon-sm" onClick={() => setShortcutsOpen(true)}>
-                  <Keyboard weight="duotone" className="h-4 w-4" />
-                </Button>
-              </ActionTooltip>
-              <ActionTooltip label={dark ? 'Modo claro' : 'Modo oscuro'}>
-                <Button variant="ghost" size="icon-sm" onClick={() => setDark((d) => !d)}>
-                  {dark ? (
-                    <SunDim weight="duotone" className="h-4 w-4" />
-                  ) : (
-                    <MoonStars weight="duotone" className="h-4 w-4" />
-                  )}
-                </Button>
-              </ActionTooltip>
-              <ActionTooltip label="Configuración">
-                <Button variant="ghost" size="icon-sm" onClick={() => setSettingsOpen(true)}>
-                  <SlidersHorizontal weight="duotone" className="h-4 w-4" />
-                </Button>
-              </ActionTooltip>
-            </div>
+            <AccountMenu
+              email={userSession.email}
+              nombre={perfilActivo?.nombre || ingenieroActivo}
+              isAdmin={isAdmin}
+              perfilCompleto={perfilCompleto}
+              dark={dark}
+              onToggleTheme={() => setDark((d) => !d)}
+              onOpenProfile={() => {
+                setIsOnboardingMode(false);
+                setProfileModalOpen(true);
+              }}
+              onOpenSettings={() => setSettingsOpen(true)}
+              onOpenShortcuts={() => setShortcutsOpen(true)}
+              onSignOut={async () => {
+                await supabase.auth.signOut();
+                setUserSession(null);
+                toast('Sesión cerrada');
+              }}
+            />
           </header>
 
-          {/* Navegación principal */}
-          <Tabs value={tab} onValueChange={setTab} className="flex flex-1 flex-col min-h-0">
-            <div className="px-4 pt-2.5">
+          <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
+            {/* Navegación superior: solo escritorio (en móvil se usa la barra inferior) */}
+            <div className="hidden shrink-0 px-4 pt-2.5 lg:block">
               <TabsList className={cn('grid w-full', isAdmin ? 'grid-cols-4' : 'grid-cols-3')}>
-                <TabsTrigger value="ruta" className="gap-1 text-xs">
-                  <Path weight={tab === 'ruta' ? 'duotone' : 'regular'} className="h-3.5 w-3.5" />
-                  <span>Ruta</span>
-                </TabsTrigger>
-                <TabsTrigger value="corregir" className="gap-1 text-xs">
-                  <Storefront
-                    weight={tab === 'corregir' ? 'duotone' : 'regular'}
-                    className="h-3.5 w-3.5"
-                  />
-                  <span>Catálogo</span>
-                </TabsTrigger>
-                <TabsTrigger value="historial" className="gap-1 text-xs">
-                  <ClockCounterClockwise
-                    weight={tab === 'historial' ? 'duotone' : 'regular'}
-                    className="h-3.5 w-3.5"
-                  />
-                  <span>Historial</span>
-                </TabsTrigger>
-                {isAdmin && (
-                  <TabsTrigger value="admin" className="gap-1 text-xs text-amber-600 dark:text-amber-400">
-                    <ShieldCheck
-                      weight={tab === 'admin' ? 'duotone' : 'regular'}
-                      className="h-3.5 w-3.5"
-                    />
-                    <span>Admin</span>
+                {navVisible({ isAdmin, mobile: false }).map(({ id, label, icon: Icon }) => (
+                  <TabsTrigger
+                    key={id}
+                    value={id}
+                    className={cn('gap-1.5 text-xs', id === 'admin' && 'text-amber-600 dark:text-amber-400')}
+                  >
+                    <Icon weight={tab === id ? 'duotone' : 'regular'} className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>{label}</span>
                   </TabsTrigger>
-                )}
+                ))}
               </TabsList>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-4 py-3 min-h-0">
+            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 py-3">
               <TabsContent value="ruta" className="m-0">
                 <RouteBuilderTab
                   searchInputRef={searchInputRef}
@@ -1277,6 +1149,7 @@ export default function App() {
                     setTab('corregir');
                     seleccionarTiendaAudit(nombre);
                   }}
+                  onShowMap={() => setMobileTab('mapa')}
                   onOpenBitacora={abrirBitacoraConModo}
                   historial={historial}
                   ingenieroActivo={ingenieroActivo}
@@ -1316,6 +1189,7 @@ export default function App() {
                   onPatchStore={patchTiendaSimple}
                   onDeleteSelected={eliminarSeleccionAudit}
                   onExportJson={exportarJson}
+                  onShowMap={() => setMobileTab('mapa')}
                   isAdmin={isAdmin}
                   userSession={userSession}
                 />
@@ -1377,46 +1251,15 @@ export default function App() {
               )}
             </div>
           </Tabs>
-
-          {/* Pie técnico discreto */}
-          <footer className="flex items-center justify-between border-t border-border px-4 py-1.5 text-[11px] text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1.5">
-                <span
-                  className={cn(
-                    'h-1.5 w-1.5 rounded-full',
-                    motor?.motor === 'routes' ? 'bg-emerald-500' : 'bg-amber-500'
-                  )}
-                />
-                <span>Red Logística</span>
-              </div>
-              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
-                · En línea
-              </span>
-            </div>
-            <span className="tabular-nums">{motor?.tramosEnCache || 0} tramos en caché</span>
-          </footer>
         </aside>
 
         {/* ================= MAPA ================= */}
         <main
           className={cn(
-            'relative h-full w-full min-h-95',
-            mobileTab === 'panel' ? 'hidden lg:block' : 'block'
+            'relative min-h-0 min-w-0 flex-1 lg:block',
+            mobileTab === 'panel' ? 'hidden' : 'block'
           )}
         >
-          {/* Botón flotante para volver al Panel en móvil */}
-          {mobileTab === 'mapa' && (
-            <Button
-              variant="default"
-              size="sm"
-              onClick={() => setMobileTab('panel')}
-              className="lg:hidden absolute top-3 left-3 z-30 shadow-lg bg-card/95 text-foreground border border-border backdrop-blur-sm hover:bg-muted text-xs h-8 px-2.5 gap-1.5"
-            >
-              <ArrowLeft weight="bold" className="h-3.5 w-3.5" />
-              <span>Volver a Rutas</span>
-            </Button>
-          )}
           <MapCanvas
             mapsKey={mapsKey}
             tiendas={tiendas}
@@ -1439,6 +1282,19 @@ export default function App() {
             onSaveSelected={guardarSeleccionAudit}
           />
         </main>
+
+        <BottomNav
+          items={navVisible({ isAdmin, mobile: true })}
+          active={mobileTab === 'mapa' ? 'mapa' : tab}
+          onSelect={(id) => {
+            if (id === 'mapa') {
+              setMobileTab('mapa');
+            } else {
+              setTab(id);
+              setMobileTab('panel');
+            }
+          }}
+        />
 
         {/* ================= MODAL DE BITÁCORA OFICIAL NETO (.XLSX) ================= */}
         <BitacoraGeneratorModal
@@ -1520,19 +1376,6 @@ export default function App() {
                   : a.base,
             }));
           }}
-        />
-
-        {/* ================= MODAL DE LOGIN / REGISTRO NETO ================= */}
-        <AuthModal
-          open={authModalOpen}
-          onOpenChange={setAuthModalOpen}
-          onAuthSuccess={(user) => {
-            setUserSession(user);
-            if (user?.email?.includes('herwing')) {
-              setIngenieroActivo('HERWING EDUARDO VAZQUEZ MACIAS');
-            }
-          }}
-          toast={toast}
         />
 
         {/* ================= MODAL DE REGISTRAR NUEVA TIENDA ================= */}

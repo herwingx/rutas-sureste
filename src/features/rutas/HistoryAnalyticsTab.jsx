@@ -143,8 +143,8 @@ export function HistoryAnalyticsTab({
         <div className="flex items-center gap-1">
           {[
             { id: 'todos', label: 'Todos' },
-            { id: 'comprobacion', label: '⛽ Comprobación' },
-            { id: 'anticipo', label: '📋 Anticipo' },
+            { id: 'comprobacion', label: 'Comprobación' },
+            { id: 'anticipo', label: 'Anticipo' },
           ].map((f) => (
             <Button
               key={f.id}

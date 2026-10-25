@@ -125,7 +125,6 @@ export function RouteBuilderTab({
   const [query, setQuery] = useState('');
   const [activeIdx, setActiveIdx] = useState(0);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [zonaFiltro, setZonaFiltro] = useState('cercanas');
   const [batchModalOpen, setBatchModalOpen] = useState(false);
   const [batchText, setBatchText] = useState('');
   const [showTablePreview, setShowTablePreview] = useState(false);
@@ -416,25 +415,6 @@ export function RouteBuilderTab({
     }
   };
 
-  const sugerencias = useMemo(() => {
-    if (!tiendas.length || !ultimoPunto) return [];
-    const candidatos = tiendas
-      .filter((t) => !enRutaSet.has(t.nombre) && t.nombre !== baseTienda?.nombre)
-      .map((t) => ({
-        t,
-        km: haversineM(ultimoPunto, t) / 1000,
-        zona: clasificarZona(t),
-      }));
-
-    if (zonaFiltro === 'cercanas') {
-      return candidatos.sort((a, b) => a.km - b.km).slice(0, 6);
-    }
-    return candidatos
-      .filter((c) => c.zona.id === zonaFiltro)
-      .sort((a, b) => a.km - b.km)
-      .slice(0, 10);
-  }, [tiendas, ultimoPunto, enRutaSet, baseTienda, zonaFiltro]);
-
   const batchPreview = useMemo(() => {
     const lineas = batchText
       .split(/[\n,;→>]+/)
@@ -449,130 +429,110 @@ export function RouteBuilderTab({
   const offsetBase = ruta.baseInicio && baseTienda ? 1 : 0;
 
   return (
-    <div className="flex flex-col gap-3">
-      {/* ================= BARRA DE MODO OPERATIVO (ANTICIPO vs COMPROBACIÓN) ================= */}
-      <div className="rounded-xl border border-border/80 bg-muted/20 p-2.5 space-y-2">
-        <div className="flex items-center justify-between">
+    <div className="flex flex-col gap-3 min-w-0">
+      {/* ================= BARRA DE MODO OPERATIVO (COMPROBACIÓN vs ANTICIPO) ================= */}
+      <div className="rounded-xl border border-border/80 bg-muted/20 p-2.5 space-y-2 min-w-0">
+        <div className="flex items-center justify-between gap-2">
           <span className="text-[10px] font-bold tracking-wider uppercase text-muted-foreground">
             Control Semanal
           </span>
-          <Badge variant="outline" className="text-[10px] font-medium bg-background/60 border-border/70">
-            Semana {semanaInfo.semana} ({semanaInfo.anio})
-          </Badge>
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[11px] font-semibold text-foreground">
+              {kmAcumuladoSemana} km acum.
+            </span>
+            <Badge variant="outline" className="text-[10px] font-medium bg-background/60 border-border/70">
+              Sem. {semanaInfo.semana} ({semanaInfo.anio})
+            </Badge>
+          </div>
         </div>
 
-        {/* Selector de modo: Siempre primero Comprobación y después Anticipo */}
+        {/* Selector de modo: 1. Comprobación | 2. Anticipo */}
         <div className="grid grid-cols-2 p-0.5 rounded-lg bg-muted/60 border border-border/50">
           <button
             type="button"
             onClick={() => onSetModoOperativo?.('comprobacion')}
             className={cn(
-              'flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md text-xs transition-all cursor-pointer',
+              'flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-md text-xs transition-all cursor-pointer min-w-0',
               modoOperativo === 'comprobacion'
                 ? 'bg-blue-600 text-white font-semibold shadow-xs'
                 : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
             )}
           >
-            <GasPump weight="duotone" className="h-3.5 w-3.5" />
-            <span>⛽ 1. Comprobación</span>
+            <GasPump weight="duotone" className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">1. Comprobación</span>
           </button>
           <button
             type="button"
             onClick={() => onSetModoOperativo?.('anticipo')}
             className={cn(
-              'flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md text-xs transition-all cursor-pointer',
+              'flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-md text-xs transition-all cursor-pointer min-w-0',
               modoOperativo === 'anticipo'
                 ? 'bg-amber-600 text-white font-semibold shadow-xs'
                 : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
             )}
           >
-            <Receipt weight="duotone" className="h-3.5 w-3.5" />
-            <span>📋 2. Anticipo</span>
+            <Receipt weight="duotone" className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">2. Anticipo</span>
           </button>
         </div>
 
-        <div className="flex items-center justify-between text-[11px] text-muted-foreground px-0.5">
-          <span className="truncate pr-2">
-            {modoOperativo === 'comprobacion'
-              ? 'Paso 1: Bitácora real de la semana concluida (odómetro y tickets)'
-              : 'Paso 2: Proyección de la semana entrante para solicitud de viáticos'}
-          </span>
-          <span className="font-mono font-semibold shrink-0 text-foreground">
-            {kmAcumuladoSemana} km acum.
-          </span>
-        </div>
-
-        {/* Controles de ciclo cuando estamos en modo Anticipo */}
+        {/* Controles de periodo cuando estamos en modo Anticipo */}
         {modoOperativo === 'anticipo' && (
-          <div className="pt-1.5 border-t border-border/40 space-y-1.5">
-            <div className="flex flex-wrap items-center justify-between gap-1.5">
-              <div className="flex items-center gap-1 bg-muted/50 p-0.5 rounded-md border border-border/50">
-                <button
-                  type="button"
-                  onClick={() => handleCambiarVarianteAnticipo('ciclo_neto')}
-                  className={cn(
-                    'px-2 py-1 rounded text-[10px] font-semibold transition-all cursor-pointer',
-                    varianteAnticipo === 'ciclo_neto'
-                      ? 'bg-amber-600 text-white shadow-xs'
-                      : 'text-muted-foreground hover:text-foreground'
-                  )}
-                  title="Estándar Tiendas Neto: Martes a Sábado + Lunes de la siguiente semana porque el depósito cae en la tarde"
-                >
-                  ⭐ Ciclo Neto (Mar ➔ Lun próx)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleCambiarVarianteAnticipo('semana_natural')}
-                  className={cn(
-                    'px-2 py-1 rounded text-[10px] font-semibold transition-all cursor-pointer',
-                    varianteAnticipo === 'semana_natural'
-                      ? 'bg-amber-600 text-white shadow-xs'
-                      : 'text-muted-foreground hover:text-foreground'
-                  )}
-                  title="Presupuesto semanal natural de Lunes a Sábado"
-                >
-                  Semana Natural (Lun ➔ Sáb)
-                </button>
-              </div>
-
-              {varianteAnticipo === 'ciclo_neto' && (
-                <button
-                  type="button"
-                  onClick={handleToggleLunesOlvido}
-                  className={cn(
-                    'flex items-center gap-1 px-2 py-1 rounded-md text-[10px] border transition-all cursor-pointer shrink-0',
-                    incluirLunesOlvido
-                      ? 'border-amber-500 bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold'
-                      : 'border-border/70 text-muted-foreground hover:text-foreground hover:bg-muted/40'
-                  )}
-                  title="¿Se te olvidó pedir el lunes en el anticipo previo? Actívalo para incluirlo también en este anticipo"
-                >
-                  <span>{incluirLunesOlvido ? '✓ LUN actual incluido' : '+ LUN actual (olvido)'}</span>
-                </button>
-              )}
+          <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1 border-t border-border/40">
+            <div className="inline-flex items-center bg-muted/60 p-0.5 rounded-md border border-border/50">
+              <button
+                type="button"
+                onClick={() => handleCambiarVarianteAnticipo('ciclo_neto')}
+                className={cn(
+                  'px-2 py-1 rounded text-[11px] font-medium transition-all cursor-pointer',
+                  varianteAnticipo === 'ciclo_neto'
+                    ? 'bg-background text-foreground font-semibold shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                Ciclo Mar–Lun
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCambiarVarianteAnticipo('semana_natural')}
+                className={cn(
+                  'px-2 py-1 rounded text-[11px] font-medium transition-all cursor-pointer',
+                  varianteAnticipo === 'semana_natural'
+                    ? 'bg-background text-foreground font-semibold shadow-xs'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                Lun–Sáb
+              </button>
             </div>
 
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-500/10 border border-amber-500/20 text-[10.5px] text-amber-800 dark:text-amber-300 leading-tight">
-              <span className="shrink-0 text-xs">💡</span>
-              <span className="truncate">
-                {varianteAnticipo === 'ciclo_neto'
-                  ? 'El depósito cae lunes tarde. Este anticipo contempla hasta el lunes entrante para arrancar con saldo.'
-                  : 'Anticipo configurado por semana natural (Lunes a Sábado).'}
-              </span>
-            </div>
+            {varianteAnticipo === 'ciclo_neto' && (
+              <button
+                type="button"
+                onClick={handleToggleLunesOlvido}
+                className={cn(
+                  'flex items-center gap-1 px-2 py-1 rounded-md text-[11px] border transition-all cursor-pointer shrink-0',
+                  incluirLunesOlvido
+                    ? 'border-amber-500/60 bg-amber-500/15 text-amber-700 dark:text-amber-300 font-semibold'
+                    : 'border-border/70 bg-background/50 text-muted-foreground hover:text-foreground'
+                )}
+              >
+                <span>{incluirLunesOlvido ? '✓ Lunes actual incluido' : '+ Incluir lunes actual'}</span>
+              </button>
+            )}
           </div>
         )}
 
         {/* Tira interactiva de días de la semana */}
-        <div className="pt-1.5 border-t border-border/40">
+        <div className="pt-1 border-t border-border/40">
           <div className="flex items-center justify-between pb-1 text-[10px] text-muted-foreground">
             <span>
               {modoOperativo === 'comprobacion'
-                ? 'Días de comprobación (Semana concluida)'
-                : 'Días de anticipo'}
+                ? 'Bitácora de comprobación'
+                : 'Programación de anticipo'}
             </span>
             <span className="font-mono font-medium">
-              {diasListosSemana.length} de {diasSemana.length} listos
+              {diasListosSemana.length}/{diasSemana.length} días
             </span>
           </div>
           <div
@@ -596,30 +556,25 @@ export function RouteBuilderTab({
                     }
                   }}
                   className={cn(
-                    'flex flex-col items-center justify-center py-1.5 px-1 rounded-lg border text-center transition-all cursor-pointer relative',
+                    'flex flex-col items-center justify-center py-1.5 px-0.5 rounded-lg border text-center transition-all cursor-pointer relative min-w-0',
                     esActivo
-                      ? 'border-primary bg-primary/10 text-primary font-bold ring-2 ring-primary/40 shadow-xs'
+                      ? 'border-primary bg-primary/10 text-primary font-bold ring-1 ring-primary/40 shadow-xs'
                       : guardado
                       ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20'
                       : d.esProximoLunes
-                      ? 'border-amber-500/60 bg-amber-500/10 text-amber-800 dark:text-amber-300 hover:bg-amber-500/20'
+                      ? 'border-amber-500/50 bg-amber-500/10 text-amber-800 dark:text-amber-300 hover:bg-amber-500/20'
                       : 'border-border/60 bg-card/60 text-muted-foreground hover:bg-muted hover:text-foreground'
                   )}
-                  title={`${d.diaNombre} ${d.diaMes} ${d.esProximoLunes ? '(Lunes próxima semana)' : ''} · ${guardado ? `${guardado.totalKm} km guardados` : 'Sin ruta'}`}
+                  title={`${d.diaNombre} ${d.diaMes} ${d.esProximoLunes ? '(Lunes siguiente)' : ''} · ${guardado ? `${guardado.totalKm} km guardados` : 'Sin ruta'}`}
                 >
-                  {d.esProximoLunes && (
-                    <span className="absolute -top-1.5 right-0.5 text-[7px] font-bold px-1 rounded bg-amber-600 text-white uppercase tracking-tight shadow-xs">
-                      Próx
-                    </span>
-                  )}
-                  <span className="text-[9px] uppercase font-bold tracking-tight">
-                    {d.diaNombre}
+                  <span className="text-[9px] uppercase font-bold tracking-tight truncate max-w-full">
+                    {d.esProximoLunes ? 'LUN+1' : d.diaNombre}
                   </span>
                   <span className="text-xs font-semibold tabular-nums leading-none mt-0.5">
                     {d.diaMes}
                   </span>
-                  <span className="text-[8px] mt-1 leading-none font-mono">
-                    {guardado ? `${Math.round(guardado.totalKm)}k ✓` : esActivo ? 'En curso' : '—'}
+                  <span className="text-[8px] mt-1 leading-none font-mono truncate max-w-full">
+                    {guardado ? `${Math.round(guardado.totalKm)}k` : esActivo ? 'Activo' : '—'}
                   </span>
                 </button>
               );
@@ -630,13 +585,13 @@ export function RouteBuilderTab({
 
       {/* Banner de conveniencia si hay un Anticipo guardado para hoy y estamos en Comprobación */}
       {anticipoDisponibleParaImportar && (
-        <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-xs animate-in fade-in">
+        <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-xs">
           <div className="flex items-center gap-2 min-w-0">
             <Lightning weight="fill" className="h-4 w-4 shrink-0 text-amber-500" />
             <div className="min-w-0">
-              <span className="font-semibold block truncate">Anticipo planeado disponible</span>
+              <span className="font-semibold block truncate">Anticipo programado disponible</span>
               <span className="text-[10px] text-muted-foreground truncate block">
-                {anticipoDisponibleParaImportar.paradas.length} tiendas · {anticipoDisponibleParaImportar.totalKm} km
+                {anticipoDisponibleParaImportar.paradas.length} sucursales · {anticipoDisponibleParaImportar.totalKm} km
               </span>
             </div>
           </div>
@@ -647,13 +602,13 @@ export function RouteBuilderTab({
             className="border-amber-500/40 bg-background/80 hover:bg-amber-500/20 text-xs shrink-0 font-medium"
             onClick={() => onCopyAnticipo?.(ruta.fecha)}
           >
-            Importar tiendas
+            Cargar ruta
           </Button>
         </div>
       )}
 
       {/* ================= FILA FECHA + ETIQUETA + ACCIONES ================= */}
-      <div className="flex items-center gap-1.5">
+      <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 min-w-0">
         <DatePicker
           value={ruta.fecha}
           onChange={(fecha) => onMutateRuta((r) => ({ ...r, fecha }))}
@@ -663,40 +618,42 @@ export function RouteBuilderTab({
           size="sm"
           value={ruta.nombre}
           onChange={(e) => onMutateRuta((r) => ({ ...r, nombre: e.target.value }))}
-          placeholder="Ruta o corredor (opcional)"
-          className="flex-1"
+          placeholder="Nota o corredor (opcional)"
+          className="flex-1 min-w-32"
         />
-        <ActionTooltip label="Invertir orden de paradas">
-          <Button
-            variant="outline"
-            size="icon-sm"
-            disabled={ruta.paradas.length < 2}
-            onClick={() =>
-              onMutateRuta((r) => ({
-                ...r,
-                paradas: [...r.paradas].reverse(),
-              }))
-            }
-          >
-            <ArrowsDownUp weight="bold" />
-          </Button>
-        </ActionTooltip>
-        <ActionTooltip label="Deshacer último cambio" shortcut="Ctrl+Z">
-          <Button variant="outline" size="icon-sm" disabled={!canUndo} onClick={onUndo}>
-            <ArrowUUpLeft weight="bold" />
-          </Button>
-        </ActionTooltip>
-        <ActionTooltip label="Limpiar ruta actual">
-          <Button variant="ghost" size="sm" onClick={onNewRoute}>
-            <Plus weight="bold" />
-            Nueva
-          </Button>
-        </ActionTooltip>
+        <div className="flex items-center gap-1 ml-auto sm:ml-0 shrink-0">
+          <ActionTooltip label="Invertir orden de paradas">
+            <Button
+              variant="outline"
+              size="icon-sm"
+              disabled={ruta.paradas.length < 2}
+              onClick={() =>
+                onMutateRuta((r) => ({
+                  ...r,
+                  paradas: [...r.paradas].reverse(),
+                }))
+              }
+            >
+              <ArrowsDownUp weight="bold" />
+            </Button>
+          </ActionTooltip>
+          <ActionTooltip label="Deshacer último cambio" shortcut="Ctrl+Z">
+            <Button variant="outline" size="icon-sm" disabled={!canUndo} onClick={onUndo}>
+              <ArrowUUpLeft weight="bold" />
+            </Button>
+          </ActionTooltip>
+          <ActionTooltip label="Limpiar ruta actual">
+            <Button variant="ghost" size="sm" onClick={onNewRoute} className="px-2">
+              <Plus weight="bold" />
+              <span>Limpiar</span>
+            </Button>
+          </ActionTooltip>
+        </div>
       </div>
 
-      {/* ================= BUSCADOR ================= */}
-      <div className="relative">
-        <div className="relative flex items-center">
+      {/* ================= BUSCADOR PREDICTIVO ================= */}
+      <div className="relative min-w-0">
+        <div className="relative flex items-center min-w-0">
           <MagnifyingGlass
             weight="bold"
             className="pointer-events-none absolute left-3 h-4 w-4 text-muted-foreground"
@@ -741,8 +698,8 @@ export function RouteBuilderTab({
                 onMutateRuta((r) => ({ ...r, paradas: r.paradas.slice(0, -1) }));
               }
             }}
-            placeholder="Buscar tienda, ECO, ciudad o coordenadas…"
-            className="pl-9 pr-24 rounded-lg"
+            placeholder="Buscar sucursal, ECO, zona o coordenadas…"
+            className="pl-9 pr-20 rounded-lg"
           />
           <div className="absolute right-2 flex items-center gap-1">
             <ActionTooltip label="Pegar lista de tiendas desde Excel o texto">
@@ -781,7 +738,7 @@ export function RouteBuilderTab({
                   }}
                   onMouseEnter={() => setActiveIdx(i)}
                   className={cn(
-                    'flex items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-xs cursor-pointer transition-colors',
+                    'flex items-center justify-between gap-2 rounded-md px-2.5 py-2 text-xs cursor-pointer transition-colors',
                     i === activeIdx ? 'bg-accent text-foreground' : 'hover:bg-accent/60'
                   )}
                 >
@@ -816,7 +773,7 @@ export function RouteBuilderTab({
                         )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-[11px] text-muted-foreground">
+                        <span className="text-[11px] text-muted-foreground hidden sm:inline">
                           {r.t.zona || r.zona.nombre}
                         </span>
                         <TypographyMono className="text-[11px] text-muted-foreground w-14 text-right tabular-nums">
@@ -834,62 +791,8 @@ export function RouteBuilderTab({
         )}
       </div>
 
-      {/* ================= SUGERENCIAS POR PROXIMIDAD O REGIÓN ================= */}
-      <Card className="bg-muted/25 border-border/80">
-        <CardContent className="p-2.5">
-          <div className="mb-2 flex items-center gap-1 overflow-x-auto pb-0.5">
-            <Button
-              type="button"
-              variant={zonaFiltro === 'cercanas' ? 'default' : 'ghost'}
-              size="xs"
-              className="h-6 px-2 text-[11px] shrink-0"
-              onClick={() => setZonaFiltro('cercanas')}
-            >
-              Cercanas
-            </Button>
-            {zonas
-              .filter((z) => z.id !== 'todas')
-              .map((z) => (
-                <Button
-                  key={z.id}
-                  type="button"
-                  variant={zonaFiltro === z.id ? 'default' : 'ghost'}
-                  size="xs"
-                  className="h-6 px-2 text-[11px] shrink-0"
-                  onClick={() => setZonaFiltro(z.id)}
-                >
-                  {z.nombre}
-                </Button>
-              ))}
-          </div>
-          <div className="flex flex-wrap gap-1">
-            {sugerencias.length === 0 ? (
-              <TypographyMuted>
-                No hay más tiendas disponibles en este filtro.
-              </TypographyMuted>
-            ) : (
-              sugerencias.map(({ t, km }) => (
-                <Button
-                  key={t.nombre}
-                  type="button"
-                  variant="outline"
-                  size="xs"
-                  onClick={() => onAddStore(t)}
-                  className="h-6.5 gap-1.5 bg-card px-2 font-normal hover:border-foreground/30"
-                >
-                  <span className="font-medium text-foreground">{t.nombre}</span>
-                  <TypographyMono className="text-[10px] text-muted-foreground tabular-nums">
-                    {km < 1 ? `${Math.round(km * 1000)}m` : `${Math.round(km)}km`}
-                  </TypographyMono>
-                </Button>
-              ))
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
       {/* ================= SECUENCIA DE PARADAS ================= */}
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-1.5 min-w-0">
         {/* Salida de Base */}
         {baseTienda && (
           <Card className={cn('px-3 py-2 transition-opacity', !ruta.baseInicio && 'opacity-50')}>
@@ -902,15 +805,15 @@ export function RouteBuilderTab({
                   <TypographyH4 className="truncate text-xs font-semibold">
                     {baseTienda.nombre}
                   </TypographyH4>
-                  <TypographyMuted className="text-[10px]">Salida</TypographyMuted>
+                  <TypographyMuted className="text-[10px]">Punto de salida</TypographyMuted>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 <Label
                   htmlFor="switch-base-inicio"
                   className="text-[11px] font-normal text-muted-foreground cursor-pointer"
                 >
-                  Incluir salida
+                  Salida
                 </Label>
                 <Switch
                   id="switch-base-inicio"
@@ -928,10 +831,10 @@ export function RouteBuilderTab({
             <div className="flex flex-col items-center justify-center">
               <Path weight="duotone" className="mb-1.5 h-6 w-6 text-muted-foreground/60" />
               <TypographySmall className="text-muted-foreground">
-                Sin paradas asignadas
+                Sin sucursales en el recorrido del día
               </TypographySmall>
               <TypographyMuted className="mt-0.5 text-[11px]">
-                Selecciona tiendas en el buscador, en las sugerencias o directamente en el mapa.
+                Busca por nombre o ECO arriba, o toca cualquier sucursal en el mapa.
               </TypographyMuted>
             </div>
           </Card>
@@ -972,7 +875,7 @@ export function RouteBuilderTab({
                   setDropTarget(null);
                 }}
                 className={cn(
-                  'group relative flex items-center gap-2 px-2.5 py-2 transition-all',
+                  'group relative flex items-center gap-2 px-2.5 py-2 transition-all min-w-0',
                   dragIdx === k && 'opacity-40',
                   dropTarget === k
                     ? 'border-primary ring-1 ring-primary/30'
@@ -981,7 +884,7 @@ export function RouteBuilderTab({
               >
                 <DotsSixVertical
                   weight="bold"
-                  className="h-4 w-4 shrink-0 cursor-grab text-muted-foreground/45 group-hover:text-muted-foreground"
+                  className="hidden sm:block h-4 w-4 shrink-0 cursor-grab text-muted-foreground/45 group-hover:text-muted-foreground"
                 />
                 <span
                   className={cn(
@@ -995,7 +898,7 @@ export function RouteBuilderTab({
                 </span>
 
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 min-w-0">
                     <TypographySmall className="truncate font-medium">{p.nombre}</TypographySmall>
                     {!p.temporal && tiendaCat?.verificada && (
                       <ActionTooltip label="Coordenada GPS verificada">
@@ -1006,30 +909,28 @@ export function RouteBuilderTab({
                       </ActionTooltip>
                     )}
                     {p.temporal && (
-                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
                         desvío
                       </Badge>
                     )}
                   </div>
-                  <div className="mt-0.5 flex items-center gap-2">
-                    {zona && <TypographyMuted className="text-[11px]">{zona.nombre}</TypographyMuted>}
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+                    {zona && <span className="truncate max-w-36">{zona.nombre}</span>}
                     {tramo ? (
-                      <TypographyMono className="text-[11px] text-muted-foreground tabular-nums">
+                      <TypographyMono className="text-[11px] text-muted-foreground tabular-nums shrink-0">
                         +{tramo.km} km · {duracion(tramo.segundos)}
                         {tramo.fuente === 'estimado' ? ' (est.)' : ''}
                       </TypographyMono>
                     ) : calculando && idxTramo >= 0 ? (
-                      <TypographyMuted className="text-[11px] animate-pulse">
-                        calculando…
-                      </TypographyMuted>
+                      <span className="text-[11px] animate-pulse">calculando…</span>
                     ) : null}
                   </div>
                 </div>
 
-                {/* Acciones discretas por parada */}
-                <div className="flex items-center gap-0.5 opacity-60 group-hover:opacity-100 transition-opacity">
+                {/* Acciones por parada */}
+                <div className="flex items-center gap-0.5 shrink-0 opacity-100 lg:opacity-65 lg:group-hover:opacity-100 transition-opacity">
                   {!p.temporal && tiendaCat && !tiendaCat.verificada && (
-                    <ActionTooltip label="Pendiente de verificar: Ajustar ubicación en mapa">
+                    <ActionTooltip label="Ajustar coordenada GPS en catálogo">
                       <Button
                         type="button"
                         variant="outline"
@@ -1038,7 +939,8 @@ export function RouteBuilderTab({
                         onClick={() => onJumpToAudit(p.nombre)}
                       >
                         <Crosshair weight="duotone" className="h-3 w-3" />
-                        Verificar GPS
+                        <span className="hidden sm:inline">Verificar GPS</span>
+                        <span className="sm:hidden">GPS</span>
                       </Button>
                     </ActionTooltip>
                   )}
@@ -1107,7 +1009,7 @@ export function RouteBuilderTab({
                   <TypographyH4 className="truncate text-xs font-semibold">
                     {baseTienda.nombre}
                   </TypographyH4>
-                  <TypographyMuted className="text-[10px]">
+                  <TypographyMuted className="text-[10px] truncate block">
                     Regreso
                     {ruta.baseFin && ruta.paradas.length > 0 && tramos.at(-1)
                       ? ` · +${tramos.at(-1).km} km (${duracion(tramos.at(-1).segundos)})`
@@ -1115,12 +1017,12 @@ export function RouteBuilderTab({
                   </TypographyMuted>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 <Label
                   htmlFor="switch-base-fin"
                   className="text-[11px] font-normal text-muted-foreground cursor-pointer"
                 >
-                  Incluir regreso
+                  Regreso
                 </Label>
                 <Switch
                   id="switch-base-fin"
@@ -1134,7 +1036,7 @@ export function RouteBuilderTab({
       </div>
 
       {/* ================= RESUMEN DE MÉTRICAS ================= */}
-      <div className="grid grid-cols-4 gap-1.5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
         <Card className="p-2.5">
           <div className="flex items-center justify-between text-muted-foreground">
             <span className="text-[10px] font-medium uppercase tracking-wider">Distancia</span>
