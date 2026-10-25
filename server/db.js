@@ -299,8 +299,6 @@ export async function syncHistorialUpsert(item) {
       litros: Number(item.litros || 0),
       duracion_segundos: Number(item.segundos || 0),
       ingeniero: item.ingeniero || '',
-      peajes: Number(item.peajes || 0),
-      casetas: item.casetas || [],
     };
     const res = await fetch(`${SUPABASE_URL}/rest/v1/rutas_historial?on_conflict=uuid`, {
       method: 'POST',

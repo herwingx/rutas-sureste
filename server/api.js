@@ -410,10 +410,6 @@ const rutas = {
               litros: Number(r.litros || 0),
               segundos: Number(r.duracion_segundos || 0),
               costo: Number(r.costo || 0),
-              peajes: Number(r.peajes || 0),
-              casetas: r.casetas || [],
-              casetasOmitidas: r.casetas_omitidas || r.casetasOmitidas || [],
-              casetasPersonalizadas: r.casetas_personalizadas || r.casetasPersonalizadas || [],
               guardadoEn: r.created_at,
             }));
           }
@@ -527,10 +523,6 @@ const rutas = {
       litros: Number(body.litros || 0),
       segundos: Number(body.segundos || 0),
       costo: Number(body.costo || 0),
-      peajes: Number(body.peajes || 0),
-      casetas: body.casetas || [],
-      casetasOmitidas: body.casetasOmitidas || [],
-      casetasPersonalizadas: body.casetasPersonalizadas || [],
       guardadoEn: new Date().toISOString(),
     };
     const idx = h.findIndex((x) => x.id === item.id);

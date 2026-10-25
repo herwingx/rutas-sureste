@@ -413,10 +413,9 @@ export function BitacoraGeneratorModal({
       (acc, d) => acc + d.tramos.reduce((s, t) => s + (t.km || 0), 0),
       0
     );
-    const peajes = diasComprobacion.reduce((s, d) => s + (Number(d.peajes) || 0), 0);
     const litros = km / rend;
     const importe = litros * precio;
-    return { km, litros, importe, peajes, importeTotal: importe + peajes, kmFinal: (Number(kmInicial) || 0) + km };
+    return { km, litros, importe, kmFinal: (Number(kmInicial) || 0) + km };
   }, [diasComprobacion, rend, precio, kmInicial]);
 
   const resumenAnticipo = useMemo(() => {
@@ -424,10 +423,9 @@ export function BitacoraGeneratorModal({
       (acc, d) => acc + d.tramos.reduce((s, t) => s + (t.km || 0), 0),
       0
     );
-    const peajes = diasAnticipo.reduce((s, d) => s + (Number(d.peajes) || 0), 0);
     const litros = km / rend;
     const importe = litros * precio;
-    return { km, litros, importe, peajes, importeTotal: importe + peajes, kmFinal: (Number(kmInicial) || 0) + km };
+    return { km, litros, importe, kmFinal: (Number(kmInicial) || 0) + km };
   }, [diasAnticipo, rend, precio, kmInicial]);
 
   const resumenTotales = useMemo(() => {
@@ -1202,19 +1200,16 @@ export function BitacoraGeneratorModal({
                   {modoHojas === 'ambas' ? (
                     <div className="space-y-0.5">
                       <TypographySmall className="font-semibold block text-xs">
-                        ⛽ Comprobación: {resumenComprobacion.km} km · {resumenComprobacion.litros.toFixed(1)} L · {pesos(resumenComprobacion.importe)}
-                        {resumenComprobacion.peajes > 0 && ` + ${pesos(resumenComprobacion.peajes).replace('.00', '')} peajes (${pesos(resumenComprobacion.importeTotal)})`} ({diasComprobacion.length} días)
+                        ⛽ Comprobación: {resumenComprobacion.km} km · {resumenComprobacion.litros.toFixed(1)} L · {pesos(resumenComprobacion.importe)} ({diasComprobacion.length} días)
                       </TypographySmall>
                       <TypographySmall className="font-semibold block text-xs text-amber-700 dark:text-amber-400">
-                        📋 Anticipo: {resumenAnticipo.km} km · {resumenAnticipo.litros.toFixed(1)} L · {pesos(resumenAnticipo.importe)}
-                        {resumenAnticipo.peajes > 0 && ` + ${pesos(resumenAnticipo.peajes).replace('.00', '')} peajes (${pesos(resumenAnticipo.importeTotal)})`} ({diasAnticipo.length} días · {varianteAnticipo === 'ciclo_neto' ? 'incluye Lun próx' : 'semana natural'})
+                        📋 Anticipo: {resumenAnticipo.km} km · {resumenAnticipo.litros.toFixed(1)} L · {pesos(resumenAnticipo.importe)} ({diasAnticipo.length} días · {varianteAnticipo === 'ciclo_neto' ? 'incluye Lun próx' : 'semana natural'})
                       </TypographySmall>
                     </div>
                   ) : (
                     <div>
                       <TypographySmall className="font-semibold block">
                         Total: {resumenTotales.km} km · {resumenTotales.litros.toFixed(1)} L · {pesos(resumenTotales.importe)}
-                        {resumenTotales.peajes > 0 && ` + ${pesos(resumenTotales.peajes).replace('.00', '')} peajes (${pesos(resumenTotales.importeTotal)})`}
                       </TypographySmall>
                       <TypographyMuted className="text-xs">
                         Odómetro: {Number(kmInicial).toLocaleString()} → {resumenTotales.kmFinal.toLocaleString()} km · {modoHojas === 'anticipo' ? diasAnticipo.length : diasComprobacion.length} días

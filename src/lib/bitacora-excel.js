@@ -662,16 +662,12 @@ function construirHojaBitacora(ws, {
 
   ws.mergeCells(`B${rowObsInicio}:G${rowObsFin}`);
   const obsCell = ws.getCell(`B${rowObsInicio}`);
-  const totalPeajesHoja = dias.reduce((s, d) => s + (Number(d.peajes) || 0), 0);
-  let obsFinal =
+  obsCell.value = (
     observaciones ||
     (nombreHoja === 'ANTICIPO'
       ? `ANTICIPO PARA LA SEMANA ${semana} SE REALIZARAN MANTENIMIENTOS PREVENTIVOS Y ATENCIÓN A SUCURSALES EN REGIÓN ${ingeniero.region || 'TUXTLA'}.`
-      : `COMPROBACION DE RUTA SEMANA ${semana} POR MANTENIMIENTOS PREVENTIVOS Y ATENCIÓN A SUCURSALES EN REGIÓN ${ingeniero.region || 'TUXTLA'}.`);
-  if (totalPeajesHoja > 0 && !obsFinal.toUpperCase().includes('PEAJE') && !obsFinal.toUpperCase().includes('CASETA')) {
-    obsFinal += ` INCLUYE $${Math.round(totalPeajesHoja)} EN CASETAS / PEAJES DE RUTA.`;
-  }
-  obsCell.value = obsFinal.toUpperCase();
+      : `COMPROBACION DE RUTA SEMANA ${semana} POR MANTENIMIENTOS PREVENTIVOS Y ATENCIÓN A SUCURSALES EN REGIÓN ${ingeniero.region || 'TUXTLA'}.`)
+  ).toUpperCase();
   obsCell.font = { name: FONT_NAME, size: 12 };
   obsCell.alignment = { horizontal: 'center', vertical: 'center', wrapText: true };
   for (let r = rowObsInicio; r <= rowObsFin; r++) {
