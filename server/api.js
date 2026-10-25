@@ -108,11 +108,55 @@ const rutas = {
     motor: dist.estadoMotor(),
   }),
 
-  /** Devuelve el catálogo completo de tiendas */
-  'GET /api/tiendas': () => db.cargar(),
+  /** Devuelve el catálogo completo de tiendas (local o sincronizado desde Supabase) */
+  'GET /api/tiendas': async () => {
+    const tiendas = db.cargar();
+    if (tiendas && tiendas.length > 0) return tiendas;
+    if (db.supabaseActivo()) {
+      try {
+        const res = await fetch(`${cfg.SUPABASE_URL}/rest/v1/tiendas?select=*`, {
+          headers: {
+            apikey: cfg.SUPABASE_KEY,
+            Authorization: `Bearer ${cfg.SUPABASE_KEY}`,
+            'Accept-Profile': cfg.SUPABASE_SCHEMA,
+            'Content-Profile': cfg.SUPABASE_SCHEMA,
+          },
+        });
+        if (res.ok) {
+          const rows = await res.json();
+          if (rows && rows.length > 0) return rows;
+        }
+      } catch (err) {
+        console.warn('[Fallback Supabase Tiendas Error]:', err.message);
+      }
+    }
+    return [];
+  },
 
   /** Devuelve la lista de perfiles de ingenieros */
-  'GET /api/ingenieros': () => db.cargarIngenieros(),
+  'GET /api/ingenieros': async () => {
+    const ingenieros = db.cargarIngenieros();
+    if (ingenieros && ingenieros.length > 0) return ingenieros;
+    if (db.supabaseActivo()) {
+      try {
+        const res = await fetch(`${cfg.SUPABASE_URL}/rest/v1/ingenieros?select=*`, {
+          headers: {
+            apikey: cfg.SUPABASE_KEY,
+            Authorization: `Bearer ${cfg.SUPABASE_KEY}`,
+            'Accept-Profile': cfg.SUPABASE_SCHEMA,
+            'Content-Profile': cfg.SUPABASE_SCHEMA,
+          },
+        });
+        if (res.ok) {
+          const rows = await res.json();
+          if (rows && rows.length > 0) return rows;
+        }
+      } catch (err) {
+        console.warn('[Fallback Supabase Ingenieros Error]:', err.message);
+      }
+    }
+    return [];
+  },
 
   /** Actualiza o crea un perfil de ingeniero y lo sincroniza con Supabase */
   'PATCH /api/ingenieros': async (body) => {
@@ -285,7 +329,32 @@ const rutas = {
   'GET /api/historial': () => leerHistorial(),
 
   /** Devuelve la lista de bitácoras semanales guardadas */
-  'GET /api/bitacoras': () => db.cargarBitacoras(),
+  'GET /api/bitacoras': async () => {
+    const bitacoras = db.cargarBitacoras();
+    if (bitacoras && bitacoras.length > 0) return bitacoras;
+    if (db.supabaseActivo()) {
+      try {
+        const res = await fetch(
+          `${cfg.SUPABASE_URL}/rest/v1/bitacoras_semanales?select=*&order=anio.desc,semana.desc`,
+          {
+            headers: {
+              apikey: cfg.SUPABASE_KEY,
+              Authorization: `Bearer ${cfg.SUPABASE_KEY}`,
+              'Accept-Profile': cfg.SUPABASE_SCHEMA,
+              'Content-Profile': cfg.SUPABASE_SCHEMA,
+            },
+          }
+        );
+        if (res.ok) {
+          const rows = await res.json();
+          if (rows && rows.length > 0) return rows;
+        }
+      } catch (err) {
+        console.warn('[Fallback Supabase Bitacoras Error]:', err.message);
+      }
+    }
+    return [];
+  },
 
   /** Guarda o actualiza una bitácora semanal (anticipo/comprobación) localmente y en Supabase */
   'POST /api/bitacoras': async (body) => {

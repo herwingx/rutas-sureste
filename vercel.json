@@ -1,6 +1,11 @@
 {
   "buildCommand": "vite build",
   "outputDirectory": "dist",
+  "functions": {
+    "api/**/*.js": {
+      "includeFiles": "data/**"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/(.*)",
@@ -12,3 +17,4 @@
     }
   ]
 }
+
