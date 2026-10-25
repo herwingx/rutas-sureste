@@ -1282,6 +1282,7 @@ export default function App() {
             totales={totales}
             tab={tab}
             sel={sel}
+            dark={dark}
             onToggleStop={toggleParadaMapa}
             onAddDetour={agregarDesvio}
             onSelectStore={seleccionarTiendaAudit}

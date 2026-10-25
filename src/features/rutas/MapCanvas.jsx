@@ -13,7 +13,7 @@
  */
 
 import { useEffect, useState, useRef, useMemo } from 'react';
-import { APIProvider, Map, AdvancedMarker, useMap } from '@vis.gl/react-google-maps';
+import { APIProvider, Map, AdvancedMarker, useMap, ColorScheme } from '@vis.gl/react-google-maps';
 import {
   CornersOut,
   MapTrifold,
@@ -30,6 +30,8 @@ import {
   MapPinPlus,
   LockKey,
   LockKeyOpen,
+  Moon,
+  Sun,
 } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -47,7 +49,7 @@ import { cn, decodePolyline, haversineM, rumboCardinal, pesos, duracion } from '
  * Subcomponente que dibuja las polilíneas de la ruta activa o el vector de corrección GPS
  * directamente sobre la instancia nativa de Google Maps.
  */
-function RoutePolylines({ puntos, tramos, tab, sel }) {
+function RoutePolylines({ puntos, tramos, tab, sel, dark }) {
   const map = useMap();
   const linesRef = useRef([]);
 
@@ -57,6 +59,7 @@ function RoutePolylines({ puntos, tramos, tab, sel }) {
     if (!map || !window.google?.maps) return;
 
     if (tab === 'ruta' && puntos.length >= 2) {
+      const strokeColor = dark ? '#38bdf8' : '#2563eb';
       for (let i = 0; i < puntos.length - 1; i++) {
         const t = tramos[i];
         const path = t?.polyline
@@ -69,16 +72,16 @@ function RoutePolylines({ puntos, tramos, tab, sel }) {
         const poly = new window.google.maps.Polyline({
           map,
           path,
-          strokeColor: '#2563eb',
-          strokeOpacity: recta ? 0 : 0.9,
+          strokeColor,
+          strokeOpacity: recta ? 0 : 0.95,
           strokeWeight: 4,
           icons: recta
             ? [
                 {
                   icon: {
                     path: 'M 0,-1 0,1',
-                    strokeOpacity: 0.9,
-                    strokeColor: '#2563eb',
+                    strokeOpacity: 0.95,
+                    strokeColor,
                     scale: 3,
                   },
                   offset: '0',
@@ -116,12 +119,12 @@ function RoutePolylines({ puntos, tramos, tab, sel }) {
       linesRef.current.forEach((l) => l.setMap(null));
       linesRef.current = [];
     };
-  }, [map, puntos, tramos, tab, sel]);
+  }, [map, puntos, tramos, tab, sel, dark]);
 
   return null;
 }
 
-function MapCameraController({ tiendas, puntos, baseNombre, tab, sel, fitTrigger }) {
+function MapCameraController({ tiendas, puntos, baseNombre, tab, sel, fitTrigger, hasCustomCamera }) {
   const map = useMap();
   const lastSelName = useRef(null);
   const initialFitDone = useRef(false);
@@ -162,6 +165,7 @@ function MapCameraController({ tiendas, puntos, baseNombre, tab, sel, fitTrigger
     // Encuadre inicial o cambio de ruta activa
     if (!initialFitDone.current) {
       initialFitDone.current = true;
+      if (hasCustomCamera) return;
 
       if (tab === 'ruta' && puntos.length >= 2) {
         const bounds = new window.google.maps.LatLngBounds();
@@ -194,7 +198,7 @@ function MapCameraController({ tiendas, puntos, baseNombre, tab, sel, fitTrigger
       });
       map.fitBounds(bounds, 56);
     }
-  }, [map, tiendas, puntos, baseNombre, tab, fitTrigger]);
+  }, [map, tiendas, puntos, baseNombre, tab, fitTrigger, hasCustomCamera]);
 
   useEffect(() => {
     if (!map || tab !== 'corregir' || !sel || sel.lat == null) return;
@@ -220,6 +224,7 @@ export function MapCanvas({
   totales,
   tab,
   sel,
+  dark,
   onToggleStop,
   onAddDetour,
   onSelectStore,
@@ -232,6 +237,17 @@ export function MapCanvas({
   const [mapType, setMapType] = useState('roadmap');
   const [showLabels, setShowLabels] = useState(false);
   const [fitTrigger, setFitTrigger] = useState(0);
+
+  // Tema del mapa: sincronizado por defecto con el dark mode de la app, con toggle manual
+  const [isDarkMap, setIsDarkMap] = useState(() => Boolean(dark));
+  useEffect(() => {
+    setIsDarkMap(Boolean(dark));
+  }, [dark]);
+
+  // Persistir última posición y nivel de zoom para que el cambio de tema no desplace la vista
+  const cameraCenterRef = useRef({ lat: 16.7528, lng: -93.1147 });
+  const cameraZoomRef = useRef(12);
+  const hasUserMovedCameraRef = useRef(false);
 
   useEffect(() => {
     setMapType(tab === 'corregir' ? 'hybrid' : 'roadmap');
@@ -338,6 +354,20 @@ export function MapCanvas({
           >
             <GlobeHemisphereWest weight={mapType === 'hybrid' ? 'duotone' : 'regular'} />
             Satélite
+          </Button>
+        </ActionTooltip>
+        <ActionTooltip label={isDarkMap ? 'Cambiar mapa a modo claro' : 'Cambiar mapa a modo oscuro (noche)'}>
+          <Button
+            variant={isDarkMap ? 'secondary' : 'ghost'}
+            size="icon-xs"
+            onClick={() => setIsDarkMap((v) => !v)}
+            aria-label="Tema del mapa"
+          >
+            {isDarkMap ? (
+              <Moon weight="duotone" className="h-3.5 w-3.5 text-blue-400" />
+            ) : (
+              <Sun weight="duotone" className="h-3.5 w-3.5 text-amber-500" />
+            )}
           </Button>
         </ActionTooltip>
         {!authError && (
@@ -485,11 +515,13 @@ export function MapCanvas({
           />
         </div>
       ) : (
-        <APIProvider apiKey={mapsKey} language="es" region="MX">
+        <APIProvider apiKey={mapsKey} language="es" region="MX" version="weekly">
           <div className="h-full w-full">
             <Map
-              defaultCenter={{ lat: 16.7528, lng: -93.1147 }}
-              defaultZoom={12}
+              key={isDarkMap ? 'map-dark' : 'map-light'}
+              colorScheme={isDarkMap ? ColorScheme.DARK : ColorScheme.LIGHT}
+              defaultCenter={cameraCenterRef.current}
+              defaultZoom={cameraZoomRef.current}
               mapId="DEMO_MAP_ID"
               mapTypeId={mapType}
               gestureHandling="greedy"
@@ -499,6 +531,16 @@ export function MapCanvas({
               streetViewControl={true}
               clickableIcons={false}
               internalUsageAttributionIds={['gmp_git_agentskills_v1']}
+              onCameraChanged={(e) => {
+                if (e.detail?.center) {
+                  cameraCenterRef.current = e.detail.center;
+                  hasUserMovedCameraRef.current = true;
+                }
+                if (e.detail?.zoom) {
+                  cameraZoomRef.current = e.detail.zoom;
+                  hasUserMovedCameraRef.current = true;
+                }
+              }}
               onClick={(e) => {
                 if (tab === 'corregir' && sel && !selBloqueada && e.detail?.latLng) {
                   onMoveSelected(e.detail.latLng.lat, e.detail.latLng.lng);
@@ -518,8 +560,9 @@ export function MapCanvas({
                 tab={tab}
                 sel={sel}
                 fitTrigger={fitTrigger}
+                hasCustomCamera={hasUserMovedCameraRef.current}
               />
-              <RoutePolylines puntos={puntos} tramos={tramos} tab={tab} sel={sel} />
+              <RoutePolylines puntos={puntos} tramos={tramos} tab={tab} sel={sel} dark={isDarkMap} />
 
               {/* Marcadores de tiendas */}
               {tiendas.map((t) => {
@@ -573,12 +616,12 @@ export function MapCanvas({
                           esSel
                             ? 'h-7 w-7 bg-blue-600 ring-4 ring-blue-500/35 scale-110'
                             : nums
-                              ? 'h-5.5 min-w-5.5 px-1 bg-blue-600 text-[10px] ring-2 ring-blue-500/25'
+                              ? 'h-6 min-w-6 px-1.5 bg-blue-600 text-[11px] ring-2 ring-blue-500/30'
                               : esCedis
-                                ? 'h-6.5 w-6.5 bg-orange-600 ring-4 ring-orange-500/40 shadow-orange-500/30'
+                                ? 'h-7 w-7 bg-orange-600 ring-4 ring-orange-500/40 shadow-orange-500/40'
                                 : esBase || esResguardo
-                                  ? 'h-6.5 w-6.5 bg-amber-600 ring-4 ring-amber-500/40 shadow-amber-500/30'
-                                  : 'h-3 w-3 bg-slate-700 hover:bg-blue-600 group-hover:scale-125'
+                                  ? 'h-7 w-7 bg-amber-600 ring-4 ring-amber-500/40 shadow-amber-500/40'
+                                  : 'h-3.5 w-3.5 bg-slate-700 dark:bg-slate-300 hover:bg-blue-600 group-hover:scale-125'
                         )}
                       >
                         {nums ? (
@@ -586,29 +629,48 @@ export function MapCanvas({
                         ) : esSel ? (
                           <Crosshair weight="bold" className="h-3.5 w-3.5" />
                         ) : esCedis || esResguardo || esBase ? (
-                          <Warehouse weight="fill" className="h-3.5 w-3.5 text-white" />
+                          <Warehouse weight="fill" className="h-4 w-4 text-white" />
                         ) : null}
                       </div>
+
                       <span
                         className={cn(
-                          'pointer-events-none absolute left-full ml-1.5 whitespace-nowrap rounded bg-card/95 px-1.5 py-0.5 text-[10px] font-medium text-foreground border border-border/80 shadow-xs flex items-center gap-1',
+                          'pointer-events-none absolute left-full ml-1.5 whitespace-nowrap rounded-md px-2 py-0.5 text-[11px] shadow-md border flex items-center gap-1.5 transition-all',
                           mostrarLbl ? 'inline-flex' : 'hidden group-hover:inline-flex',
-                          (esSel || nums) && 'bg-blue-600 text-white border-blue-600 font-semibold',
-                          !esSel && !nums && esCedis && 'border-orange-500/50 text-orange-600 dark:text-orange-400 font-semibold bg-orange-500/10 dark:bg-orange-950/40',
-                          !esSel && !nums && (esResguardo || esBase) && 'border-amber-500/50 text-amber-600 dark:text-amber-400 font-semibold bg-amber-500/10 dark:bg-amber-950/40'
+                          (esSel || nums)
+                            ? 'bg-blue-600 text-white border-blue-500 font-semibold'
+                            : esCedis
+                              ? 'bg-card text-foreground border-orange-500/80 ring-1 ring-orange-500/30 font-semibold'
+                              : esBase || esResguardo
+                                ? 'bg-card text-foreground border-amber-500/80 ring-1 ring-amber-500/30 font-semibold'
+                                : 'bg-card text-foreground border-border/80'
                         )}
                       >
-                        {esCedis && !nums && !esSel && (
-                          <span className="rounded bg-orange-600 px-1 py-0 text-[9px] font-bold text-white uppercase tracking-wider">
+                        {esCedis && (
+                          <span
+                            className={cn(
+                              'rounded px-1.5 py-0.2 text-[9px] font-extrabold uppercase tracking-wider shrink-0 shadow-xs',
+                              esSel || nums
+                                ? 'bg-orange-500 text-white ring-1 ring-white/40'
+                                : 'bg-orange-600 text-white'
+                            )}
+                          >
                             CEDIS
                           </span>
                         )}
-                        {(esResguardo || esBase) && !esCedis && !nums && !esSel && (
-                          <span className="rounded bg-amber-600 px-1 py-0 text-[9px] font-bold text-white uppercase tracking-wider">
+                        {(esResguardo || esBase) && !esCedis && (
+                          <span
+                            className={cn(
+                              'rounded px-1.5 py-0.2 text-[9px] font-extrabold uppercase tracking-wider shrink-0 shadow-xs',
+                              esSel || nums
+                                ? 'bg-amber-500 text-white ring-1 ring-white/40'
+                                : 'bg-amber-600 text-white'
+                            )}
+                          >
                             BASE
                           </span>
                         )}
-                        {t.nombre}
+                        <span className="font-semibold tracking-tight">{t.nombre}</span>
                       </span>
                     </div>
                   </AdvancedMarker>

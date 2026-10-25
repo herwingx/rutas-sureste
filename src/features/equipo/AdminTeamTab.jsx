@@ -331,7 +331,7 @@ export function AdminTeamTab({
 
         {/* Grid de Indicadores Ejecutivos Consistente */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-          <div className="rounded-xl border border-border/80 bg-muted/40 p-3 flex flex-col justify-between min-h-[84px]">
+          <div className="rounded-xl border border-border/80 bg-muted/40 p-3 flex flex-col justify-between min-h-21">
             <div className="flex items-center justify-between text-muted-foreground">
               <span className="text-[10px] font-semibold uppercase tracking-wider">
                 GPS Verificadas
@@ -349,7 +349,7 @@ export function AdminTeamTab({
             </span>
           </div>
 
-          <div className="rounded-xl border border-border/80 bg-muted/40 p-3 flex flex-col justify-between min-h-[84px]">
+          <div className="rounded-xl border border-border/80 bg-muted/40 p-3 flex flex-col justify-between min-h-21">
             <div className="flex items-center justify-between text-muted-foreground">
               <span className="text-[10px] font-semibold uppercase tracking-wider">
                 Por revisar
@@ -367,7 +367,7 @@ export function AdminTeamTab({
             </span>
           </div>
 
-          <div className="rounded-xl border border-border/80 bg-muted/40 p-3 flex flex-col justify-between min-h-[84px]">
+          <div className="rounded-xl border border-border/80 bg-muted/40 p-3 flex flex-col justify-between min-h-21">
             <div className="flex items-center justify-between text-muted-foreground">
               <span className="text-[10px] font-semibold uppercase tracking-wider">
                 Cuentas activas
@@ -385,7 +385,7 @@ export function AdminTeamTab({
             </span>
           </div>
 
-          <div className="rounded-xl border border-border/80 bg-muted/40 p-3 flex flex-col justify-between min-h-[84px]">
+          <div className="rounded-xl border border-border/80 bg-muted/40 p-3 flex flex-col justify-between min-h-21">
             <div className="flex items-center justify-between text-muted-foreground">
               <span className="text-[10px] font-semibold uppercase tracking-wider">
                 Bitácoras nube
