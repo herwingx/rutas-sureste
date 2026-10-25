@@ -1,9 +1,8 @@
 /**
- * @fileoverview Pantalla de Autenticación y Registro Corporativo de Ingenieros (`AuthScreen.jsx`).
+ * @fileoverview Pantalla de Autenticación estilo shadcn `login-02` con layout split screen (`lg:grid-cols-2`).
  *
- * Barrera de acceso estricta: No se muestra la plataforma hasta autenticar con @soyneto.com.
- * Al registrarse, captura la ficha técnica del ingeniero (auto, placas, CECO, tarjeta de gasolina)
- * para automatizar al 100% la generación de bitácoras semanales sin necesidad de rellenar datos manuales.
+ * Columna Izquierda: Formulario moderno con tabs de Inicio de Sesión y Registro con Ficha Vehicular.
+ * Columna Derecha: Hero visual fotorrealista de Ingeniería de Soporte Técnico Tiendas Neto.
  */
 
 import { useState } from 'react';
@@ -12,7 +11,6 @@ import {
   EnvelopeSimple,
   User,
   ShieldCheck,
-  CheckCircle,
   WarningCircle,
   CarProfile,
   GasPump,
@@ -20,9 +18,9 @@ import {
   ArrowRight,
   Eye,
   EyeSlash,
+  Sparkle,
   Buildings,
 } from '@phosphor-icons/react';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -35,10 +33,7 @@ import {
   SelectItem,
 } from '@/components/ui/select';
 import { supabase, esCorreoSoyNeto } from '@/lib/supabase';
-import { ESTADOS, INGENIEROS } from '@/lib/brand';
 import { cn } from '@/lib/utils';
-
-const REGIONES_DEFAULT = ['TUXTLA', 'TAPACHULA', 'VILLAHERMOSA', 'CAMPECHE', 'MERIDA', 'COATZACOALCOS'];
 
 export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) {
   const [modo, setModo] = useState('login'); // 'login' | 'registro'
@@ -48,7 +43,7 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
   const [cargando, setCargando] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Campos de registro / ficha de ingeniero
+  // Campos de registro y ficha técnica del ingeniero
   const [nombre, setNombre] = useState('');
   const [esIngenieroExistente, setEsIngenieroExistente] = useState(true);
   const [noEmpleado, setNoEmpleado] = useState('');
@@ -76,7 +71,7 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
       return;
     }
     if (!esCorreoSoyNeto(cleanEmail)) {
-      setErrorMsg('Acceso restringido: Debes usar tu correo con dominio @soyneto.com');
+      setErrorMsg('Acceso restringido: Debes usar tu correo oficial @soyneto.com');
       return;
     }
     if (!password || password.length < 6) {
@@ -93,7 +88,7 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
 
       if (error) throw error;
 
-      // Vincular auth_id si no estaba vinculado
+      // Vincular auth_id si no estaba vinculado previamente
       if (data?.user) {
         try {
           await supabase
@@ -113,7 +108,7 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
       console.error('[Login Error]:', err);
       let msg = err.message || 'Error de autenticación';
       if (msg.includes('Invalid login credentials')) {
-        msg = 'Correo o contraseña incorrectos. Si aún no tienes cuenta, usa la pestaña "Registrar Ingeniero".';
+        msg = 'Correo o contraseña incorrectos. Si aún no tienes cuenta, haz clic en "Registrar Ingeniero".';
       }
       setErrorMsg(msg);
     } finally {
@@ -150,7 +145,7 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
       return;
     }
     if (!automovil.trim()) {
-      setErrorMsg('Ingresa el modelo de tu vehículo asignado (ej. AVEO)');
+      setErrorMsg('Ingresa el modelo del vehículo asignado (ej. AVEO)');
       return;
     }
     if (!placas.trim()) {
@@ -202,13 +197,9 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
         updated_at: new Date().toISOString(),
       };
 
-      const { error: dbError } = await supabase
+      await supabase
         .from('ingenieros')
         .upsert(perfilPayload, { onConflict: 'nombre' });
-
-      if (dbError) {
-        console.warn('Aviso al guardar perfil en BD:', dbError.message);
-      }
 
       toast?.(`Cuenta creada para ${cleanNombre}. ¡Bienvenido!`);
       if (data?.user) {
@@ -230,49 +221,51 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
   };
 
   return (
-    <div className="relative min-h-screen w-full flex items-center justify-center p-4 bg-gradient-to-br from-slate-900 via-slate-950 to-blue-950 text-foreground overflow-y-auto">
-      {/* Fondo decorativo con halos sutiles estilo Apple */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -left-40 h-96 w-96 rounded-full bg-blue-600/15 blur-3xl" />
-        <div className="absolute -bottom-40 -right-40 h-96 w-96 rounded-full bg-orange-600/15 blur-3xl" />
-      </div>
-
-      <div className="relative w-full max-w-lg my-6">
-        {/* ================= TARJETA PRINCIPAL ================= */}
-        <Card className="border border-white/10 bg-card/85 backdrop-blur-2xl shadow-[0_8px_40px_rgba(0,0,0,0.45)] rounded-3xl overflow-hidden">
-          {/* Cabecera de Marca */}
-          <div className="p-6 pb-4 text-center border-b border-border/40 space-y-2">
-            <div className="flex justify-center mb-1">
-              <img
-                src="/logo-app.png"
-                alt="Tiendas Neto"
-                className="h-16 w-16 rounded-2xl p-1 bg-white object-contain shadow-lg border border-border/40 transition-transform hover:scale-105 duration-200"
-              />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center justify-center gap-1.5">
-                <span>Rutas Sureste</span>
-                <span className="text-muted-foreground font-normal">·</span>
-                <span className="text-primary font-semibold">Tiendas Neto</span>
-              </h1>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Portal Corporativo de Soporte Técnico y Planeación de Combustible
-              </p>
-            </div>
-
-            <div className="flex items-center justify-center gap-1.5 pt-1">
-              <Badge
-                variant="outline"
-                className="text-[10px] font-mono border-emerald-500/30 text-emerald-600 dark:text-emerald-400 gap-1 bg-emerald-500/5 px-2.5 py-0.5"
-              >
-                <ShieldCheck weight="fill" className="h-3.5 w-3.5 text-emerald-500" />
-                <span>Acceso Exclusivo @soyneto.com</span>
-              </Badge>
+    <div className="grid min-h-svh lg:grid-cols-2 bg-background text-foreground">
+      {/* ================= COLUMNA IZQUIERDA: FORMULARIO ================= */}
+      <div className="flex flex-col justify-between p-6 sm:p-10 lg:p-12 overflow-y-auto">
+        {/* Cabecera / Marca */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <img
+              src="/logo-app.png"
+              alt="Tiendas Neto"
+              className="h-9 w-9 rounded-xl object-contain bg-white p-0.5 border border-border/50 shadow-xs"
+            />
+            <div className="flex flex-col">
+              <span className="text-sm font-bold tracking-tight leading-none text-foreground">
+                Rutas Sureste
+              </span>
+              <span className="text-[11px] text-muted-foreground font-medium mt-0.5">
+                Tiendas Neto · Soporte TI
+              </span>
             </div>
           </div>
 
-          {/* Segmented Control: Iniciar Sesión / Registrar Ingeniero */}
-          <div className="p-6 pt-4 space-y-4">
+          <Badge
+            variant="outline"
+            className="text-[10px] font-mono border-emerald-500/30 text-emerald-600 dark:text-emerald-400 gap-1 bg-emerald-500/5 px-2 py-0.5"
+          >
+            <ShieldCheck weight="fill" className="h-3.5 w-3.5 text-emerald-500" />
+            <span className="hidden sm:inline">Exclusivo</span> @soyneto.com
+          </Badge>
+        </div>
+
+        {/* Contenido Central */}
+        <div className="my-auto py-8 flex flex-col items-center justify-center">
+          <div className="w-full max-w-sm sm:max-w-md space-y-5">
+            <div className="space-y-1.5 text-center sm:text-left">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+                {modo === 'login' ? 'Iniciar Sesión' : 'Registro de Ingeniero'}
+              </h1>
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                {modo === 'login'
+                  ? 'Ingresa con tu correo corporativo para acceder al sistema y a tus bitácoras.'
+                  : 'Crea tu cuenta y completa tu ficha vehicular para automatizar tus bitácoras de gasolina.'}
+              </p>
+            </div>
+
+            {/* Selector de Pestañas Apple Segmented */}
             <div className="grid grid-cols-2 p-1 rounded-xl bg-muted/60 border border-border/40">
               <button
                 type="button"
@@ -306,7 +299,7 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
               </button>
             </div>
 
-            {/* Mensaje de Error */}
+            {/* Error Message */}
             {errorMsg && (
               <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive flex items-start gap-2 animate-in fade-in duration-200">
                 <WarningCircle weight="fill" className="h-4 w-4 shrink-0 mt-0.5" />
@@ -314,9 +307,9 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
               </div>
             )}
 
-            {/* ================= FORMULARIO 1: INICIAR SESIÓN ================= */}
+            {/* ================= FORMULARIO LOGIN ================= */}
             {modo === 'login' && (
-              <form onSubmit={handleLogin} className="space-y-3.5">
+              <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="login-email" className="text-xs">
                     Correo Electrónico Corporativo
@@ -332,7 +325,7 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="nombre.apellido@soyneto.com"
-                      className="pl-9 text-xs"
+                      className="pl-9 text-xs h-10"
                       required
                       autoFocus
                     />
@@ -340,15 +333,17 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
                   {email && !emailValido && (
                     <p className="text-[11px] text-amber-500 flex items-center gap-1">
                       <WarningCircle weight="bold" />
-                      Debe terminar en @soyneto.com
+                      Debe pertenecer al dominio @soyneto.com
                     </p>
                   )}
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="login-password" className="text-xs">
-                    Contraseña
-                  </Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="login-password" className="text-xs">
+                      Contraseña
+                    </Label>
+                  </div>
                   <div className="relative">
                     <LockKey
                       weight="duotone"
@@ -360,7 +355,7 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="pl-9 pr-9 text-xs"
+                      className="pl-9 pr-9 text-xs h-10"
                       required
                     />
                     <button
@@ -376,31 +371,27 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
                 <Button
                   type="submit"
                   disabled={cargando || !emailValido}
-                  className="w-full text-xs font-semibold py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm transition-all"
+                  className="w-full text-xs font-semibold py-2.5 h-10 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm transition-all"
                 >
-                  {cargando ? 'Verificando credenciales…' : 'Entrar a Rutas Sureste'}
+                  {cargando ? 'Accediendo a la red…' : 'Entrar a Rutas Sureste'}
                   <ArrowRight weight="bold" className="ml-1.5 h-3.5 w-3.5" />
                 </Button>
               </form>
             )}
 
-            {/* ================= FORMULARIO 2: REGISTRAR INGENIERO ================= */}
+            {/* ================= FORMULARIO REGISTRO INGENIERO ================= */}
             {modo === 'registro' && (
               <form onSubmit={handleRegistro} className="space-y-3.5">
-                <div className="rounded-xl border border-primary/20 bg-primary/5 p-2.5 text-[11px] text-muted-foreground">
-                  Ingresa tus datos y los de tu vehículo. Esta información se usará automáticamente en todas tus bitácoras de gasolina.
-                </div>
-
-                {/* Paso 1: Selección o ingreso de nombre */}
+                {/* Paso 1: Nombre */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <Label className="text-xs">Nombre del Ingeniero</Label>
+                    <Label className="text-xs">Nombre Completo del Ingeniero</Label>
                     <button
                       type="button"
                       onClick={() => setEsIngenieroExistente((v) => !v)}
                       className="text-[10px] text-primary hover:underline"
                     >
-                      {esIngenieroExistente ? 'Escribir otro nombre' : 'Elegir de la lista'}
+                      {esIngenieroExistente ? 'Escribir nombre manual' : 'Elegir de la plantilla'}
                     </button>
                   </div>
 
@@ -420,7 +411,7 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
                         }
                       }}
                     >
-                      <SelectTrigger className="text-xs bg-card">
+                      <SelectTrigger className="text-xs bg-card h-9">
                         <SelectValue placeholder="Selecciona tu nombre..." />
                       </SelectTrigger>
                       <SelectContent>
@@ -436,7 +427,7 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
                       value={nombre}
                       onChange={(e) => setNombre(e.target.value.toUpperCase())}
                       placeholder="NOMBRE COMPLETO (APELLIDOS Y NOMBRES)"
-                      className="text-xs font-semibold uppercase"
+                      className="text-xs font-semibold uppercase h-9"
                       required
                     />
                   )}
@@ -450,8 +441,8 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="tu.nombre@soyneto.com"
-                      className="text-xs"
+                      placeholder="nombre@soyneto.com"
+                      className="text-xs h-9"
                       required
                     />
                   </div>
@@ -462,7 +453,7 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Mínimo 6 car."
-                      className="text-xs"
+                      className="text-xs h-9"
                       required
                     />
                   </div>
@@ -472,7 +463,7 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
                 <div className="rounded-xl border border-border/70 bg-muted/20 p-3 space-y-2.5">
                   <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
                     <CarProfile weight="duotone" className="h-4 w-4 text-primary" />
-                    <span>Ficha de Vehículo y Operación</span>
+                    <span>Ficha Vehicular (para Bitácora Automática)</span>
                   </div>
 
                   <div className="grid grid-cols-3 gap-2">
@@ -482,7 +473,7 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
                         value={noEmpleado}
                         onChange={(e) => setNoEmpleado(e.target.value)}
                         placeholder="Ej. 1221362"
-                        className="font-mono text-xs"
+                        className="font-mono text-xs h-8"
                         required
                       />
                     </div>
@@ -492,7 +483,7 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
                         value={region}
                         onChange={(e) => setRegion(e.target.value.toUpperCase())}
                         placeholder="TUXTLA"
-                        className="font-mono text-xs uppercase"
+                        className="font-mono text-xs uppercase h-8"
                         required
                       />
                     </div>
@@ -502,7 +493,7 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
                         value={ceco}
                         onChange={(e) => setCeco(e.target.value)}
                         placeholder="108266"
-                        className="font-mono text-xs"
+                        className="font-mono text-xs h-8"
                       />
                     </div>
                   </div>
@@ -514,7 +505,7 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
                         value={automovil}
                         onChange={(e) => setAutomovil(e.target.value.toUpperCase())}
                         placeholder="AVEO"
-                        className="text-xs uppercase"
+                        className="text-xs uppercase h-8"
                         required
                       />
                     </div>
@@ -524,7 +515,7 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
                         value={placas}
                         onChange={(e) => setPlacas(e.target.value.toUpperCase())}
                         placeholder="PEB-798-C"
-                        className="font-mono text-xs uppercase"
+                        className="font-mono text-xs uppercase h-8"
                         required
                       />
                     </div>
@@ -538,7 +529,7 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
                       value={tarjetaGasolina}
                       onChange={(e) => setTarjetaGasolina(e.target.value)}
                       placeholder="5064490100458236"
-                      className="font-mono text-xs"
+                      className="font-mono text-xs h-8"
                     />
                   </div>
 
@@ -551,7 +542,7 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
                         type="number"
                         value={kmInicial}
                         onChange={(e) => setKmInicial(e.target.value)}
-                        className="font-mono text-xs"
+                        className="font-mono text-xs h-8"
                       />
                     </div>
                     <div className="space-y-1">
@@ -563,7 +554,7 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
                         step="0.1"
                         value={rendimiento}
                         onChange={(e) => setRendimiento(e.target.value)}
-                        className="font-mono text-xs"
+                        className="font-mono text-xs h-8"
                       />
                     </div>
                   </div>
@@ -572,7 +563,7 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
                 <Button
                   type="submit"
                   disabled={cargando}
-                  className="w-full text-xs font-semibold py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm transition-all"
+                  className="w-full text-xs font-semibold py-2.5 h-10 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm transition-all"
                 >
                   {cargando ? 'Guardando ficha y creando cuenta…' : 'Crear Cuenta y Entrar'}
                   <ArrowRight weight="bold" className="ml-1.5 h-3.5 w-3.5" />
@@ -580,12 +571,45 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
               </form>
             )}
           </div>
-        </Card>
+        </div>
 
         {/* Pie de pantalla */}
-        <p className="text-center text-[11px] text-slate-500 mt-4">
-          Tiendas Neto · Dirección de Operaciones y TI Sureste · 2026
-        </p>
+        <div className="text-center sm:text-left text-[11px] text-muted-foreground pt-4 border-t border-border/40">
+          Tiendas Neto · Dirección de TI y Operaciones Sureste · 2026
+        </div>
+      </div>
+
+      {/* ================= COLUMNA DERECHA: HERO VISUAL DEL INGENIERO ================= */}
+      <div className="relative hidden lg:block bg-slate-950 overflow-hidden">
+        <img
+          src="/hero-ingeniero.png"
+          alt="Ingeniero de Soporte Técnico Tiendas Neto"
+          className="absolute inset-0 h-full w-full object-cover object-center"
+          onError={(e) => {
+            // Fallback si la imagen aún no está generada o no carga
+            e.currentTarget.style.display = 'none';
+          }}
+        />
+
+        {/* Gradiente cinemático estilo Apple */}
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-slate-950/10" />
+
+        {/* Tarjeta de testimonio / lema corporativo */}
+        <div className="absolute bottom-10 left-10 right-10 p-6 rounded-2xl bg-card/75 backdrop-blur-xl border border-white/10 shadow-2xl">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-[11px] font-mono uppercase tracking-wider text-emerald-400 font-semibold">
+              Red de Soporte Operativo Sureste
+            </span>
+          </div>
+          <p className="text-sm font-medium text-foreground leading-relaxed">
+            «Conectando y respaldando cada sucursal de Tiendas Neto en Chiapas, Tabasco, Campeche y Yucatán con planeación inteligente y cero margen de error.»
+          </p>
+          <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground border-t border-border/40 pt-2.5">
+            <span className="font-semibold text-foreground">Soporte Técnico de Campo</span>
+            <span>Tiendas Neto · 2026</span>
+          </div>
+        </div>
       </div>
     </div>
   );
