@@ -436,31 +436,33 @@ export function CoordinateAuditTab({
                   </ActionTooltip>
                 </div>
 
-                {/* Estado de posición */}
-                <div className="flex items-center justify-between gap-2 rounded-md border border-border/80 bg-card px-2.5 py-1.5 text-xs">
-                  {sel.lat == null ? (
-                    <TypographyMuted>
-                      Haz clic en el mapa o pega un enlace para ubicar el pin.
-                    </TypographyMuted>
-                  ) : deltaM > 1 ? (
-                    <TypographyMuted className="text-foreground">
-                      Ajustada{' '}
+                {/* Indicador de desplazamiento respecto al catálogo original (solo si cambió la posición) */}
+                {sel.lat == null ? (
+                  <p className="text-[11px] text-muted-foreground px-1">
+                    Haz clic en el mapa o pega un enlace para ubicar el pin.
+                  </p>
+                ) : deltaM > 1 ? (
+                  <div className="flex items-center justify-between gap-2 rounded-md bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 text-xs text-amber-800 dark:text-amber-300">
+                    <span className="truncate font-medium">
+                      Desplazamiento:{' '}
                       <strong>
                         {deltaM < 1000
                           ? `${Math.round(deltaM)} m`
                           : `${(deltaM / 1000).toFixed(2)} km`}
                       </strong>{' '}
                       al <strong>{rumbo}</strong>
-                    </TypographyMuted>
-                  ) : (
-                    <TypographyMono className="text-[11px] text-muted-foreground">
-                      {sel.lat.toFixed(6)}, {sel.lng.toFixed(6)}
-                    </TypographyMono>
-                  )}
-                  {tiendaActualCat?.coordsAnteriores && (
-                    <span className="text-[10px] text-muted-foreground">editada previamente</span>
-                  )}
-                </div>
+                    </span>
+                    {tiendaActualCat?.coordsAnteriores && (
+                      <span className="text-[10px] text-muted-foreground shrink-0">
+                        editada previamente
+                      </span>
+                    )}
+                  </div>
+                ) : tiendaActualCat?.coordsAnteriores ? (
+                  <p className="text-[10px] text-muted-foreground px-1">
+                    Coordenada corregida previamente
+                  </p>
+                ) : null}
               </>
             )}
 
