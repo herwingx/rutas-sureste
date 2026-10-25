@@ -9,7 +9,7 @@
  * 2. Editor permanente accesible desde el header para actualizar el odómetro cada semana.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   CarProfile,
   IdentificationBadge,
@@ -43,21 +43,10 @@ export const REGIONES_SURESTE = [
   'CHIAPAS',
   'CHIAPAS SOCONUSCO',
   'TABASCO',
-  'COATZA',
+  'COATZA OLMECA',
   'YUCATAN',
   'CAMPECHE',
   'QUINTANA ROO',
-  'TUXTLA',
-  'TAPACHULA',
-  'COMITAN',
-  'SAN CRISTOBAL',
-  'PALENQUE',
-  'OCOSINGO',
-  'VILLAFLORES',
-  'TONALA',
-  'VILLAHERMOSA',
-  'MERIDA',
-  'CANCUN',
 ];
 
 /**
@@ -101,7 +90,7 @@ export function EngineerProfileModal({
   useEffect(() => {
     if (perfil) {
       setNoEmpleado(perfil.no_empleado || '');
-      setRegion(perfil.region || 'TUXTLA');
+      setRegion(perfil.region || 'CHIAPAS');
       setCeco(perfil.ceco || '108266');
       setAutomovil(perfil.automovil || 'AVEO');
       setPlacas(perfil.placas || '');
@@ -113,6 +102,35 @@ export function EngineerProfileModal({
       setCostoLitro(String(perfil.costo_litro || '23.99'));
     }
   }, [perfil, open]);
+
+  const tiendasDeRegion = useMemo(() => {
+    if (!tiendas.length) return [];
+    const normReg = (region || '').toUpperCase().trim();
+    const deRegion = tiendas.filter(
+      (t) =>
+        (t.region && t.region.toUpperCase().trim() === normReg) ||
+        t.nombre.includes('RESGUARDO') ||
+        t.nombre.includes('CEDIS')
+    );
+    return deRegion.length > 0 ? deRegion : tiendas;
+  }, [tiendas, region]);
+
+  const handleRegionChange = (nuevaRegion) => {
+    setRegion(nuevaRegion);
+    const normNueva = nuevaRegion.toUpperCase().trim();
+    const candidatas = tiendas.filter(
+      (t) => t.region && t.region.toUpperCase().trim() === normNueva
+    );
+    if (candidatas.length > 0) {
+      const tieneBaseActual = candidatas.some((t) => t.nombre === baseNombre);
+      if (!tieneBaseActual) {
+        const resguardo =
+          candidatas.find((t) => t.nombre.includes('RESGUARDO') || t.nombre.includes('CEDIS')) ||
+          candidatas[0];
+        if (resguardo) setBaseNombre(resguardo.nombre);
+      }
+    }
+  };
 
   const handleSubmit = async (e) => {
     e?.preventDefault();
@@ -234,7 +252,7 @@ export function EngineerProfileModal({
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <div className="space-y-1">
-                <Label className="text-[11px]">No. Empleado *</Label>
+                <Label className="text-[11px] font-medium">No. Empleado *</Label>
                 <Input
                   value={noEmpleado}
                   onChange={(e) => setNoEmpleado(e.target.value)}
@@ -245,8 +263,8 @@ export function EngineerProfileModal({
               </div>
 
               <div className="space-y-1">
-                <Label className="text-[11px]">Región Base *</Label>
-                <Select value={region} onValueChange={setRegion}>
+                <Label className="text-[11px] font-medium">Región Operativa *</Label>
+                <Select value={region} onValueChange={handleRegionChange}>
                   <SelectTrigger className="text-xs h-9 bg-card font-medium">
                     <SelectValue placeholder="Región" />
                   </SelectTrigger>
@@ -261,7 +279,7 @@ export function EngineerProfileModal({
               </div>
 
               <div className="space-y-1">
-                <Label className="text-[11px]">CECO *</Label>
+                <Label className="text-[11px] font-medium">CECO *</Label>
                 <Input
                   value={ceco}
                   onChange={(e) => setCeco(e.target.value)}
@@ -269,6 +287,27 @@ export function EngineerProfileModal({
                   className="text-xs font-mono h-9 bg-card"
                   required
                 />
+              </div>
+
+              <div className="space-y-1 sm:col-span-3">
+                <Label className="text-[11px] font-medium flex items-center justify-between">
+                  <span>Punto Base / Resguardo Operativo (Salida y Retorno) *</span>
+                  <span className="text-[10px] text-muted-foreground font-normal">
+                    Centra el mapa y calcula distancias
+                  </span>
+                </Label>
+                <Select value={baseNombre} onValueChange={setBaseNombre}>
+                  <SelectTrigger className="text-xs h-9 bg-card font-medium">
+                    <SelectValue placeholder="Selecciona resguardo o tienda base" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {tiendasDeRegion.map((t) => (
+                      <SelectItem key={t.nombre} value={t.nombre}>
+                        {t.nombre} {t.zona ? `(${t.zona})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>

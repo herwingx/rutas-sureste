@@ -125,9 +125,21 @@ function MapCameraController({ tiendas, puntos, baseNombre, tab, sel, fitTrigger
   const map = useMap();
   const lastSelName = useRef(null);
   const initialFitDone = useRef(false);
+  const lastBaseRef = useRef(baseNombre);
 
   useEffect(() => {
     if (!map || !window.google?.maps) return;
+
+    // Si cambió la base asignada al ingeniero y no hay ruta armada, centrar en su nueva base
+    if (lastBaseRef.current !== baseNombre && baseNombre && puntos.length < 2) {
+      lastBaseRef.current = baseNombre;
+      const base = tiendas.find((x) => x.nombre === baseNombre);
+      if (base?.lat != null && base?.lng != null) {
+        map.panTo({ lat: base.lat, lng: base.lng });
+        map.setZoom(12);
+        return;
+      }
+    }
 
     // Si se oprimió el botón manual de encuadrar (CornersOut)
     if (fitTrigger > 0) {
