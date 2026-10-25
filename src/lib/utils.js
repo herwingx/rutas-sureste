@@ -66,6 +66,38 @@ export const fechaLarga = (iso) => {
 };
 
 /**
+ * Retorna los 7 días (Lunes a Domingo) de la semana correspondiente a una fecha ISO (YYYY-MM-DD).
+ * @param {string} fechaStr
+ * @returns {Array<{ fecha: string, diaNombre: string, diaMes: string, mesNum: string, esFinDeSemana: boolean }>}
+ */
+export const obtenerDiasSemana = (fechaStr) => {
+  const d = fechaStr ? new Date(fechaStr + 'T12:00:00') : new Date();
+  if (Number.isNaN(d.getTime())) return [];
+  const day = d.getDay();
+  const diffToMonday = (day === 0 ? -6 : 1) - day;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + diffToMonday);
+
+  const nombres = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+  const dias = [];
+  for (let i = 0; i < 7; i++) {
+    const cur = new Date(monday);
+    cur.setDate(monday.getDate() + i);
+    const y = cur.getFullYear();
+    const m = String(cur.getMonth() + 1).padStart(2, '0');
+    const diaNum = String(cur.getDate()).padStart(2, '0');
+    dias.push({
+      fecha: `${y}-${m}-${diaNum}`,
+      diaNombre: nombres[i],
+      diaMes: diaNum,
+      mesNum: m,
+      esFinDeSemana: i >= 5,
+    });
+  }
+  return dias;
+};
+
+/**
  * Formatea un monto numérico como moneda en Pesos Mexicanos (`$1,234.56`).
  * @param {number} n
  * @returns {string}

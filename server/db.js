@@ -273,6 +273,7 @@ export async function syncHistorialUpsert(item) {
       uuid: item.id,
       fecha: item.fecha,
       nombre: item.nombre || '',
+      tipo: item.tipo || 'comprobacion',
       paradas: item.paradas || [],
       tramos: item.tramos || [],
       base_inicio: Boolean(item.baseInicio),

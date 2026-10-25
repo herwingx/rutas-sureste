@@ -41,6 +41,7 @@ export function HistoryAnalyticsTab({
   onOpenBitacora,
 }) {
   const [q, setQ] = useState('');
+  const [filtroTipo, setFiltroTipo] = useState('todos'); // 'todos' | 'anticipo' | 'comprobacion'
 
   const kpis = useMemo(() => {
     const totalRutas = historial.length;
@@ -58,15 +59,17 @@ export function HistoryAnalyticsTab({
 
   const filtrados = useMemo(() => {
     const nq = norm(q);
-    if (!nq) return historial;
-    return historial.filter((h) =>
-      norm(
+    return historial.filter((h) => {
+      const tipoRuta = h.tipo || 'comprobacion';
+      if (filtroTipo !== 'todos' && tipoRuta !== filtroTipo) return false;
+      if (!nq) return true;
+      return norm(
         `${h.fecha} ${fechaLarga(h.fecha)} ${h.nombre} ${(h.paradas || [])
           .map((p) => p.nombre)
           .join(' ')}`
-      ).includes(nq)
-    );
-  }, [historial, q]);
+      ).includes(nq);
+    });
+  }, [historial, q, filtroTipo]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -121,19 +124,40 @@ export function HistoryAnalyticsTab({
         </Card>
       )}
 
-      {/* ================= BUSCADOR DE HISTORIAL ================= */}
-      <div className="relative">
-        <MagnifyingGlass
-          weight="bold"
-          className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground"
-        />
-        <Input
-          size="sm"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Filtrar por fecha, ruta o tienda…"
-          className="pl-8"
-        />
+      {/* ================= BUSCADOR Y FILTROS ================= */}
+      <div className="space-y-1.5">
+        <div className="relative">
+          <MagnifyingGlass
+            weight="bold"
+            className="pointer-events-none absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground"
+          />
+          <Input
+            size="sm"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Filtrar por fecha, ruta o tienda…"
+            className="pl-8"
+          />
+        </div>
+
+        <div className="flex items-center gap-1">
+          {[
+            { id: 'todos', label: 'Todos' },
+            { id: 'comprobacion', label: '⛽ Comprobación' },
+            { id: 'anticipo', label: '📋 Anticipo' },
+          ].map((f) => (
+            <Button
+              key={f.id}
+              type="button"
+              variant={filtroTipo === f.id ? 'default' : 'outline'}
+              size="xs"
+              onClick={() => setFiltroTipo(f.id)}
+              className="text-[11px] h-6 px-2 font-medium"
+            >
+              {f.label}
+            </Button>
+          ))}
+        </div>
       </div>
 
       {/* ================= TARJETAS DE RUTAS GUARDADAS ================= */}
@@ -158,11 +182,25 @@ export function HistoryAnalyticsTab({
             >
               <CardContent className="p-3">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex items-center gap-1.5 min-w-0">
                     <TypographyH4 className="capitalize truncate text-xs font-semibold">
                       {fechaLarga(h.fecha)}
                     </TypographyH4>
-                    {h.nombre && <Badge variant="secondary">{h.nombre}</Badge>}
+                    <Badge
+                      variant="outline"
+                      className={
+                        h.tipo === 'anticipo'
+                          ? 'text-[10px] text-amber-600 border-amber-500/40 bg-amber-500/10 px-1 py-0'
+                          : 'text-[10px] text-blue-600 border-blue-500/40 bg-blue-500/10 px-1 py-0'
+                      }
+                    >
+                      {h.tipo === 'anticipo' ? 'Anticipo' : 'Comprobación'}
+                    </Badge>
+                    {h.nombre && (
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 truncate max-w-28">
+                        {h.nombre}
+                      </Badge>
+                    )}
                   </div>
                   <span className="text-xs font-mono text-muted-foreground tabular-nums shrink-0">
                     {h.totalKm} km · {pesos(h.costo || 0)}

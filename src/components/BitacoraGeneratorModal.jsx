@@ -119,6 +119,7 @@ export function BitacoraGeneratorModal({
   toast,
   isAdmin = false,
   onOpenProfile,
+  modoInicial = 'ambas',
 }) {
   const perfilActual = useMemo(() => {
     return (
@@ -202,16 +203,36 @@ export function BitacoraGeneratorModal({
     }
   }, [rutaActual?.fecha]);
 
-  // Cargar lista de bitácoras guardadas al abrir el modal
+  // Cargar lista de bitácoras guardadas al abrir el modal y auto-seleccionar días de la semana activa
   useEffect(() => {
     if (open) {
+      if (modoInicial) {
+        setModoHojas(modoInicial);
+      }
       api('GET', '/api/bitacoras')
         .then((data) => {
           if (Array.isArray(data)) setBitacorasGuardadas(data);
         })
         .catch(() => {});
+
+      // Auto-seleccionar todas las rutas del historial que coincidan con la semana y el ingeniero
+      const rutasDeLaSemana = (historial || []).filter((h) => {
+        if (!h.fecha) return false;
+        const c = calcularSemanaISO(h.fecha);
+        const mismaSemana = c.semana === semana && c.anio === anio;
+        const mismoIng = !h.ingeniero || !formIng.nombre || h.ingeniero === formIng.nombre;
+        if (!mismaSemana || !mismoIng) return false;
+        if (modoInicial === 'anticipo') return h.tipo === 'anticipo';
+        if (modoInicial === 'comprobacion') return h.tipo === 'comprobacion' || !h.tipo;
+        return true;
+      });
+
+      const idsCoincidentes = rutasDeLaSemana.map((h) => h.id);
+      if (idsCoincidentes.length > 0) {
+        setIdsHistorialSel(idsCoincidentes);
+      }
     }
-  }, [open]);
+  }, [open, modoInicial, semana, anio, formIng.nombre, historial]);
 
   // Selección de días consolidados (hasta 7 días por hoja)
   const diasConsolidados = useMemo(() => {
@@ -706,12 +727,38 @@ export function BitacoraGeneratorModal({
                   <CalendarCheck weight="duotone" className="h-4 w-4 text-primary" />
                   <span>Días incluidos en la semana ({diasConsolidados.length} de 7 bloques)</span>
                 </Label>
-                <TypographyMuted className="text-[11px]">
-                  Bloques 17..72 en el Excel oficial
-                </TypographyMuted>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    className="text-[10px] h-6 px-2 text-primary hover:text-primary"
+                    onClick={() => {
+                      const ids = historial
+                        .filter((h) => {
+                          if (!h.fecha) return false;
+                          const c = calcularSemanaISO(h.fecha);
+                          return c.semana === semana && c.anio === anio;
+                        })
+                        .map((h) => h.id);
+                      setIdsHistorialSel(ids);
+                    }}
+                  >
+                    Seleccionar Semana {semana}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    className="text-[10px] h-6 px-1.5 text-muted-foreground"
+                    onClick={() => setIdsHistorialSel([])}
+                  >
+                    Limpiar
+                  </Button>
+                </div>
               </div>
 
-              <Card className="divide-y divide-border max-h-44 overflow-y-auto">
+              <Card className="divide-y divide-border max-h-48 overflow-y-auto">
                 {rutaActual?.paradas?.length > 0 && (
                   <div className="flex items-center justify-between gap-2 px-3 py-2 bg-primary/5">
                     <div className="flex items-center gap-2 min-w-0">
@@ -722,9 +769,12 @@ export function BitacoraGeneratorModal({
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
                           <Badge variant="default" className="text-[10px] px-1.5 py-0">
-                            Ruta activa
+                            Ruta activa en pantalla
                           </Badge>
-                          <TypographySmall className="font-semibold">
+                          <Badge variant="outline" className="text-[9px] uppercase px-1 py-0">
+                            {modoHojas === 'anticipo' ? 'Anticipo' : 'Comprobación'}
+                          </Badge>
+                          <TypographySmall className="font-semibold text-xs">
                             {fechaMX(rutaActual.fecha)}
                           </TypographySmall>
                         </div>
@@ -739,13 +789,16 @@ export function BitacoraGeneratorModal({
                 {historial.map((h) => {
                   const esMismaActual = incluirRutaActual && rutaActual?.id === h.id;
                   const checked = esMismaActual || idsHistorialSel.includes(h.id);
+                  const cSem = h.fecha ? calcularSemanaISO(h.fecha) : null;
+                  const esEstaSemana = cSem && cSem.semana === semana && cSem.anio === anio;
                   return (
                     <div
                       key={h.id}
                       onClick={() => !esMismaActual && toggleHistorialId(h.id)}
                       className={cn(
                         'flex items-center justify-between gap-2 px-3 py-2 text-xs cursor-pointer transition-colors hover:bg-accent/50',
-                        checked && 'bg-accent/30'
+                        checked && 'bg-accent/30',
+                        esEstaSemana && !checked && 'bg-primary/5'
                       )}
                     >
                       <div className="flex items-center gap-2 min-w-0">
@@ -759,8 +812,24 @@ export function BitacoraGeneratorModal({
                             <TypographySmall className="font-medium">
                               {fechaMX(h.fecha)}
                             </TypographySmall>
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                'text-[9px] uppercase px-1 py-0',
+                                h.tipo === 'anticipo'
+                                  ? 'text-amber-600 border-amber-500/40 bg-amber-500/10'
+                                  : 'text-blue-600 border-blue-500/40 bg-blue-500/10'
+                              )}
+                            >
+                              {h.tipo === 'anticipo' ? 'Anticipo' : 'Comprobación'}
+                            </Badge>
+                            {esEstaSemana && (
+                              <Badge variant="secondary" className="text-[9px] px-1 py-0">
+                                Sem {semana}
+                              </Badge>
+                            )}
                             {h.nombre && (
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 truncate max-w-28">
                                 {h.nombre}
                               </Badge>
                             )}
@@ -770,7 +839,7 @@ export function BitacoraGeneratorModal({
                           </TypographyMuted>
                         </div>
                       </div>
-                      <TypographyMono className="text-[11px] text-muted-foreground shrink-0">
+                      <TypographyMono className="text-[11px] text-muted-foreground shrink-0 font-semibold">
                         {h.totalKm} km
                       </TypographyMono>
                     </div>

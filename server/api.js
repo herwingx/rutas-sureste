@@ -421,6 +421,7 @@ const rutas = {
       id: body.id || crypto.randomUUID(),
       fecha: body.fecha || new Date().toISOString().slice(0, 10),
       nombre: String(body.nombre || '').trim(),
+      tipo: body.tipo || 'comprobacion',
       ingeniero: String(body.ingeniero || '').trim(),
       baseNombre: String(body.baseNombre || '').trim(),
       paradas: body.paradas || [],

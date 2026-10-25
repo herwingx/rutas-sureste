@@ -24,6 +24,7 @@ import {
   DotsSixVertical,
   Path,
   GasPump,
+  Receipt,
   Timer,
   Drop,
   ClipboardText,
@@ -38,6 +39,9 @@ import {
   MapPinLine,
   FileXls,
   CheckCircle,
+  ArrowRight,
+  Lightning,
+  CalendarCheck,
 } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -82,7 +86,9 @@ import {
   zonasDisponibles,
   pesos,
   duracion,
+  obtenerDiasSemana,
 } from '@/lib/utils';
+import { calcularSemanaISO } from '@/lib/bitacora-excel';
 
 export function RouteBuilderTab({
   searchInputRef,
@@ -107,6 +113,13 @@ export function RouteBuilderTab({
   onNewRoute,
   onJumpToAudit,
   onOpenBitacora,
+  historial = [],
+  ingenieroActivo = '',
+  modoOperativo = 'comprobacion',
+  onSetModoOperativo,
+  onSaveAndNext,
+  onSelectDay,
+  onCopyAnticipo,
 }) {
   const [query, setQuery] = useState('');
   const [activeIdx, setActiveIdx] = useState(0);
@@ -117,6 +130,103 @@ export function RouteBuilderTab({
   const [showTablePreview, setShowTablePreview] = useState(false);
   const [dragIdx, setDragIdx] = useState(null);
   const [dropTarget, setDropTarget] = useState(null);
+
+  // Información de Semana y Días de la semana para flujo ágil
+  const semanaInfo = useMemo(() => calcularSemanaISO(ruta.fecha), [ruta.fecha]);
+  const diasSemana = useMemo(() => obtenerDiasSemana(ruta.fecha), [ruta.fecha]);
+
+  // Mapa de días guardados en el historial para este ingeniero en el modo operativo activo
+  const mapaDiasHistorial = useMemo(() => {
+    const mapa = {};
+    (historial || []).forEach((h) => {
+      if (!h.fecha) return;
+      const coincideIng = !h.ingeniero || !ingenieroActivo || h.ingeniero === ingenieroActivo;
+      if (!coincideIng) return;
+      const tipoRuta = h.tipo || 'comprobacion';
+      if (tipoRuta === modoOperativo) {
+        mapa[h.fecha] = h;
+      }
+    });
+    return mapa;
+  }, [historial, ingenieroActivo, modoOperativo]);
+
+  // Mapa de anticipos guardados (para poder importar a comprobación)
+  const mapaAnticipos = useMemo(() => {
+    const mapa = {};
+    (historial || []).forEach((h) => {
+      if (!h.fecha) return;
+      const coincideIng = !h.ingeniero || !ingenieroActivo || h.ingeniero === ingenieroActivo;
+      if (!coincideIng) return;
+      if (h.tipo === 'anticipo') {
+        mapa[h.fecha] = h;
+      }
+    });
+    return mapa;
+  }, [historial, ingenieroActivo]);
+
+  const nombreDiaActual = useMemo(() => {
+    const d = new Date(ruta.fecha + 'T12:00:00');
+    const nombres = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    return nombres[d.getDay()] || 'Día';
+  }, [ruta.fecha]);
+
+  const diaMesActual = useMemo(() => {
+    if (!ruta.fecha) return '';
+    const parts = ruta.fecha.split('-');
+    return parts[2] || '';
+  }, [ruta.fecha]);
+
+  const siguienteDiaInfo = useMemo(() => {
+    const d = new Date(ruta.fecha + 'T12:00:00');
+    d.setDate(d.getDate() + 1);
+    if (d.getDay() === 0) d.setDate(d.getDate() + 1); // saltar domingo
+    const nombres = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const diaNum = String(d.getDate()).padStart(2, '0');
+    return {
+      iso: `${y}-${m}-${diaNum}`,
+      label: `${nombres[d.getDay()]} ${diaNum}`,
+      nombre: nombres[d.getDay()],
+    };
+  }, [ruta.fecha]);
+
+  const estaGuardado = useMemo(() => {
+    if (ruta.id) return true;
+    const h = mapaDiasHistorial[ruta.fecha];
+    return Boolean(
+      h &&
+      (h.paradas || []).length === (ruta.paradas || []).length &&
+      Number(h.totalKm) === Number(totales.km)
+    );
+  }, [ruta.id, mapaDiasHistorial, ruta.fecha, ruta.paradas, totales.km]);
+
+  const diasListosSemana = useMemo(() => {
+    return diasSemana.filter(
+      (d) => mapaDiasHistorial[d.fecha] || (ruta.fecha === d.fecha && ruta.paradas.length > 0)
+    );
+  }, [diasSemana, mapaDiasHistorial, ruta.fecha, ruta.paradas.length]);
+
+  const kmAcumuladoSemana = useMemo(() => {
+    let sum = 0;
+    diasSemana.forEach((d) => {
+      if (ruta.fecha === d.fecha) {
+        sum += totales.km;
+      } else if (mapaDiasHistorial[d.fecha]) {
+        sum += Number(mapaDiasHistorial[d.fecha].totalKm) || 0;
+      }
+    });
+    return Math.round(sum);
+  }, [diasSemana, ruta.fecha, totales.km, mapaDiasHistorial]);
+
+  const anticipoDisponibleParaImportar = useMemo(() => {
+    if (modoOperativo !== 'comprobacion') return null;
+    const ant = mapaAnticipos[ruta.fecha];
+    if (ant && (ant.paradas || []).length > 0 && ruta.paradas.length === 0) {
+      return ant;
+    }
+    return null;
+  }, [modoOperativo, mapaAnticipos, ruta.fecha, ruta.paradas.length]);
 
   const zonas = useMemo(() => zonasDisponibles(tiendas), [tiendas]);
 
@@ -253,6 +363,127 @@ export function RouteBuilderTab({
 
   return (
     <div className="flex flex-col gap-3">
+      {/* ================= BARRA DE MODO OPERATIVO (ANTICIPO vs COMPROBACIÓN) ================= */}
+      <div className="rounded-xl border border-border/80 bg-muted/20 p-2.5 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-bold tracking-wider uppercase text-muted-foreground">
+            Control Semanal
+          </span>
+          <Badge variant="outline" className="text-[10px] font-medium bg-background/60 border-border/70">
+            Semana {semanaInfo.semana} ({semanaInfo.anio})
+          </Badge>
+        </div>
+
+        {/* Selector de modo estilo segmented pill */}
+        <div className="grid grid-cols-2 p-0.5 rounded-lg bg-muted/60 border border-border/50">
+          <button
+            type="button"
+            onClick={() => onSetModoOperativo?.('anticipo')}
+            className={cn(
+              'flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md text-xs transition-all cursor-pointer',
+              modoOperativo === 'anticipo'
+                ? 'bg-amber-600 text-white font-semibold shadow-xs'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+            )}
+          >
+            <Receipt weight="duotone" className="h-3.5 w-3.5" />
+            <span>📋 Anticipo</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onSetModoOperativo?.('comprobacion')}
+            className={cn(
+              'flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md text-xs transition-all cursor-pointer',
+              modoOperativo === 'comprobacion'
+                ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+            )}
+          >
+            <GasPump weight="duotone" className="h-3.5 w-3.5" />
+            <span>⛽ Comprobación</span>
+          </button>
+        </div>
+
+        <div className="flex items-center justify-between text-[11px] text-muted-foreground px-0.5">
+          <span className="truncate pr-2">
+            {modoOperativo === 'anticipo'
+              ? 'Planeación previa de visitas para presupuesto'
+              : 'Bitácora real con odómetro y tickets para justificar gastos'}
+          </span>
+          <span className="font-mono font-semibold shrink-0 text-foreground">
+            {kmAcumuladoSemana} km acum.
+          </span>
+        </div>
+
+        {/* Tira interactiva de días de la semana */}
+        <div className="pt-1.5 border-t border-border/40">
+          <div className="flex items-center justify-between pb-1 text-[10px] text-muted-foreground">
+            <span>Días de la semana</span>
+            <span className="font-mono font-medium">
+              {diasListosSemana.length} de {diasSemana.slice(0, 6).length} listos
+            </span>
+          </div>
+          <div className="grid grid-cols-6 gap-1">
+            {diasSemana.slice(0, 6).map((d) => {
+              const esActivo = ruta.fecha === d.fecha;
+              const guardado = mapaDiasHistorial[d.fecha];
+              return (
+                <button
+                  key={d.fecha}
+                  type="button"
+                  onClick={() => {
+                    if (guardado) {
+                      onSelectDay?.(d.fecha, guardado);
+                    } else {
+                      onSelectDay?.(d.fecha, null);
+                    }
+                  }}
+                  className={cn(
+                    'flex flex-col items-center justify-center py-1.5 px-1 rounded-lg border text-center transition-all cursor-pointer',
+                    esActivo
+                      ? 'border-primary bg-primary/10 text-primary font-bold ring-2 ring-primary/40 shadow-xs'
+                      : guardado
+                      ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20'
+                      : 'border-border/60 bg-card/60 text-muted-foreground hover:bg-muted hover:text-foreground'
+                  )}
+                  title={`${d.diaNombre} ${d.diaMes} · ${guardado ? `${guardado.totalKm} km guardados` : 'Sin ruta'}`}
+                >
+                  <span className="text-[9px] uppercase font-bold tracking-tight">{d.diaNombre}</span>
+                  <span className="text-xs font-semibold tabular-nums leading-none mt-0.5">{d.diaMes}</span>
+                  <span className="text-[8px] mt-1 leading-none font-mono">
+                    {guardado ? `${Math.round(guardado.totalKm)}k ✓` : esActivo ? 'En curso' : '—'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Banner de conveniencia si hay un Anticipo guardado para hoy y estamos en Comprobación */}
+      {anticipoDisponibleParaImportar && (
+        <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-xs animate-in fade-in">
+          <div className="flex items-center gap-2 min-w-0">
+            <Lightning weight="fill" className="h-4 w-4 shrink-0 text-amber-500" />
+            <div className="min-w-0">
+              <span className="font-semibold block truncate">Anticipo planeado disponible</span>
+              <span className="text-[10px] text-muted-foreground truncate block">
+                {anticipoDisponibleParaImportar.paradas.length} tiendas · {anticipoDisponibleParaImportar.totalKm} km
+              </span>
+            </div>
+          </div>
+          <Button
+            type="button"
+            size="xs"
+            variant="outline"
+            className="border-amber-500/40 bg-background/80 hover:bg-amber-500/20 text-xs shrink-0 font-medium"
+            onClick={() => onCopyAnticipo?.(ruta.fecha)}
+          >
+            Importar tiendas
+          </Button>
+        </div>
+      )}
+
       {/* ================= FILA FECHA + ETIQUETA + ACCIONES ================= */}
       <div className="flex items-center gap-1.5">
         <DatePicker
@@ -775,64 +1006,150 @@ export function RouteBuilderTab({
         </Card>
       </div>
 
-      {/* ================= ACCIONES DE SALIDA ================= */}
-      <div className="grid grid-cols-2 gap-1.5">
-        <Button
-          size="lg"
-          className="col-span-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
-          onClick={onOpenBitacora}
-        >
-          <FileXls weight="duotone" className="h-4 w-4" />
-          <span>Generar Bitácora Neto (.xlsx)</span>
-          <Badge
-            variant="secondary"
-            className="ml-1 bg-white/20 text-white border-0 text-[10px] px-1.5 py-0"
-          >
-            Auto
-          </Badge>
-        </Button>
-        <Button
-          variant="default"
-          className="col-span-2"
-          disabled={filasExcel.length === 0}
-          onClick={onCopyExcel}
-        >
-          <CopySimple weight="duotone" />
-          <span>Copiar tramos al portapapeles ({filasExcel.length})</span>
-          <Kbd className="ml-1 border-primary-foreground/30 bg-primary-foreground/15 text-primary-foreground">
-            Ctrl+Enter
-          </Kbd>
-        </Button>
-        <ActionTooltip label="Reordenar paradas para menor kilometraje" shortcut="Alt+O">
-          <Button variant="outline" disabled={ruta.paradas.length < 3} onClick={onOptimize}>
-            <CompassTool weight="duotone" />
-            Optimizar orden
-          </Button>
-        </ActionTooltip>
-        <ActionTooltip label="Guardar ruta en el historial" shortcut="Ctrl+S">
-          <Button variant="outline" disabled={ruta.paradas.length === 0} onClick={onSaveDay}>
-            <FloppyDiskBack weight="duotone" />
-            Guardar ruta
-          </Button>
-        </ActionTooltip>
-        <ActionTooltip label="Copiar resumen con enlace de Google Maps">
+      {/* ================= BLOQUE 1: ACCIONES DE GUARDADO DEL DÍA ================= */}
+      <div className="rounded-xl border border-border/80 bg-card p-3 shadow-xs space-y-2.5">
+        <div className="flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2">
+            <span
+              className={cn(
+                'h-2.5 w-2.5 rounded-full shrink-0',
+                estaGuardado
+                  ? 'bg-emerald-500'
+                  : ruta.paradas.length > 0
+                  ? 'bg-amber-500 animate-pulse'
+                  : 'bg-muted-foreground/50'
+              )}
+            />
+            <span className="font-semibold text-foreground">
+              {nombreDiaActual} {diaMesActual}
+            </span>
+            <Badge
+              variant={estaGuardado ? 'secondary' : 'outline'}
+              className={cn(
+                'text-[10px] px-1.5 py-0',
+                estaGuardado &&
+                  'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+              )}
+            >
+              {estaGuardado
+                ? `✓ Guardado (${modoOperativo === 'anticipo' ? 'Anticipo' : 'Comprobación'})`
+                : ruta.paradas.length > 0
+                ? 'Sin guardar'
+                : 'Ruta vacía'}
+            </Badge>
+          </div>
+          <span className="text-[11px] text-muted-foreground font-mono">
+            {totales.km} km · {pesos(totales.costo).replace('.00', '')}
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
           <Button
-            variant="secondary"
+            variant={estaGuardado ? 'outline' : 'default'}
+            size="sm"
+            disabled={ruta.paradas.length === 0}
+            onClick={() => onSaveDay?.(modoOperativo)}
+            className="font-medium text-xs h-9"
+          >
+            <FloppyDiskBack weight="duotone" className="h-4 w-4" />
+            <span>{estaGuardado ? 'Actualizar día' : `Guardar ${nombreDiaActual}`}</span>
+          </Button>
+
+          <Button
+            variant="default"
+            size="sm"
+            disabled={ruta.paradas.length === 0}
+            onClick={() => onSaveAndNext?.(modoOperativo)}
+            className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium text-xs h-9"
+          >
+            <span className="truncate">Guardar y pasar a {siguienteDiaInfo.nombre}</span>
+            <ArrowRight weight="bold" className="h-3.5 w-3.5 ml-1 shrink-0" />
+          </Button>
+        </div>
+      </div>
+
+      {/* ================= BLOQUE 2: CIERRE SEMANAL Y GENERACIÓN DE BITÁCORA ================= */}
+      <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-2">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-1.5">
+              <FileXls weight="duotone" className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              <span className="text-xs font-semibold text-foreground">
+                Bitácora Semana {semanaInfo.semana} ({semanaInfo.anio})
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              {diasListosSemana.length} de {diasSemana.slice(0, 6).length} días listos ·{' '}
+              <span className="font-semibold text-foreground font-mono">{kmAcumuladoSemana} km</span> acumulados
+            </p>
+          </div>
+          <Badge
+            variant="outline"
+            className="text-[10px] uppercase border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+          >
+            {modoOperativo === 'anticipo' ? 'Anticipo' : 'Comprobación'}
+          </Badge>
+        </div>
+
+        <Button
+          size="default"
+          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-xs text-xs h-9"
+          onClick={() => onOpenBitacora?.(modoOperativo)}
+        >
+          <FileXls weight="bold" className="h-4 w-4" />
+          <span>Generar Bitácora Oficial Neto (.xlsx)</span>
+        </Button>
+      </div>
+
+      {/* ================= BLOQUE 3: HERRAMIENTAS DE RUTA Y PORTAPAPELES ================= */}
+      <div className="grid grid-cols-2 gap-1.5">
+        <ActionTooltip label="Copiar tramos para pegar directo en celdas de Excel o Sheets">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={filasExcel.length === 0}
+            onClick={onCopyExcel}
+            className="text-xs h-8"
+          >
+            <CopySimple weight="duotone" className="h-3.5 w-3.5" />
+            <span>Copiar tramos Excel</span>
+          </Button>
+        </ActionTooltip>
+
+        <ActionTooltip label="Reordenar paradas con algoritmo 2-Opt para menor kilometraje" shortcut="Alt+O">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={ruta.paradas.length < 3}
+            onClick={onOptimize}
+            className="text-xs h-8"
+          >
+            <CompassTool weight="duotone" className="h-3.5 w-3.5" />
+            <span>Optimizar orden</span>
+          </Button>
+        </ActionTooltip>
+
+        <ActionTooltip label="Copiar resumen estructurado con link a Google Maps">
+          <Button
+            variant="ghost"
             size="sm"
             disabled={filasExcel.length === 0}
             onClick={onCopyWhatsApp}
+            className="text-xs h-8 text-muted-foreground hover:text-foreground"
           >
-            <ShareNetwork weight="duotone" />
-            Copiar resumen
+            <ShareNetwork weight="duotone" className="h-3.5 w-3.5" />
+            <span>Copiar WhatsApp</span>
           </Button>
         </ActionTooltip>
+
         <Button
           variant="ghost"
           size="sm"
           onClick={() => setShowTablePreview((v) => !v)}
+          className="text-xs h-8 text-muted-foreground hover:text-foreground"
         >
-          <TableIcon weight="duotone" />
-          {showTablePreview ? 'Ocultar tabla' : 'Vista previa Excel'}
+          <TableIcon weight="duotone" className="h-3.5 w-3.5" />
+          <span>{showTablePreview ? 'Ocultar tabla' : 'Vista previa Excel'}</span>
         </Button>
       </div>
 

@@ -130,6 +130,21 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [tab, setTab] = useState('ruta');
   const [bitacoraOpen, setBitacoraOpen] = useState(false);
+  const [modoModalBitacora, setModoModalBitacora] = useState('ambas');
+  const [modoOperativo, setModoOperativo] = useState(() => {
+    try {
+      return localStorage.getItem('neto_modo_operativo') || 'comprobacion';
+    } catch {
+      return 'comprobacion';
+    }
+  });
+
+  const cambiarModoOperativo = useCallback((modo) => {
+    setModoOperativo(modo);
+    try {
+      localStorage.setItem('neto_modo_operativo', modo);
+    } catch {}
+  }, []);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [newStoreModalOpen, setNewStoreModalOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
@@ -589,37 +604,149 @@ export default function App() {
     toast('Resumen copiado');
   }, [puntosRuta, ruta.fecha, ruta.nombre, totales, toast]);
 
-  const guardarDia = useCallback(async () => {
-    if (!ruta.paradas.length) return toast('La ruta está vacía');
-    if (!userSession) {
-      toast('Inicia sesión con tu cuenta corporativa @soyneto.com para guardar rutas en el historial', 'err');
-      setAuthModalOpen(true);
-      return;
-    }
-    try {
-      const item = await api('POST', '/api/historial', {
-        id: ruta.id,
-        fecha: ruta.fecha,
-        nombre: ruta.nombre,
-        ingeniero: ingenieroActivo,
-        baseNombre: ajustes.base,
-        paradas: ruta.paradas,
-        tramos,
-        baseInicio: ruta.baseInicio,
-        baseFin: ruta.baseFin,
-        totalKm: totales.km,
-        litros: Math.round(totales.litros * 100) / 100,
-        segundos: totales.seg,
-        costo: Math.round(totales.costo * 100) / 100,
+  const cargarRutaDeHistorial = useCallback(
+    (h, nuevaFecha = null) => {
+      mutarRuta({
+        id: nuevaFecha ? null : h.id,
+        fecha: nuevaFecha || h.fecha,
+        nombre: h.nombre || '',
+        paradas: (h.paradas || []).map((p) => {
+          if (p.temporal) return p;
+          const t = porNombre.get(p.nombre);
+          return t || p;
+        }),
+        baseInicio: h.baseInicio !== false,
+        baseFin: h.baseFin !== false,
       });
-      setRuta((r) => ({ ...r, id: item.id }));
-      const hList = await api('GET', '/api/historial');
-      setHistorial(hList);
-      toast(`Ruta guardada: ${fechaLarga(ruta.fecha)}`);
-    } catch (e) {
-      toast(e.message, 'err');
-    }
-  }, [ruta, tramos, totales, ingenieroActivo, ajustes.base, toast]);
+      if (h.baseNombre) {
+        setAjustes((prev) => ({ ...prev, base: h.baseNombre }));
+      }
+    },
+    [mutarRuta, porNombre]
+  );
+
+  const guardarDia = useCallback(
+    async (modo = modoOperativo) => {
+      if (!ruta.paradas.length) return toast('La ruta está vacía');
+      if (!userSession) {
+        toast('Inicia sesión con tu cuenta corporativa @soyneto.com para guardar rutas en el historial', 'err');
+        setAuthModalOpen(true);
+        return;
+      }
+      try {
+        const tipoGuardar = modo || 'comprobacion';
+        const item = await api('POST', '/api/historial', {
+          id: ruta.id,
+          fecha: ruta.fecha,
+          nombre: ruta.nombre,
+          tipo: tipoGuardar,
+          ingeniero: ingenieroActivo,
+          baseNombre: ajustes.base,
+          paradas: ruta.paradas,
+          tramos,
+          baseInicio: ruta.baseInicio,
+          baseFin: ruta.baseFin,
+          totalKm: totales.km,
+          litros: Math.round(totales.litros * 100) / 100,
+          segundos: totales.seg,
+          costo: Math.round(totales.costo * 100) / 100,
+        });
+        setRuta((r) => ({ ...r, id: item.id }));
+        const hList = await api('GET', '/api/historial');
+        setHistorial(hList);
+        toast(
+          `Ruta de ${tipoGuardar === 'anticipo' ? 'Anticipo' : 'Comprobación'} guardada: ${fechaLarga(
+            ruta.fecha
+          )}`
+        );
+      } catch (e) {
+        toast(e.message, 'err');
+      }
+    },
+    [ruta, tramos, totales, ingenieroActivo, ajustes.base, userSession, modoOperativo, toast]
+  );
+
+  const seleccionarDiaSemana = useCallback(
+    (fechaTarget, guardadoDirecto = null) => {
+      if (guardadoDirecto) {
+        cargarRutaDeHistorial(guardadoDirecto);
+        toast(`Cargada ruta guardada: ${fechaMX(fechaTarget)}`);
+        return;
+      }
+
+      const guardada = (historial || []).find((h) => {
+        const coincideIng = !h.ingeniero || !ingenieroActivo || h.ingeniero === ingenieroActivo;
+        const tipoRuta = h.tipo || 'comprobacion';
+        return h.fecha === fechaTarget && coincideIng && tipoRuta === modoOperativo;
+      });
+
+      if (guardada) {
+        cargarRutaDeHistorial(guardada);
+        toast(`Cargada ruta guardada: ${fechaMX(fechaTarget)}`);
+      } else {
+        mutarRuta({
+          id: null,
+          fecha: fechaTarget,
+          nombre: '',
+          paradas: [],
+          baseInicio: true,
+          baseFin: true,
+        });
+        toast(`Iniciando ruta para ${fechaMX(fechaTarget)}`);
+        setTimeout(() => searchInputRef.current?.focus(), 40);
+      }
+    },
+    [historial, ingenieroActivo, modoOperativo, cargarRutaDeHistorial, mutarRuta, toast]
+  );
+
+  const guardarYPasarSiguienteDia = useCallback(
+    async (modo = modoOperativo) => {
+      await guardarDia(modo);
+      const d = new Date(ruta.fecha + 'T12:00:00');
+      d.setDate(d.getDate() + 1);
+      if (d.getDay() === 0) d.setDate(d.getDate() + 1); // domingo -> lunes
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const diaNum = String(d.getDate()).padStart(2, '0');
+      const siguienteFecha = `${y}-${m}-${diaNum}`;
+
+      seleccionarDiaSemana(siguienteFecha);
+    },
+    [guardarDia, ruta.fecha, seleccionarDiaSemana, modoOperativo]
+  );
+
+  const copiarAnticipoAComprobacion = useCallback(
+    (fechaTarget) => {
+      const ant = (historial || []).find((h) => {
+        const coincideIng = !h.ingeniero || !ingenieroActivo || h.ingeniero === ingenieroActivo;
+        return h.fecha === fechaTarget && coincideIng && h.tipo === 'anticipo';
+      });
+
+      if (!ant) {
+        return toast('No hay anticipo guardado para esta fecha', 'err');
+      }
+
+      mutarRuta({
+        id: null,
+        fecha: fechaTarget,
+        nombre: ant.nombre ? `${ant.nombre} (Comprobación)` : 'Comprobación de ruta',
+        paradas: (ant.paradas || []).map((p) => {
+          if (p.temporal) return p;
+          const t = porNombre.get(p.nombre);
+          return t || p;
+        }),
+        baseInicio: ant.baseInicio !== false,
+        baseFin: ant.baseFin !== false,
+      });
+      toast(`Tiendas importadas de Anticipo para ${fechaMX(fechaTarget)}. Revisa paradas y odómetros.`);
+    },
+    [historial, ingenieroActivo, porNombre, mutarRuta, toast]
+  );
+
+  const abrirBitacoraConModo = useCallback((modo = 'ambas') => {
+    setModoModalBitacora(modo);
+    setBitacoraOpen(true);
+  }, []);
 
   const nuevaRuta = useCallback(() => {
     const limpiar = () => {
@@ -1105,7 +1232,14 @@ export default function App() {
                     setTab('corregir');
                     seleccionarTiendaAudit(nombre);
                   }}
-                  onOpenBitacora={() => setBitacoraOpen(true)}
+                  onOpenBitacora={abrirBitacoraConModo}
+                  historial={historial}
+                  ingenieroActivo={ingenieroActivo}
+                  modoOperativo={modoOperativo}
+                  onSetModoOperativo={cambiarModoOperativo}
+                  onSaveAndNext={guardarYPasarSiguienteDia}
+                  onSelectDay={seleccionarDiaSemana}
+                  onCopyAnticipo={copiarAnticipoAComprobacion}
                 />
               </TabsContent>
 
@@ -1145,7 +1279,7 @@ export default function App() {
               <TabsContent value="historial" className="m-0">
                 <HistoryAnalyticsTab
                   historial={historial}
-                  onOpenBitacora={() => setBitacoraOpen(true)}
+                  onOpenBitacora={abrirBitacoraConModo}
                   onLoadHistory={(h, comoNueva) => {
                     mutarRuta({
                       id: comoNueva ? null : h.id,
@@ -1282,6 +1416,7 @@ export default function App() {
           ajustes={ajustes}
           toast={toast}
           isAdmin={isAdmin}
+          modoInicial={modoModalBitacora}
           onOpenProfile={() => {
             setIsOnboardingMode(false);
             setProfileModalOpen(true);
