@@ -1345,7 +1345,11 @@ export function BitacoraGeneratorModal({
                 }
                 handleDescargarExcel();
               }}
-              disabled={descargando || diasConsolidados.length === 0 || !perfilCompleto}
+              disabled={
+                descargando ||
+                (diasComprobacion.length === 0 && diasAnticipo.length === 0) ||
+                !perfilCompleto
+              }
             >
               <FileXls weight="duotone" className="h-4 w-4" />
               <span>
