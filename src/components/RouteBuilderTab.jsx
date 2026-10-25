@@ -36,6 +36,8 @@ import {
   FlagCheckered,
   CompassTool,
   MapPinLine,
+  FileXls,
+  CheckCircle,
 } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -104,6 +106,7 @@ export function RouteBuilderTab({
   onSaveDay,
   onNewRoute,
   onJumpToAudit,
+  onOpenBitacora,
 }) {
   const [query, setQuery] = useState('');
   const [activeIdx, setActiveIdx] = useState(0);
@@ -595,6 +598,14 @@ export function RouteBuilderTab({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
                     <TypographySmall className="truncate font-medium">{p.nombre}</TypographySmall>
+                    {!p.temporal && tiendaCat?.verificada && (
+                      <ActionTooltip label="Coordenada GPS verificada">
+                        <CheckCircle
+                          weight="fill"
+                          className="h-3.5 w-3.5 text-emerald-500 shrink-0"
+                        />
+                      </ActionTooltip>
+                    )}
                     {p.temporal && (
                       <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                         desvío
@@ -618,16 +629,17 @@ export function RouteBuilderTab({
 
                 {/* Acciones discretas por parada */}
                 <div className="flex items-center gap-0.5 opacity-60 group-hover:opacity-100 transition-opacity">
-                  {!p.temporal && tiendaCat && (
-                    <ActionTooltip label="Ajustar ubicación en mapa">
+                  {!p.temporal && tiendaCat && !tiendaCat.verificada && (
+                    <ActionTooltip label="Pendiente de verificar: Ajustar ubicación en mapa">
                       <Button
                         type="button"
-                        variant="ghost"
-                        size="icon-xs"
-                        className="text-muted-foreground hover:text-foreground"
+                        variant="outline"
+                        size="xs"
+                        className="h-6 px-1.5 text-[10px] border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
                         onClick={() => onJumpToAudit(p.nombre)}
                       >
-                        <Crosshair weight="duotone" className="h-3.5 w-3.5" />
+                        <Crosshair weight="duotone" className="h-3 w-3" />
+                        Verificar GPS
                       </Button>
                     </ActionTooltip>
                   )}
@@ -767,12 +779,26 @@ export function RouteBuilderTab({
       <div className="grid grid-cols-2 gap-1.5">
         <Button
           size="lg"
+          className="col-span-2 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+          onClick={onOpenBitacora}
+        >
+          <FileXls weight="duotone" className="h-4 w-4" />
+          <span>Generar Bitácora Neto (.xlsx)</span>
+          <Badge
+            variant="secondary"
+            className="ml-1 bg-white/20 text-white border-0 text-[10px] px-1.5 py-0"
+          >
+            Auto
+          </Badge>
+        </Button>
+        <Button
+          variant="default"
           className="col-span-2"
           disabled={filasExcel.length === 0}
           onClick={onCopyExcel}
         >
           <CopySimple weight="duotone" />
-          <span>Copiar para Excel ({filasExcel.length} tramos)</span>
+          <span>Copiar tramos al portapapeles ({filasExcel.length})</span>
           <Kbd className="ml-1 border-primary-foreground/30 bg-primary-foreground/15 text-primary-foreground">
             Ctrl+Enter
           </Kbd>

@@ -94,13 +94,63 @@ const rutas = {
     mapsKey: cfg.API_KEY,
     kmPorLitro: cfg.KM_POR_LITRO,
     precioLitro: cfg.PRECIO_LITRO,
+    supabase: db.supabaseActivo(),
     motor: dist.estadoMotor(),
   }),
 
   /** Devuelve el catálogo completo de tiendas */
   'GET /api/tiendas': () => db.cargar(),
 
-  /** Registra una nueva tienda en el catálogo con respaldo previo */
+  /** Devuelve la lista de perfiles de ingenieros */
+  'GET /api/ingenieros': () => db.cargarIngenieros(),
+
+  /** Actualiza o crea un perfil de ingeniero y lo sincroniza con Supabase */
+  'PATCH /api/ingenieros': async (body) => {
+    const nombre = db.normalizarNombre(body.nombre);
+    if (!nombre) throw httpError(400, 'Se requiere el nombre del ingeniero');
+    const lista = db.cargarIngenieros();
+    const idx = lista.findIndex((i) => db.normalizarNombre(i.nombre) === nombre);
+    const prev = idx >= 0 ? lista[idx] : { nombre };
+    const actualizado = {
+      ...prev,
+      nombre,
+      puesto: String(body.puesto ?? prev.puesto ?? 'INGENIERO DE SOPORTE TECNICO')
+        .trim()
+        .toUpperCase(),
+      no_empleado: String(body.no_empleado ?? prev.no_empleado ?? '').trim(),
+      tarjeta_gasolina: String(body.tarjeta_gasolina ?? prev.tarjeta_gasolina ?? '').trim(),
+      automovil: String(body.automovil ?? prev.automovil ?? '')
+        .trim()
+        .toUpperCase(),
+      placas: String(body.placas ?? prev.placas ?? '')
+        .trim()
+        .toUpperCase(),
+      serie: String(body.serie ?? prev.serie ?? '')
+        .trim()
+        .toUpperCase(),
+      ceco: String(body.ceco ?? prev.ceco ?? '108266').trim(),
+      region: String(body.region ?? prev.region ?? 'TUXTLA')
+        .trim()
+        .toUpperCase(),
+      rendimiento: Number(body.rendimiento ?? prev.rendimiento ?? 12.5) || 12.5,
+      costo_litro: Number(body.costo_litro ?? prev.costo_litro ?? 23.99) || 23.99,
+      base_nombre: String(body.base_nombre ?? prev.base_nombre ?? 'RESGUARDO TUXTLA').trim(),
+      domicilio_direccion: String(
+        body.domicilio_direccion ?? prev.domicilio_direccion ?? ''
+      ).trim(),
+      domicilio_link: String(body.domicilio_link ?? prev.domicilio_link ?? '').trim(),
+      km_inicial_ultimo: Number(body.km_inicial_ultimo ?? prev.km_inicial_ultimo ?? 0) || 0,
+    };
+
+    if (idx >= 0) lista[idx] = actualizado;
+    else lista.push(actualizado);
+
+    const guardados = db.guardarIngenieros(lista);
+    db.syncIngenieroUpsert(actualizado);
+    return guardados;
+  },
+
+  /** Registra una nueva tienda en el catálogo con respaldo previo y sync a Supabase */
   'POST /api/tiendas': async (body) => {
     const nombre = db.normalizarNombre(body.nombre);
     if (!nombre) throw httpError(400, 'Escribe el nombre de la tienda');
@@ -124,7 +174,9 @@ const rutas = {
         ? { verificada: true, fechaVerificacion: new Date().toISOString().slice(0, 10) }
         : {}),
     };
-    return db.guardar([...tiendas, nueva]);
+    const res = db.guardar([...tiendas, nueva]);
+    db.syncTiendaUpsert(nueva);
+    return res;
   },
 
   /** Actualiza coordenadas, nombre, estado o verificación de una tienda existente */
@@ -176,7 +228,9 @@ const rutas = {
     }
 
     tiendas[idx] = actual;
-    return db.guardar(tiendas);
+    const res = db.guardar(tiendas);
+    db.syncTiendaUpsert(actual, original);
+    return res;
   },
 
   /** Elimina una tienda del catálogo activo (conservando copia en `data/backups/`) */
@@ -185,7 +239,9 @@ const rutas = {
     const tiendas = db.cargar();
     const filtradas = tiendas.filter((t) => t.nombre !== nombre);
     if (filtradas.length === tiendas.length) throw httpError(404, `No se encontró "${nombre}"`);
-    return db.guardar(filtradas);
+    const res = db.guardar(filtradas);
+    db.syncTiendaDelete(nombre);
+    return res;
   },
 
   /** Calcula los tramos carreteros consecutivos de una ruta */
@@ -225,10 +281,15 @@ const rutas = {
       id: body.id || crypto.randomUUID(),
       fecha: body.fecha || new Date().toISOString().slice(0, 10),
       nombre: String(body.nombre || '').trim(),
+      ingeniero: String(body.ingeniero || '').trim(),
+      baseNombre: String(body.baseNombre || '').trim(),
       paradas: body.paradas || [],
+      tramos: body.tramos || [],
       baseInicio: Boolean(body.baseInicio),
       baseFin: Boolean(body.baseFin),
       totalKm: Number(body.totalKm || 0),
+      litros: Number(body.litros || 0),
+      segundos: Number(body.segundos || 0),
       costo: Number(body.costo || 0),
       guardadoEn: new Date().toISOString(),
     };
@@ -237,6 +298,7 @@ const rutas = {
     else h.unshift(item);
     h.sort((a, b) => b.fecha.localeCompare(a.fecha));
     guardarHistorial(h);
+    db.syncHistorialUpsert(item);
     return item;
   },
 
@@ -244,6 +306,7 @@ const rutas = {
   'DELETE /api/historial': (body) => {
     const h = leerHistorial().filter((x) => x.id !== body.id);
     guardarHistorial(h);
+    if (body.id) db.syncHistorialDelete(body.id);
     return h;
   },
 };

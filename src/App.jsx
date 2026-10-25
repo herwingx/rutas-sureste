@@ -24,6 +24,7 @@ import {
   Keyboard,
   CheckCircle,
   WarningCircle,
+  FileXls,
 } from '@phosphor-icons/react';
 import { BrandLogo } from '@/components/ui/brand-logo';
 import { Button } from '@/components/ui/button';
@@ -57,8 +58,9 @@ import {
 import { RouteBuilderTab } from '@/components/RouteBuilderTab';
 import { CoordinateAuditTab } from '@/components/CoordinateAuditTab';
 import { HistoryAnalyticsTab } from '@/components/HistoryAnalyticsTab';
+import { BitacoraGeneratorModal } from '@/components/BitacoraGeneratorModal';
 import { MapCanvas } from '@/components/MapCanvas';
-import { BRAND } from '@/lib/brand';
+import { BRAND, INGENIEROS } from '@/lib/brand';
 import {
   cn,
   hoy,
@@ -108,9 +110,15 @@ export default function App() {
 
   const [mapsKey, setMapsKey] = useState('');
   const [tiendasRaw, setTiendasRaw] = useState([]);
+  const [ingenieros, setIngenieros] = useState([]);
+  const [ingenieroActivo, setIngenieroActivo] = useState(
+    () => localStorage.getItem('ruteo.ingeniero') || INGENIEROS[0]
+  );
   const [historial, setHistorial] = useState([]);
   const [motor, setMotor] = useState(null);
+  const [supabaseConnected, setSupabaseConnected] = useState(false);
   const [tab, setTab] = useState('ruta');
+  const [bitacoraOpen, setBitacoraOpen] = useState(false);
 
   const [ajustes, setAjustes] = useState(() => ({
     ...AJUSTES_DEF,
@@ -182,12 +190,23 @@ export default function App() {
   }, [ruta]);
 
   useEffect(() => {
-    Promise.all([api('GET', '/api/config'), api('GET', '/api/tiendas'), api('GET', '/api/historial')])
-      .then(([cfg, tList, hList]) => {
+    localStorage.setItem('ruteo.ingeniero', ingenieroActivo);
+  }, [ingenieroActivo]);
+
+  useEffect(() => {
+    Promise.all([
+      api('GET', '/api/config'),
+      api('GET', '/api/tiendas'),
+      api('GET', '/api/historial'),
+      api('GET', '/api/ingenieros').catch(() => []),
+    ])
+      .then(([cfg, tList, hList, ingList]) => {
         setMapsKey(cfg.mapsKey || '');
         setMotor(cfg.motor);
+        setSupabaseConnected(Boolean(cfg.supabase));
         setTiendasRaw(tList);
         setHistorial(hList);
+        if (ingList?.length) setIngenieros(ingList);
         if (!localStorage.getItem('ruteo.ajustes')) {
           setAjustes((a) => ({
             ...a,
@@ -429,10 +448,15 @@ export default function App() {
         id: ruta.id,
         fecha: ruta.fecha,
         nombre: ruta.nombre,
+        ingeniero: ingenieroActivo,
+        baseNombre: ajustes.base,
         paradas: ruta.paradas,
+        tramos,
         baseInicio: ruta.baseInicio,
         baseFin: ruta.baseFin,
         totalKm: totales.km,
+        litros: Math.round(totales.litros * 100) / 100,
+        segundos: totales.seg,
         costo: Math.round(totales.costo * 100) / 100,
       });
       setRuta((r) => ({ ...r, id: item.id }));
@@ -442,7 +466,7 @@ export default function App() {
     } catch (e) {
       toast(e.message, 'err');
     }
-  }, [ruta, totales, toast]);
+  }, [ruta, tramos, totales, ingenieroActivo, ajustes.base, toast]);
 
   const nuevaRuta = useCallback(() => {
     const limpiar = () => {
@@ -473,6 +497,12 @@ export default function App() {
         nombre: t.nombre,
         nombreEdit: t.nombre,
         estado: t.estado || 'Chiapas',
+        eco: t.eco || '0',
+        ceco: t.ceco || '0',
+        zona: t.zona || '',
+        ingeniero: t.ingeniero || '',
+        verificada: Boolean(t.verificada),
+        desbloqueada: false,
         lat: t.lat,
         lng: t.lng,
         orig: { lat: t.lat, lng: t.lng },
@@ -702,6 +732,16 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-0.5">
+              <ActionTooltip label="Generar Bitácora Oficial Tiendas Neto (.xlsx)">
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-emerald-600 dark:text-emerald-400"
+                  onClick={() => setBitacoraOpen(true)}
+                >
+                  <FileXls weight="duotone" className="h-4 w-4" />
+                </Button>
+              </ActionTooltip>
               <ActionTooltip label="Atajos de teclado">
                 <Button variant="ghost" size="icon-sm" onClick={() => setShortcutsOpen(true)}>
                   <Keyboard weight="duotone" className="h-4 w-4" />
@@ -776,6 +816,7 @@ export default function App() {
                     setTab('corregir');
                     seleccionarTiendaAudit(nombre);
                   }}
+                  onOpenBitacora={() => setBitacoraOpen(true)}
                 />
               </TabsContent>
 
@@ -804,6 +845,9 @@ export default function App() {
                   onUpdateSelectedState={(estado) =>
                     setSel((prev) => (prev ? { ...prev, estado } : prev))
                   }
+                  onUnlockSelected={(desbloqueada) =>
+                    setSel((prev) => (prev ? { ...prev, desbloqueada } : prev))
+                  }
                   onMoveSelected={(lat, lng) =>
                     setSel((prev) => (prev ? { ...prev, lat, lng } : prev))
                   }
@@ -819,6 +863,7 @@ export default function App() {
               <TabsContent value="historial" className="m-0">
                 <HistoryAnalyticsTab
                   historial={historial}
+                  onOpenBitacora={() => setBitacoraOpen(true)}
                   onLoadHistory={(h, comoNueva) => {
                     mutarRuta({
                       id: comoNueva ? null : h.id,
@@ -856,14 +901,21 @@ export default function App() {
 
           {/* Pie técnico discreto */}
           <footer className="flex items-center justify-between border-t border-border px-4 py-1.5 text-[11px] text-muted-foreground">
-            <div className="flex items-center gap-1.5">
-              <span
-                className={cn(
-                  'h-1.5 w-1.5 rounded-full',
-                  motor?.motor === 'routes' ? 'bg-emerald-500' : 'bg-amber-500'
-                )}
-              />
-              <span>{motor?.motor === 'routes' ? 'Routes API' : 'Distance Matrix'}</span>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <span
+                  className={cn(
+                    'h-1.5 w-1.5 rounded-full',
+                    motor?.motor === 'routes' ? 'bg-emerald-500' : 'bg-amber-500'
+                  )}
+                />
+                <span>{motor?.motor === 'routes' ? 'Routes API' : 'Distance Matrix'}</span>
+              </div>
+              {supabaseConnected && (
+                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                  · Supabase Sync
+                </span>
+              )}
             </div>
             <span className="tabular-nums">{motor?.tramosEnCache || 0} tramos en caché</span>
           </footer>
@@ -884,12 +936,52 @@ export default function App() {
             onToggleStop={toggleParadaMapa}
             onAddDetour={agregarDesvio}
             onSelectStore={seleccionarTiendaAudit}
+            onUnlockSelected={(desbloqueada) =>
+              setSel((prev) => (prev ? { ...prev, desbloqueada } : prev))
+            }
             onMoveSelected={(lat, lng) =>
               setSel((prev) => (prev ? { ...prev, lat, lng } : prev))
             }
             onSaveSelected={guardarSeleccionAudit}
           />
         </main>
+
+        {/* ================= MODAL DE BITÁCORA OFICIAL NETO (.XLSX) ================= */}
+        <BitacoraGeneratorModal
+          open={bitacoraOpen}
+          onOpenChange={setBitacoraOpen}
+          ingenieros={ingenieros}
+          ingenieroActivo={ingenieroActivo}
+          onSelectIngeniero={(nombre) => {
+            setIngenieroActivo(nombre);
+            const p = ingenieros.find((i) => i.nombre === nombre);
+            if (p) {
+              setAjustes((a) => ({
+                ...a,
+                kmPorLitro: Number(p.rendimiento) || a.kmPorLitro,
+                precioLitro: Number(p.costo_litro) || a.precioLitro,
+                base: p.base_nombre && porNombre.has(p.base_nombre) ? p.base_nombre : a.base,
+              }));
+            }
+          }}
+          onSaveIngeniero={(listaNueva, ingGuardado) => {
+            setIngenieros(listaNueva);
+            if (ingGuardado) {
+              setAjustes((a) => ({
+                ...a,
+                kmPorLitro: Number(ingGuardado.rendimiento) || a.kmPorLitro,
+                precioLitro: Number(ingGuardado.costo_litro) || a.precioLitro,
+              }));
+            }
+          }}
+          rutaActual={ruta}
+          tramosActuales={tramos}
+          baseNombre={ajustes.base}
+          porNombre={porNombre}
+          historial={historial}
+          ajustes={ajustes}
+          toast={toast}
+        />
 
         {/* ================= MODAL DE AJUSTES ================= */}
         <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>

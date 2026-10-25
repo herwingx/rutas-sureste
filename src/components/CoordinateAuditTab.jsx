@@ -24,6 +24,8 @@ import {
   Trash,
   PlusCircle,
   DownloadSimple,
+  LockKey,
+  LockKeyOpen,
 } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -69,6 +71,7 @@ export function CoordinateAuditTab({
   onStartNewStore,
   onUpdateSelectedName,
   onUpdateSelectedState,
+  onUnlockSelected,
   onMoveSelected,
   onApplyTextCoords,
   onSaveSelected,
@@ -138,6 +141,7 @@ export function CoordinateAuditTab({
   }, [tiendas, filtroTexto, estadoFiltro, zonaFiltro, ingenieroFiltro]);
 
   const tiendaActualCat = sel && !sel.nueva ? porNombre.get(sel.nombre) : null;
+  const bloqueada = Boolean(tiendaActualCat?.verificada && !sel?.desbloqueada);
   const deltaM = sel?.orig && sel?.lat != null ? haversineM(sel.orig, sel) : 0;
   const rumbo = sel?.orig && sel?.lat != null ? rumboCardinal(sel.orig, sel) : '';
 
@@ -172,9 +176,10 @@ export function CoordinateAuditTab({
               <Input
                 size="sm"
                 value={sel.nombreEdit ?? sel.nombre}
+                disabled={bloqueada}
                 onChange={(e) => onUpdateSelectedName(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
+                  if (e.key === 'Enter' && !bloqueada) {
                     e.preventDefault();
                     onSaveSelected();
                   }
@@ -184,6 +189,7 @@ export function CoordinateAuditTab({
               />
               <Select
                 value={sel.estado || 'Chiapas'}
+                disabled={bloqueada}
                 onValueChange={(v) => onUpdateSelectedState?.(v)}
               >
                 <SelectTrigger size="sm" className="w-33 bg-card">
@@ -225,76 +231,109 @@ export function CoordinateAuditTab({
               </div>
             )}
 
-            {/* Coordenadas o link */}
-            <div className="flex items-center gap-1.5">
-              <Input
-                size="sm"
-                value={coordInput}
-                onChange={(e) => setCoordInput(e.target.value)}
-                onPaste={(e) => {
-                  e.preventDefault();
-                  const txt = e.clipboardData.getData('text');
-                  onApplyTextCoords(txt, { desdePegar: true });
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    const actual = sel.lat != null ? fmtCoords(sel.lat, sel.lng) : '';
-                    if (coordInput.trim() && coordInput.trim() !== actual) {
-                      onApplyTextCoords(coordInput.trim(), { desdePegar: false });
-                    } else {
-                      onSaveSelected();
-                    }
-                  }
-                }}
-                placeholder="Coordenadas (lat, lng) o enlace de Google Maps…"
-                className="font-mono bg-card flex-1"
-              />
-              <ActionTooltip label="Pegar del portapapeles" shortcut="Ctrl+V">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  onClick={async () => {
-                    try {
-                      const txt = await navigator.clipboard.readText();
+            {bloqueada ? (
+              /* VISTA PROTEGIDA CUANDO LA SUCURSAL YA ESTÁ VERIFICADA */
+              <div className="rounded-md border border-emerald-500/35 bg-emerald-500/10 p-2.5 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
+                    <LockKey weight="fill" className="h-4 w-4 shrink-0" />
+                    <TypographySmall className="font-semibold">
+                      Ubicación GPS verificada y protegida
+                    </TypographySmall>
+                  </div>
+                  <TypographyMono className="text-[11px] text-muted-foreground">
+                    {sel.lat?.toFixed(6)}, {sel.lng?.toFixed(6)}
+                  </TypographyMono>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <TypographyMuted className="text-[11px]">
+                    El pin está bloqueado para evitar movimientos accidentales.
+                  </TypographyMuted>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="xs"
+                    onClick={() => onUnlockSelected?.(true)}
+                  >
+                    <LockKeyOpen weight="duotone" />
+                    Desbloquear para corregir
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              /* EDITOR ACTIVO PARA TIENDAS PENDIENTES O DESBLOQUEADAS */
+              <>
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    size="sm"
+                    value={coordInput}
+                    onChange={(e) => setCoordInput(e.target.value)}
+                    onPaste={(e) => {
+                      e.preventDefault();
+                      const txt = e.clipboardData.getData('text');
                       onApplyTextCoords(txt, { desdePegar: true });
-                    } catch {
-                      onApplyTextCoords(coordInput, { desdePegar: false });
-                    }
-                  }}
-                >
-                  <ClipboardText weight="duotone" />
-                  Pegar
-                </Button>
-              </ActionTooltip>
-            </div>
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const actual = sel.lat != null ? fmtCoords(sel.lat, sel.lng) : '';
+                        if (coordInput.trim() && coordInput.trim() !== actual) {
+                          onApplyTextCoords(coordInput.trim(), { desdePegar: false });
+                        } else {
+                          onSaveSelected();
+                        }
+                      }
+                    }}
+                    placeholder="Coordenadas (lat, lng) o enlace de Google Maps…"
+                    className="font-mono bg-card flex-1"
+                  />
+                  <ActionTooltip label="Pegar del portapapeles" shortcut="Ctrl+V">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          const txt = await navigator.clipboard.readText();
+                          onApplyTextCoords(txt, { desdePegar: true });
+                        } catch {
+                          onApplyTextCoords(coordInput, { desdePegar: false });
+                        }
+                      }}
+                    >
+                      <ClipboardText weight="duotone" />
+                      Pegar
+                    </Button>
+                  </ActionTooltip>
+                </div>
 
-            {/* Estado de posición */}
-            <div className="flex items-center justify-between gap-2 rounded-md border border-border/80 bg-card px-2.5 py-1.5 text-xs">
-              {sel.lat == null ? (
-                <TypographyMuted>
-                  Haz clic en el mapa o pega un enlace para ubicar el pin.
-                </TypographyMuted>
-              ) : deltaM > 1 ? (
-                <TypographyMuted className="text-foreground">
-                  Ajustada{' '}
-                  <strong>
-                    {deltaM < 1000
-                      ? `${Math.round(deltaM)} m`
-                      : `${(deltaM / 1000).toFixed(2)} km`}
-                  </strong>{' '}
-                  al <strong>{rumbo}</strong>
-                </TypographyMuted>
-              ) : (
-                <TypographyMono className="text-[11px] text-muted-foreground">
-                  {sel.lat.toFixed(6)}, {sel.lng.toFixed(6)}
-                </TypographyMono>
-              )}
-              {tiendaActualCat?.coordsAnteriores && (
-                <span className="text-[10px] text-muted-foreground">editada previamente</span>
-              )}
-            </div>
+                {/* Estado de posición */}
+                <div className="flex items-center justify-between gap-2 rounded-md border border-border/80 bg-card px-2.5 py-1.5 text-xs">
+                  {sel.lat == null ? (
+                    <TypographyMuted>
+                      Haz clic en el mapa o pega un enlace para ubicar el pin.
+                    </TypographyMuted>
+                  ) : deltaM > 1 ? (
+                    <TypographyMuted className="text-foreground">
+                      Ajustada{' '}
+                      <strong>
+                        {deltaM < 1000
+                          ? `${Math.round(deltaM)} m`
+                          : `${(deltaM / 1000).toFixed(2)} km`}
+                      </strong>{' '}
+                      al <strong>{rumbo}</strong>
+                    </TypographyMuted>
+                  ) : (
+                    <TypographyMono className="text-[11px] text-muted-foreground">
+                      {sel.lat.toFixed(6)}, {sel.lng.toFixed(6)}
+                    </TypographyMono>
+                  )}
+                  {tiendaActualCat?.coordsAnteriores && (
+                    <span className="text-[10px] text-muted-foreground">editada previamente</span>
+                  )}
+                </div>
+              </>
+            )}
 
             {/* Verificación externa */}
             {sel.lat != null && (
@@ -336,13 +375,20 @@ export function CoordinateAuditTab({
 
             {/* Guardar / Siguiente */}
             <div className="flex items-center gap-1.5">
-              <Button size="sm" className="flex-1" onClick={() => onSaveSelected()}>
-                <CheckCircle weight="duotone" />
-                Guardar ubicación (Enter)
-              </Button>
+              {!bloqueada && (
+                <Button size="sm" className="flex-1" onClick={() => onSaveSelected()}>
+                  <CheckCircle weight="duotone" />
+                  Verificar y bloquear ubicación (Enter)
+                </Button>
+              )}
               {!sel.nueva && stats.pendientes > 0 && (
-                <Button variant="outline" size="sm" onClick={() => onNextPending()}>
-                  Siguiente
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={cn(bloqueada && 'w-full')}
+                  onClick={() => onNextPending()}
+                >
+                  Siguiente pendiente ({stats.pendientes})
                   <FastForward weight="duotone" />
                 </Button>
               )}

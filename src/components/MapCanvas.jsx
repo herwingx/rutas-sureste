@@ -28,6 +28,8 @@ import {
   ArrowClockwise,
   Warehouse,
   MapPinPlus,
+  LockKey,
+  LockKeyOpen,
 } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -163,6 +165,7 @@ export function MapCanvas({
   onToggleStop,
   onAddDetour,
   onSelectStore,
+  onUnlockSelected,
   onMoveSelected,
   onSaveSelected,
 }) {
@@ -228,6 +231,7 @@ export function MapCanvas({
     return `https://www.google.com/maps?q=${lat},${lng}&hl=es&z=${z}&t=${t}&output=embed`;
   }, [tab, sel?.lat, sel?.lng, ruta.paradas, tiendas, baseNombre, mapType]);
 
+  const selBloqueada = Boolean(sel && !sel.nueva && sel.verificada && !sel.desbloqueada);
   const deltaMeters = sel?.orig && sel?.lat != null ? haversineM(sel.orig, sel) : 0;
   const rumbo = sel?.orig && sel?.lat != null ? rumboCardinal(sel.orig, sel) : '';
 
@@ -326,6 +330,15 @@ export function MapCanvas({
               <TypographySmall className="truncate font-semibold">
                 {sel.nombre || 'Nueva tienda'}
               </TypographySmall>
+              {selBloqueada && (
+                <Badge
+                  variant="secondary"
+                  className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 text-[10px] gap-1"
+                >
+                  <LockKey weight="fill" className="h-3 w-3" />
+                  Verificada
+                </Badge>
+              )}
               {sel.zona && (
                 <span className="text-[10px] text-muted-foreground font-normal">
                   ({sel.zona})
@@ -358,10 +371,17 @@ export function MapCanvas({
                   Street View
                 </a>
               </Button>
-              <Button size="xs" onClick={() => onSaveSelected()}>
-                <CheckCircle weight="duotone" />
-                Guardar
-              </Button>
+              {selBloqueada ? (
+                <Button variant="secondary" size="xs" onClick={() => onUnlockSelected?.(true)}>
+                  <LockKeyOpen weight="duotone" />
+                  Desbloquear pin
+                </Button>
+              ) : (
+                <Button size="xs" onClick={() => onSaveSelected()}>
+                  <CheckCircle weight="duotone" />
+                  Guardar
+                </Button>
+              )}
             </div>
           )}
         </Card>
@@ -422,7 +442,7 @@ export function MapCanvas({
               clickableIcons={false}
               internalUsageAttributionIds={['gmp_git_agentskills_v1']}
               onClick={(e) => {
-                if (tab === 'corregir' && sel && e.detail?.latLng) {
+                if (tab === 'corregir' && sel && !selBloqueada && e.detail?.latLng) {
                   onMoveSelected(e.detail.latLng.lat, e.detail.latLng.lng);
                 }
               }}
@@ -458,7 +478,7 @@ export function MapCanvas({
                     key={t.nombre}
                     position={pos}
                     title={t.nombre}
-                    draggable={esSel}
+                    draggable={esSel && !selBloqueada}
                     zIndex={esSel ? 1000 : nums ? 500 : esBase ? 400 : 25}
                     onClick={() => {
                       if (tab === 'corregir') {
@@ -468,7 +488,7 @@ export function MapCanvas({
                       }
                     }}
                     onDragEnd={(e) => {
-                      if (esSel && e.latLng) {
+                      if (esSel && !selBloqueada && e.latLng) {
                         onMoveSelected(e.latLng.lat(), e.latLng.lng());
                       }
                     }}

@@ -19,6 +19,7 @@ import {
   Path,
   GasPump,
   FolderOpen,
+  FileXls,
 } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -33,7 +34,12 @@ import {
 } from '@/components/ui/typography';
 import { norm, fechaLarga, pesos } from '@/lib/utils';
 
-export function HistoryAnalyticsTab({ historial, onLoadHistory, onDeleteHistory }) {
+export function HistoryAnalyticsTab({
+  historial,
+  onLoadHistory,
+  onDeleteHistory,
+  onOpenBitacora,
+}) {
   const [q, setQ] = useState('');
 
   const kpis = useMemo(() => {
@@ -65,6 +71,15 @@ export function HistoryAnalyticsTab({ historial, onLoadHistory, onDeleteHistory 
   return (
     <div className="flex flex-col gap-3">
       {/* ================= KPIS ACUMULADOS ================= */}
+      <Button
+        size="lg"
+        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+        onClick={onOpenBitacora}
+      >
+        <FileXls weight="duotone" className="h-4 w-4" />
+        <span>Generar Bitácora Semanal Neto (.xlsx)</span>
+      </Button>
+
       <div className="grid grid-cols-3 gap-1.5">
         <Card className="p-2.5">
           <div className="flex items-center justify-between text-muted-foreground">

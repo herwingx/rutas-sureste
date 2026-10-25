@@ -32,8 +32,17 @@ export const HOST = process.env.HOST || '127.0.0.1';
 /** Archivo maestro del catálogo de tiendas */
 export const DB_FILE = path.join(DATA_DIR, 'tiendas.json');
 
+/** Archivo maestro de perfiles de ingenieros de soporte técnico */
+export const INGENIEROS_FILE = path.join(DATA_DIR, 'ingenieros.json');
+
 /** Archivo de registro histórico de rutas diarias */
 export const HISTORIAL_FILE = path.join(DATA_DIR, 'historial-rutas.json');
+
+/** Credenciales opcionales para sincronización en tiempo real con Supabase */
+export const SUPABASE_URL = process.env.SUPABASE_URL || '';
+export const SUPABASE_KEY =
+  process.env.SUPABASE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
+export const SUPABASE_SCHEMA = process.env.SUPABASE_SCHEMA || 'rutas_sureste';
 
 /** Carpeta para la caché persistente de tramos carreteros */
 export const CACHE_DIR = path.join(DATA_DIR, 'cache');
