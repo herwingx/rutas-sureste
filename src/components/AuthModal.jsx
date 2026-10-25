@@ -132,11 +132,11 @@ export function AuthModal({ open, onOpenChange, onAuthSuccess, toast }) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader className="space-y-2">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <img
-              src="/logo-neto.png"
+              src="/logo-app.png"
               alt="Tiendas Neto"
-              className="h-7 w-auto rounded bg-white px-1.5 py-0.5 border border-border shadow-2xs"
+              className="h-9 w-9 rounded-xl object-contain bg-white p-0.5 border border-border/40 shadow-xs"
             />
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono">
               <ShieldCheck weight="fill" className="h-4 w-4 text-emerald-500" />

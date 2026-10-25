@@ -792,7 +792,7 @@ export default function App() {
           {/* Cabecera */}
           <header className="flex items-center justify-between gap-2 border-b border-border px-4 py-2.5">
             <div className="flex items-center gap-2.5 min-w-0">
-              <BrandLogo className="h-7 w-7 shadow-xs" />
+              <BrandLogo className="h-8 w-8 shadow-xs" />
               <div className="min-w-0">
                 <TypographyH4 className="text-sm font-semibold tracking-tight leading-none">
                   {BRAND.nombre}

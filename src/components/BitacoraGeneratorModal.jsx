@@ -389,9 +389,9 @@ export function BitacoraGeneratorModal({
           <div className="flex items-center justify-between gap-2 pr-6">
             <div className="flex items-center gap-2.5">
               <img
-                src="/logo-neto.png"
+                src="/logo-app.png"
                 alt="Tiendas Neto"
-                className="h-8 w-auto rounded bg-white px-1.5 py-0.5 border border-border shadow-2xs"
+                className="h-9 w-9 rounded-xl object-contain bg-white p-0.5 border border-border/40 shadow-xs"
               />
               <div>
                 <DialogTitle className="flex items-center gap-2">
