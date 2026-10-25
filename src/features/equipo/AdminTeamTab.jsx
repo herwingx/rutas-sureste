@@ -23,6 +23,13 @@ import {
   Storefront,
   LockKey,
   CarProfile,
+  CheckCircle,
+  Warning,
+  UserCheck,
+  EnvelopeSimple,
+  Info,
+  IdentificationCard,
+  User,
 } from '@phosphor-icons/react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -62,6 +69,7 @@ export function AdminTeamTab({
   onOpenBitacoraModal,
 }) {
   const [subTab, setSubTab] = useState('equipo'); // 'equipo' | 'bitacoras' | 'cobertura'
+  const [filtroEquipo, setFiltroEquipo] = useState('todos'); // 'todos' | 'activos' | 'pendientes'
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [ingenieroAEditar, setIngenieroAEditar] = useState(null);
   const [guardando, setGuardando] = useState(false);
@@ -134,6 +142,20 @@ export function AdminTeamTab({
     cargarBitacorasGlobales();
   }, []);
 
+  // Cuentas con usuario registrado y verificado en la plataforma
+  const usuariosRegistrados = useMemo(() => {
+    return ingenieros.filter(
+      (i) => Boolean(i.email && i.email.trim()) || Boolean(i.auth_id)
+    );
+  }, [ingenieros]);
+
+  // Rutas o zonas de catálogo con asignación histórica pero sin cuenta creada aún
+  const pendientesRegistro = useMemo(() => {
+    return ingenieros.filter(
+      (i) => !Boolean(i.email && i.email.trim()) && !Boolean(i.auth_id)
+    );
+  }, [ingenieros]);
+
   const stats = useMemo(() => {
     const total = tiendas.length;
     const verificadas = tiendas.filter((t) => t.verificada).length;
@@ -143,10 +165,11 @@ export function AdminTeamTab({
       verificadas,
       pendientes,
       porcentajeVerif: total ? Math.round((verificadas / total) * 100) : 0,
-      totalIngenieros: ingenieros.length,
+      totalRegistrados: usuariosRegistrados.length,
+      totalCatalogo: ingenieros.length,
       totalBitacoras: bitacorasGlobales.length,
     };
-  }, [tiendas, ingenieros.length, bitacorasGlobales.length]);
+  }, [tiendas, usuariosRegistrados.length, ingenieros.length, bitacorasGlobales.length]);
 
   const coberturaPorIngeniero = useMemo(() => {
     const mapa = new Map();
@@ -300,60 +323,84 @@ export function AdminTeamTab({
                 </Badge>
               </div>
               <TypographyMuted className="text-xs leading-relaxed mt-1">
-                Cada ingeniero gestiona su propio perfil. Desde aquí controlas el registro de cuentas nuevas, auditas bitácoras y supervisas el catálogo regional.
+                Supervisa el catálogo regional de 380 tiendas, audita bitácoras semanales en la nube y gestiona el acceso de cuentas (@soyneto.com).
               </TypographyMuted>
             </div>
           </div>
         </div>
 
-        {/* Grid de Indicadores Ejecutivos */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <div className="rounded-xl border border-border bg-muted/40 p-2.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground block">
-              Verificadas
-            </span>
-            <div className="flex items-baseline gap-1 mt-1">
-              <span className="text-base font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+        {/* Grid de Indicadores Ejecutivos Consistente */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+          <div className="rounded-xl border border-border/80 bg-muted/40 p-3 flex flex-col justify-between min-h-[84px]">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span className="text-[10px] font-semibold uppercase tracking-wider">
+                GPS Verificadas
+              </span>
+              <CheckCircle weight="duotone" className="h-4 w-4 text-emerald-500" />
+            </div>
+            <div className="mt-1 flex items-baseline gap-1.5">
+              <span className="text-xl font-bold font-mono tracking-tight tabular-nums text-emerald-600 dark:text-emerald-400">
                 {stats.verificadas}
               </span>
-              <span className="text-[11px] text-muted-foreground">/ {stats.totalTiendas}</span>
+              <span className="text-xs text-muted-foreground font-mono">/ {stats.totalTiendas}</span>
             </div>
+            <span className="text-[11px] text-muted-foreground truncate mt-0.5">
+              {stats.porcentajeVerif}% del catálogo seguro
+            </span>
           </div>
 
-          <div className="rounded-xl border border-border bg-muted/40 p-2.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground block">
-              Por revisar
-            </span>
-            <div className="flex items-baseline gap-1 mt-1">
-              <span className="text-base font-bold tabular-nums text-amber-600 dark:text-amber-400">
+          <div className="rounded-xl border border-border/80 bg-muted/40 p-3 flex flex-col justify-between min-h-[84px]">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span className="text-[10px] font-semibold uppercase tracking-wider">
+                Por revisar
+              </span>
+              <Warning weight="duotone" className="h-4 w-4 text-amber-500" />
+            </div>
+            <div className="mt-1 flex items-baseline gap-1.5">
+              <span className="text-xl font-bold font-mono tracking-tight tabular-nums text-amber-600 dark:text-amber-400">
                 {stats.pendientes}
               </span>
-              <span className="text-[11px] text-muted-foreground">pines GPS</span>
+              <span className="text-xs text-muted-foreground">pines</span>
             </div>
+            <span className="text-[11px] text-muted-foreground truncate mt-0.5">
+              Pendientes de validar
+            </span>
           </div>
 
-          <div className="rounded-xl border border-border bg-muted/40 p-2.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground block">
-              Equipo
-            </span>
-            <div className="flex items-baseline gap-1 mt-1">
-              <span className="text-base font-bold tabular-nums text-foreground">
-                {stats.totalIngenieros}
+          <div className="rounded-xl border border-border/80 bg-muted/40 p-3 flex flex-col justify-between min-h-[84px]">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span className="text-[10px] font-semibold uppercase tracking-wider">
+                Cuentas activas
               </span>
-              <span className="text-[11px] text-muted-foreground">activos</span>
+              <UsersThree weight="duotone" className="h-4 w-4 text-primary" />
             </div>
+            <div className="mt-1 flex items-baseline gap-1.5">
+              <span className="text-xl font-bold font-mono tracking-tight tabular-nums text-foreground">
+                {stats.totalRegistrados}
+              </span>
+              <span className="text-xs text-muted-foreground font-mono">/ {stats.totalCatalogo}</span>
+            </div>
+            <span className="text-[11px] text-muted-foreground truncate mt-0.5">
+              {pendientesRegistro.length > 0 ? `${pendientesRegistro.length} sin registrarse` : 'Equipo completo'}
+            </span>
           </div>
 
-          <div className="rounded-xl border border-border bg-muted/40 p-2.5">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground block">
-              Bitácoras
-            </span>
-            <div className="flex items-baseline gap-1 mt-1">
-              <span className="text-base font-bold tabular-nums text-primary">
+          <div className="rounded-xl border border-border/80 bg-muted/40 p-3 flex flex-col justify-between min-h-[84px]">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span className="text-[10px] font-semibold uppercase tracking-wider">
+                Bitácoras nube
+              </span>
+              <FileXls weight="duotone" className="h-4 w-4 text-emerald-500" />
+            </div>
+            <div className="mt-1 flex items-baseline gap-1.5">
+              <span className="text-xl font-bold font-mono tracking-tight tabular-nums text-primary">
                 {stats.totalBitacoras}
               </span>
-              <span className="text-[11px] text-muted-foreground">en nube</span>
+              <span className="text-xs text-muted-foreground">en nube</span>
             </div>
+            <span className="text-[11px] text-muted-foreground truncate mt-0.5">
+              Archivadas para auditar
+            </span>
           </div>
         </div>
 
@@ -386,20 +433,20 @@ export function AdminTeamTab({
           type="button"
           onClick={() => setSubTab('equipo')}
           className={cn(
-            'flex items-center justify-center gap-1.5 py-2 px-2 text-xs rounded-lg transition-all cursor-pointer min-w-0',
+            'flex items-center justify-center gap-1.5 py-2 px-1 text-xs rounded-lg transition-all cursor-pointer min-w-0 font-medium',
             subTab === 'equipo'
               ? 'bg-primary text-primary-foreground shadow-xs font-semibold'
               : 'text-muted-foreground hover:text-foreground'
           )}
         >
           <UsersThree weight="duotone" className="h-4 w-4 shrink-0" />
-          <span className="truncate">Equipo ({ingenieros.length})</span>
+          <span className="truncate">Equipo ({stats.totalRegistrados})</span>
         </button>
         <button
           type="button"
           onClick={() => setSubTab('bitacoras')}
           className={cn(
-            'flex items-center justify-center gap-1.5 py-2 px-2 text-xs rounded-lg transition-all cursor-pointer min-w-0',
+            'flex items-center justify-center gap-1.5 py-2 px-1 text-xs rounded-lg transition-all cursor-pointer min-w-0 font-medium',
             subTab === 'bitacoras'
               ? 'bg-primary text-primary-foreground shadow-xs font-semibold'
               : 'text-muted-foreground hover:text-foreground'
@@ -412,73 +459,236 @@ export function AdminTeamTab({
           type="button"
           onClick={() => setSubTab('cobertura')}
           className={cn(
-            'flex items-center justify-center gap-1.5 py-2 px-2 text-xs rounded-lg transition-all cursor-pointer min-w-0',
+            'flex items-center justify-center gap-1.5 py-2 px-1 text-xs rounded-lg transition-all cursor-pointer min-w-0 font-medium',
             subTab === 'cobertura'
               ? 'bg-primary text-primary-foreground shadow-xs font-semibold'
               : 'text-muted-foreground hover:text-foreground'
           )}
         >
           <Storefront weight="duotone" className="h-4 w-4 shrink-0" />
-          <span className="truncate">Avance GPS ({stats.porcentajeVerif}%)</span>
+          <span className="truncate">GPS ({stats.porcentajeVerif}%)</span>
         </button>
       </div>
 
       {/* ================= VISTA 1: DIRECTORIO DEL EQUIPO ================= */}
       {subTab === 'equipo' && (
-        <div className="space-y-2.5 min-w-0">
-          {ingenieros.map((ing) => {
-            const esAdmin = ing.rol === 'admin' || ing.nombre.includes('HERWING');
-            const totalTiendasIng = tiendas.filter((t) => t.ingeniero === ing.nombre).length;
+        <div className="space-y-3 min-w-0">
+          {/* Selector de filtro para ver activos vs catálogo histórico */}
+          <div className="flex items-center gap-1.5 p-1 rounded-lg bg-muted/40 border border-border/60 text-xs">
+            <button
+              type="button"
+              onClick={() => setFiltroEquipo('todos')}
+              className={cn(
+                'flex-1 py-1 px-2 rounded-md font-medium transition-colors text-center truncate cursor-pointer',
+                filtroEquipo === 'todos'
+                  ? 'bg-card text-foreground shadow-xs font-semibold'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              Todos ({ingenieros.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFiltroEquipo('activos')}
+              className={cn(
+                'flex-1 py-1 px-2 rounded-md font-medium transition-colors text-center truncate cursor-pointer',
+                filtroEquipo === 'activos'
+                  ? 'bg-card text-foreground shadow-xs font-semibold'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              Registrados ({usuariosRegistrados.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFiltroEquipo('pendientes')}
+              className={cn(
+                'flex-1 py-1 px-2 rounded-md font-medium transition-colors text-center truncate cursor-pointer',
+                filtroEquipo === 'pendientes'
+                  ? 'bg-card text-foreground shadow-xs font-semibold'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              Pendientes ({pendientesRegistro.length})
+            </button>
+          </div>
 
-            return (
-              <Card key={ing.nombre} className="p-3.5 space-y-2.5 hover:border-primary/40 transition-colors">
-                <div className="flex items-start justify-between gap-2 min-w-0">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <TypographySmall className="font-semibold text-xs truncate">
-                        {ing.nombre}
-                      </TypographySmall>
-                      {esAdmin && (
-                        <Badge className="bg-primary/15 text-primary border-primary/30 font-semibold text-[10px] px-1.5 py-0 h-4">
-                          Admin
+          {/* SECCIÓN 1: CUENTAS REGISTRADAS CON ACCESO */}
+          {(filtroEquipo === 'todos' || filtroEquipo === 'activos') && (
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <UserCheck weight="duotone" className="h-4 w-4 text-emerald-500" />
+                  Cuentas Activas con Acceso a la Plataforma
+                </span>
+                <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30">
+                  {usuariosRegistrados.length} {usuariosRegistrados.length === 1 ? 'cuenta' : 'cuentas'}
+                </Badge>
+              </div>
+
+              {usuariosRegistrados.length === 0 ? (
+                <Card className="p-4 text-center text-xs text-muted-foreground">
+                  Aún no hay ingenieros con cuenta registrada.
+                </Card>
+              ) : (
+                usuariosRegistrados.map((ing) => {
+                  const esAdmin = ing.rol === 'admin' || ing.nombre.includes('HERWING');
+                  const totalTiendasIng = tiendas.filter((t) => t.ingeniero === ing.nombre).length;
+                  const iniciales = ing.nombre
+                    .split(' ')
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .map((w) => w[0])
+                    .join('');
+
+                  return (
+                    <Card
+                      key={ing.nombre}
+                      className="p-3.5 space-y-2.5 hover:border-primary/40 transition-colors border-border/80"
+                    >
+                      <div className="flex items-start justify-between gap-2.5 min-w-0">
+                        <div className="flex items-start gap-2.5 min-w-0">
+                          <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-primary font-bold text-xs border border-primary/25">
+                            {iniciales}
+                            <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-card" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <TypographySmall className="font-semibold text-xs truncate">
+                                {ing.nombre}
+                              </TypographySmall>
+                              {esAdmin && (
+                                <Badge className="bg-primary/15 text-primary border-primary/30 font-semibold text-[10px] px-1.5 py-0 h-4">
+                                  Admin
+                                </Badge>
+                              )}
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                {ing.region || 'SURESTE'}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5 truncate">
+                              <span className="truncate">{ing.email}</span>
+                              <span>·</span>
+                              <span>Emp. {ing.no_empleado || 'S/N'}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <Button
+                          variant="outline"
+                          size="xs"
+                          onClick={() => handleEditarClick(ing)}
+                          className="shrink-0"
+                        >
+                          <PencilSimple weight="bold" className="h-3 w-3" />
+                          <span>Editar</span>
+                        </Button>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/40 border border-border/60 px-3 py-2 text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <CarProfile weight="duotone" className="h-4 w-4 text-primary shrink-0" />
+                          <span className="truncate text-xs">
+                            <strong className="text-foreground">{ing.automovil || 'Vehículo'}</strong> ·{' '}
+                            <span className="font-mono text-muted-foreground">{ing.placas || 'Sin placas'}</span> ·{' '}
+                            <span className="font-mono text-muted-foreground">{ing.rendimiento || 12.5} km/L</span>
+                          </span>
+                        </div>
+                        <Badge variant="outline" className="font-mono text-[10px] bg-card shrink-0">
+                          {totalTiendasIng} sucursales
                         </Badge>
-                      )}
-                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                        {ing.region || 'SURESTE'}
+                      </div>
+                    </Card>
+                  );
+                })
+              )}
+            </div>
+          )}
+
+          {/* SECCIÓN 2: PLANTILLA DE RUTAS EN CATÁLOGO (PENDIENTES DE REGISTRARSE) */}
+          {(filtroEquipo === 'todos' || filtroEquipo === 'pendientes') && (
+            <div className="space-y-2.5 pt-1">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                  <IdentificationCard weight="duotone" className="h-4 w-4 text-amber-500" />
+                  Rutas en Catálogo Regional (Pendientes de alta)
+                </span>
+                <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30">
+                  {pendientesRegistro.length} pendientes
+                </Badge>
+              </div>
+
+              <Card className="p-3 bg-muted/20 border-dashed border-border/80 flex items-start gap-2.5">
+                <Info weight="duotone" className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  Estos ingenieros provienen de las asignaciones de tiendas en el Sureste. Cuando creen su cuenta con su correo <strong className="text-foreground">@soyneto.com</strong>, se vincularán automáticamente aquí.
+                </p>
+              </Card>
+
+              {pendientesRegistro.map((ing) => {
+                const totalTiendasIng = tiendas.filter((t) => t.ingeniero === ing.nombre).length;
+                const iniciales = ing.nombre
+                  .split(' ')
+                  .filter(Boolean)
+                  .slice(0, 2)
+                  .map((w) => w[0])
+                  .join('');
+
+                return (
+                  <Card
+                    key={ing.nombre}
+                    className="p-3.5 space-y-2.5 border-border/60 bg-card/60 opacity-90 hover:opacity-100 transition-opacity"
+                  >
+                    <div className="flex items-start justify-between gap-2.5 min-w-0">
+                      <div className="flex items-start gap-2.5 min-w-0">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground font-semibold text-xs border border-border">
+                          {iniciales}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <TypographySmall className="font-semibold text-xs truncate">
+                              {ing.nombre}
+                            </TypographySmall>
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                              {ing.region || 'SURESTE'}
+                            </Badge>
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 px-1.5 py-0"
+                            >
+                              Sin cuenta aún
+                            </Badge>
+                          </div>
+                          <TypographyMuted className="text-[11px] truncate block mt-0.5">
+                            Esperando registro en la app con correo @soyneto.com
+                          </TypographyMuted>
+                        </div>
+                      </div>
+
+                      <Button
+                        variant="outline"
+                        size="xs"
+                        onClick={() => handleEditarClick(ing)}
+                        className="shrink-0"
+                      >
+                        <PencilSimple weight="bold" className="h-3 w-3" />
+                        <span>Editar</span>
+                      </Button>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/30 border border-border/50 px-3 py-2 text-xs">
+                      <span className="text-[11px] text-muted-foreground truncate">
+                        Base: <strong className="text-foreground">{ing.base_nombre || 'RESGUARDO TUXTLA'}</strong>
+                      </span>
+                      <Badge variant="outline" className="font-mono text-[10px] bg-card shrink-0">
+                        {totalTiendasIng} sucursales
                       </Badge>
                     </div>
-                    <TypographyMuted className="text-[11px] truncate block mt-0.5">
-                      {ing.email || 'Pendiente de vincular correo'} · Emp. {ing.no_empleado || 'S/N'}
-                    </TypographyMuted>
-                  </div>
-
-                  <Button
-                    variant="outline"
-                    size="xs"
-                    onClick={() => handleEditarClick(ing)}
-                    className="shrink-0"
-                  >
-                    <PencilSimple weight="bold" className="h-3 w-3" />
-                    <span>Editar</span>
-                  </Button>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/50 border border-border/60 px-3 py-2 text-xs">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <CarProfile weight="duotone" className="h-4 w-4 text-primary shrink-0" />
-                    <span className="truncate">
-                      <strong className="text-foreground">{ing.automovil || 'Vehículo'}</strong> ·{' '}
-                      <span className="font-mono text-muted-foreground">{ing.placas || 'Sin placas'}</span> ·{' '}
-                      <span className="font-mono text-muted-foreground">{ing.rendimiento || 12.5} km/L</span>
-                    </span>
-                  </div>
-                  <Badge variant="outline" className="font-mono text-[10px] bg-card">
-                    {totalTiendasIng} sucursales
-                  </Badge>
-                </div>
-              </Card>
-            );
-          })}
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -627,7 +837,7 @@ export function AdminTeamTab({
       {/* ================= MODAL DE CORRECCIÓN DE FICHA ================= */}
       {ingenieroAEditar && (
         <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-lg w-[calc(100%-1.5rem)] p-4 sm:p-6 max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Editar Ficha de Colaborador</DialogTitle>
               <DialogDescription>
@@ -636,9 +846,9 @@ export function AdminTeamTab({
             </DialogHeader>
 
             <div className="space-y-3 py-1 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div className="space-y-1">
-                  <Label className="text-[11px]">Nombre Completo</Label>
+                  <Label className="text-[11px] font-medium">Nombre Completo</Label>
                   <Input
                     value={ingenieroAEditar.nombre}
                     disabled
@@ -646,7 +856,7 @@ export function AdminTeamTab({
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[11px]">Puesto</Label>
+                  <Label className="text-[11px] font-medium">Puesto</Label>
                   <Input
                     value={ingenieroAEditar.puesto}
                     onChange={(e) =>
@@ -657,9 +867,9 @@ export function AdminTeamTab({
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 <div className="space-y-1">
-                  <Label className="text-[11px]">No. Empleado</Label>
+                  <Label className="text-[11px] font-medium">No. Empleado</Label>
                   <Input
                     value={ingenieroAEditar.no_empleado}
                     onChange={(e) =>
@@ -669,7 +879,7 @@ export function AdminTeamTab({
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[11px]">Región</Label>
+                  <Label className="text-[11px] font-medium">Región</Label>
                   <Input
                     value={ingenieroAEditar.region}
                     onChange={(e) =>
@@ -679,7 +889,7 @@ export function AdminTeamTab({
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[11px]">CECO</Label>
+                  <Label className="text-[11px] font-medium">CECO</Label>
                   <Input
                     value={ingenieroAEditar.ceco}
                     onChange={(e) =>
@@ -690,9 +900,9 @@ export function AdminTeamTab({
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 <div className="space-y-1">
-                  <Label className="text-[11px]">Vehículo</Label>
+                  <Label className="text-[11px] font-medium">Vehículo</Label>
                   <Input
                     value={ingenieroAEditar.automovil}
                     onChange={(e) =>
@@ -702,7 +912,7 @@ export function AdminTeamTab({
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[11px]">Placas</Label>
+                  <Label className="text-[11px] font-medium">Placas</Label>
                   <Input
                     value={ingenieroAEditar.placas}
                     onChange={(e) =>
@@ -712,7 +922,7 @@ export function AdminTeamTab({
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[11px]">Serie (VIN)</Label>
+                  <Label className="text-[11px] font-medium">Serie (VIN)</Label>
                   <Input
                     value={ingenieroAEditar.serie}
                     onChange={(e) =>
@@ -723,9 +933,9 @@ export function AdminTeamTab({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div className="space-y-1">
-                  <Label className="text-[11px]">Tarjeta Combustible</Label>
+                  <Label className="text-[11px] font-medium">Tarjeta Combustible</Label>
                   <Input
                     value={ingenieroAEditar.tarjeta_gasolina}
                     onChange={(e) =>
@@ -738,7 +948,7 @@ export function AdminTeamTab({
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[11px]">Base Operativa</Label>
+                  <Label className="text-[11px] font-medium">Base Operativa</Label>
                   <Select
                     value={ingenieroAEditar.base_nombre}
                     onValueChange={(val) =>
@@ -761,9 +971,9 @@ export function AdminTeamTab({
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div className="space-y-1">
-                  <Label className="text-[11px]">Rendimiento (km/L)</Label>
+                  <Label className="text-[11px] font-medium">Rendimiento (km/L)</Label>
                   <Input
                     type="number"
                     step="0.1"
@@ -775,7 +985,7 @@ export function AdminTeamTab({
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-[11px]">Precio Litro ($ MXN)</Label>
+                  <Label className="text-[11px] font-medium">Precio Litro ($ MXN)</Label>
                   <Input
                     type="number"
                     step="0.01"
@@ -789,7 +999,7 @@ export function AdminTeamTab({
               </div>
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="pt-2">
               <Button variant="ghost" onClick={() => setEditModalOpen(false)}>
                 Cancelar
               </Button>

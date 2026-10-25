@@ -121,22 +121,68 @@ function RoutePolylines({ puntos, tramos, tab, sel }) {
   return null;
 }
 
-function MapCameraController({ tiendas, puntos, tab, sel, fitTrigger }) {
+function MapCameraController({ tiendas, puntos, baseNombre, tab, sel, fitTrigger }) {
   const map = useMap();
   const lastSelName = useRef(null);
   const initialFitDone = useRef(false);
 
   useEffect(() => {
     if (!map || !window.google?.maps) return;
-    const pts = tab === 'ruta' && puntos.length >= 2 ? puntos : tiendas;
-    if (!pts.length) return;
-    if (!initialFitDone.current || fitTrigger > 0) {
+
+    // Si se oprimió el botón manual de encuadrar (CornersOut)
+    if (fitTrigger > 0) {
+      if (tab === 'ruta' && puntos.length >= 2) {
+        const bounds = new window.google.maps.LatLngBounds();
+        puntos.forEach((p) => {
+          if (p.lat != null && p.lng != null) bounds.extend({ lat: p.lat, lng: p.lng });
+        });
+        map.fitBounds(bounds, 56);
+      } else {
+        const bounds = new window.google.maps.LatLngBounds();
+        tiendas.forEach((p) => {
+          if (p.lat != null && p.lng != null) bounds.extend({ lat: p.lat, lng: p.lng });
+        });
+        map.fitBounds(bounds, 56);
+      }
+      return;
+    }
+
+    // Encuadre inicial o cambio de ruta activa
+    if (!initialFitDone.current) {
       initialFitDone.current = true;
+
+      if (tab === 'ruta' && puntos.length >= 2) {
+        const bounds = new window.google.maps.LatLngBounds();
+        puntos.forEach((p) => {
+          if (p.lat != null && p.lng != null) bounds.extend({ lat: p.lat, lng: p.lng });
+        });
+        map.fitBounds(bounds, 56);
+      } else if (tab === 'ruta' && puntos.length === 1 && puntos[0].lat != null) {
+        map.panTo({ lat: puntos[0].lat, lng: puntos[0].lng });
+        map.setZoom(13);
+      } else {
+        // Enfoque inicial centrado en el Sureste (Tuxtla Gutiérrez / Base operativa)
+        const base =
+          tiendas.find((x) => x.nombre === baseNombre) ||
+          tiendas.find((x) => x.nombre.includes('RESGUARDO') || x.nombre.includes('TUXTLA')) ||
+          tiendas[0];
+        if (base?.lat != null && base?.lng != null) {
+          map.panTo({ lat: base.lat, lng: base.lng });
+          map.setZoom(12);
+        } else {
+          map.panTo({ lat: 16.7528, lng: -93.1147 });
+          map.setZoom(12);
+        }
+      }
+    } else if (tab === 'ruta' && puntos.length >= 2) {
+      // Si el usuario agrega paradas en vivo, ajustamos la vista para mostrar la ruta completa
       const bounds = new window.google.maps.LatLngBounds();
-      pts.forEach((p) => bounds.extend({ lat: p.lat, lng: p.lng }));
+      puntos.forEach((p) => {
+        if (p.lat != null && p.lng != null) bounds.extend({ lat: p.lat, lng: p.lng });
+      });
       map.fitBounds(bounds, 56);
     }
-  }, [map, tiendas.length, puntos.length, tab, fitTrigger]);
+  }, [map, tiendas, puntos, baseNombre, tab, fitTrigger]);
 
   useEffect(() => {
     if (!map || tab !== 'corregir' || !sel || sel.lat == null) return;
@@ -430,8 +476,8 @@ export function MapCanvas({
         <APIProvider apiKey={mapsKey} language="es" region="MX">
           <div className="h-full w-full">
             <Map
-              defaultCenter={{ lat: 16.75, lng: -92.65 }}
-              defaultZoom={8}
+              defaultCenter={{ lat: 16.7528, lng: -93.1147 }}
+              defaultZoom={12}
               mapId="DEMO_MAP_ID"
               mapTypeId={mapType}
               gestureHandling="greedy"
@@ -456,6 +502,7 @@ export function MapCanvas({
               <MapCameraController
                 tiendas={tiendas}
                 puntos={puntos}
+                baseNombre={baseNombre}
                 tab={tab}
                 sel={sel}
                 fitTrigger={fitTrigger}

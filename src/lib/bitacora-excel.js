@@ -700,6 +700,7 @@ export async function descargarBitacoraNetoExcel({
   diasAnticipo = [],
   diasComprobacion = [],
   puntosNuevos = [],
+  filename: customFilename = null,
 }) {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Rutas Sureste - Tiendas Neto';
@@ -758,13 +759,11 @@ export async function descargarBitacoraNetoExcel({
   const blob = new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   });
-  const nombreIngLimpio = (ingeniero.nombre || 'INGENIERO')
+  const nombreIng = (ingeniero?.nombre || 'HERWING EDUARDO VAZQUEZ MACIAS')
     .trim()
-    .replace(/\s+/g, '_')
-    .replace(/[^A-Z0-9_]/gi, '');
-  const etiquetaModo =
-    modo === 'ambas' ? 'anticipo_y_comprobacion' : modo;
-  const filename = `${nombreIngLimpio}_semana_${semana}_${etiquetaModo}.xlsx`;
+    .replace(/\s+/g, ' ')
+    .toUpperCase();
+  const filename = customFilename || `${nombreIng} semana ${semana}.xlsx`;
 
   if (typeof document !== 'undefined') {
     const url = URL.createObjectURL(blob);
@@ -777,5 +776,5 @@ export async function descargarBitacoraNetoExcel({
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  return { filename, buffer };
+  return filename;
 }

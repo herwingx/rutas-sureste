@@ -1402,24 +1402,24 @@ export default function App() {
 
         {/* ================= MODAL DE AJUSTES ================= */}
         <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-          <DialogContent>
+          <DialogContent className="max-w-md w-[calc(100%-1.5rem)] p-4 sm:p-6">
             <DialogHeader>
               <DialogTitle>Configuración</DialogTitle>
               <DialogDescription>
                 Punto base de operación, rendimiento de combustible y formato de salida para Excel.
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-3.5 py-1">
+            <div className="space-y-4 py-1">
               <div className="space-y-1.5">
-                <Label>Punto base (salida / regreso)</Label>
+                <Label className="text-xs font-semibold">Punto base (salida / regreso)</Label>
                 <Select
                   value={ajustes.base}
                   onValueChange={(v) => setAjustes((a) => ({ ...a, base: v }))}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue placeholder="Selecciona tienda base" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="max-h-60">
                     {tiendas.map((t) => (
                       <SelectItem key={t.nombre} value={t.nombre}>
                         {t.nombre}
@@ -1429,83 +1429,117 @@ export default function App() {
                 </Select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              {/* Inputs de rendimiento y combustible adaptados a mobile */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label htmlFor="input-rendimiento">Rendimiento (km / L)</Label>
-                  <Input
-                    id="input-rendimiento"
-                    type="number"
-                    step="0.1"
-                    value={ajustes.kmPorLitro}
-                    onChange={(e) =>
-                      setAjustes((a) => ({
-                        ...a,
-                        kmPorLitro: parseFloat(e.target.value) || 12.5,
-                      }))
-                    }
-                  />
+                  <Label htmlFor="input-rendimiento" className="text-xs font-medium">
+                    Rendimiento vehicular
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="input-rendimiento"
+                      type="number"
+                      step="0.1"
+                      value={ajustes.kmPorLitro}
+                      onChange={(e) =>
+                        setAjustes((a) => ({
+                          ...a,
+                          kmPorLitro: parseFloat(e.target.value) || 12.5,
+                        }))
+                      }
+                      className="pr-14"
+                    />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-mono">
+                      km / L
+                    </span>
+                  </div>
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="input-precio">Precio combustible ($ MXN / L)</Label>
-                  <Input
-                    id="input-precio"
-                    type="number"
-                    step="0.01"
-                    value={ajustes.precioLitro}
-                    onChange={(e) =>
-                      setAjustes((a) => ({
-                        ...a,
-                        precioLitro: parseFloat(e.target.value) || 23.99,
-                      }))
-                    }
-                  />
+                  <Label htmlFor="input-precio" className="text-xs font-medium">
+                    Precio gasolina
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      id="input-precio"
+                      type="number"
+                      step="0.01"
+                      value={ajustes.precioLitro}
+                      onChange={(e) =>
+                        setAjustes((a) => ({
+                          ...a,
+                          precioLitro: parseFloat(e.target.value) || 23.99,
+                        }))
+                      }
+                      className="pr-16"
+                    />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-mono">
+                      $ MXN/L
+                    </span>
+                  </div>
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label>Separador para Excel</Label>
+                <Label className="text-xs font-semibold">Separador al copiar para Excel</Label>
                 <Select
                   value={ajustes.separador}
                   onValueChange={(v) => setAjustes((a) => ({ ...a, separador: v }))}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="tab">
-                      Tabuladores (pegar directo en celdas de Excel / Sheets)
+                      Tabuladores TSV (pegar directo en celdas de Excel)
                     </SelectItem>
                     <SelectItem value="coma">
-                      Comas CSV (ORIGEN,DESTINO,KM)
+                      Comas CSV (archivo delimitado por comas)
                     </SelectItem>
                   </SelectContent>
                 </Select>
+                <p className="text-[11px] text-muted-foreground leading-tight">
+                  Con Tabuladores copias desde la barra de ruta y pegas directamente con <kbd className="rounded border bg-muted px-1 font-mono text-[10px]">Ctrl+V</kbd> en Excel o Google Sheets.
+                </p>
               </div>
 
-              <Card className="flex items-center justify-between p-3">
-                <Label htmlFor="switch-incluir-fecha" className="cursor-pointer">
-                  Incluir columna de fecha al inicio
-                </Label>
-                <Switch
-                  id="switch-incluir-fecha"
-                  checked={ajustes.incluirFecha}
-                  onCheckedChange={(v) => setAjustes((a) => ({ ...a, incluirFecha: v }))}
-                />
-              </Card>
+              <div className="space-y-2 pt-1">
+                <Card className="flex items-center justify-between p-3 gap-3">
+                  <div className="space-y-0.5 min-w-0">
+                    <Label htmlFor="switch-incluir-fecha" className="text-xs font-medium cursor-pointer block truncate">
+                      Incluir columna de fecha
+                    </Label>
+                    <p className="text-[11px] text-muted-foreground leading-tight">
+                      Agrega la fecha al inicio de cada fila copiada
+                    </p>
+                  </div>
+                  <Switch
+                    id="switch-incluir-fecha"
+                    checked={ajustes.incluirFecha}
+                    onCheckedChange={(v) => setAjustes((a) => ({ ...a, incluirFecha: v }))}
+                  />
+                </Card>
 
-              <Card className="flex items-center justify-between p-3">
-                <Label htmlFor="switch-incluir-total" className="cursor-pointer">
-                  Incluir fila de TOTAL al final
-                </Label>
-                <Switch
-                  id="switch-incluir-total"
-                  checked={ajustes.incluirTotal}
-                  onCheckedChange={(v) => setAjustes((a) => ({ ...a, incluirTotal: v }))}
-                />
-              </Card>
+                <Card className="flex items-center justify-between p-3 gap-3">
+                  <div className="space-y-0.5 min-w-0">
+                    <Label htmlFor="switch-incluir-total" className="text-xs font-medium cursor-pointer block truncate">
+                      Fila de TOTAL al final
+                    </Label>
+                    <p className="text-[11px] text-muted-foreground leading-tight">
+                      Inserta suma total de km e importe al pegar
+                    </p>
+                  </div>
+                  <Switch
+                    id="switch-incluir-total"
+                    checked={ajustes.incluirTotal}
+                    onCheckedChange={(v) => setAjustes((a) => ({ ...a, incluirTotal: v }))}
+                  />
+                </Card>
+              </div>
             </div>
-            <DialogFooter>
-              <Button onClick={() => setSettingsOpen(false)}>Listo</Button>
+            <DialogFooter className="pt-2">
+              <Button onClick={() => setSettingsOpen(false)} className="w-full sm:w-auto">
+                Listo
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
