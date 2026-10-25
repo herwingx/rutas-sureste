@@ -117,6 +117,7 @@ export function BitacoraGeneratorModal({
   historial,
   ajustes,
   toast,
+  isAdmin = false,
 }) {
   const perfilActual = useMemo(() => {
     return (
@@ -466,21 +467,32 @@ export function BitacoraGeneratorModal({
                   <UserGear weight="duotone" className="h-4 w-4 text-primary shrink-0" />
                   <div className="flex-1">
                     <Label className="text-[11px] text-muted-foreground">Ingeniero responsable</Label>
-                    <Select
-                      value={ingenieroActivo}
-                      onValueChange={(val) => onSelectIngeniero(val)}
-                    >
-                      <SelectTrigger size="sm" className="mt-0.5 bg-card font-semibold">
-                        <SelectValue placeholder="Selecciona tu nombre" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ingenieros.map((ing) => (
-                          <SelectItem key={ing.nombre} value={ing.nombre}>
-                            {ing.nombre} ({ing.region || 'SURESTE'})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {!isAdmin ? (
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <div className="font-semibold text-xs px-2.5 py-1.5 rounded-md bg-card border border-border/60 flex-1 truncate">
+                          {ingenieroActivo}
+                        </div>
+                        <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-500/30 shrink-0">
+                          Tu Ficha Oficial
+                        </Badge>
+                      </div>
+                    ) : (
+                      <Select
+                        value={ingenieroActivo}
+                        onValueChange={(val) => onSelectIngeniero(val)}
+                      >
+                        <SelectTrigger size="sm" className="mt-0.5 bg-card font-semibold">
+                          <SelectValue placeholder="Selecciona un ingeniero" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ingenieros.map((ing) => (
+                            <SelectItem key={ing.nombre} value={ing.nombre}>
+                              {ing.nombre} ({ing.region || 'SURESTE'})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                 </div>
 

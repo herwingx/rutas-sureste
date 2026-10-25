@@ -64,6 +64,7 @@ import { HistoryAnalyticsTab } from '@/components/HistoryAnalyticsTab';
 import { AdminTeamTab } from '@/components/AdminTeamTab';
 import { BitacoraGeneratorModal } from '@/components/BitacoraGeneratorModal';
 import { AuthModal } from '@/components/AuthModal';
+import { AuthScreen } from '@/components/AuthScreen';
 import { NewStoreModal } from '@/components/NewStoreModal';
 import { MapCanvas } from '@/components/MapCanvas';
 import { supabase } from '@/lib/supabase';
@@ -125,6 +126,7 @@ export default function App() {
   const [motor, setMotor] = useState(null);
   const [supabaseConnected, setSupabaseConnected] = useState(false);
   const [userSession, setUserSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [tab, setTab] = useState('ruta');
   const [bitacoraOpen, setBitacoraOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -216,28 +218,82 @@ export default function App() {
 
   // Escuchar sesión de Supabase Auth
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUserSession(session?.user || null);
-      if (session?.user?.email) {
-        setSupabaseConnected(true);
-        // Si el usuario logueado es Herwing, fijar su perfil
-        if (session.user.email.includes('herwing')) {
-          setIngenieroActivo('HERWING EDUARDO VAZQUEZ MACIAS');
+    supabase.auth
+      .getSession()
+      .then(({ data: { session } }) => {
+        const u = session?.user || null;
+        setUserSession(u);
+        if (u?.email) {
+          setSupabaseConnected(true);
+          const email = u.email.toLowerCase().trim();
+          if (email.includes('herwing')) {
+            setIngenieroActivo('HERWING EDUARDO VAZQUEZ MACIAS');
+          } else if (u.user_metadata?.nombre) {
+            setIngenieroActivo(u.user_metadata.nombre);
+          }
         }
-      }
-    });
+      })
+      .catch((err) => {
+        console.warn('Error verificando sesión Supabase:', err.message);
+      })
+      .finally(() => {
+        setAuthLoading(false);
+      });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUserSession(session?.user || null);
-      if (session?.user?.email?.includes('herwing')) {
-        setIngenieroActivo('HERWING EDUARDO VAZQUEZ MACIAS');
+      const u = session?.user || null;
+      setUserSession(u);
+      if (u?.email) {
+        setSupabaseConnected(true);
+        if (u.email.includes('herwing')) {
+          setIngenieroActivo('HERWING EDUARDO VAZQUEZ MACIAS');
+        } else if (u.user_metadata?.nombre) {
+          setIngenieroActivo(u.user_metadata.nombre);
+        }
       }
+      setAuthLoading(false);
     });
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Sincronizar automáticamente la ficha vehicular del ingeniero logueado
+  useEffect(() => {
+    if (!userSession?.email || !ingenieros.length) return;
+    const cleanEmail = userSession.email.toLowerCase().trim();
+
+    if (cleanEmail.includes('herwing')) {
+      const p = ingenieros.find((i) => i.nombre.includes('HERWING'));
+      if (p) {
+        setIngenieroActivo(p.nombre);
+        if (p.base_nombre && porNombre.has(p.base_nombre)) {
+          setAjustes((a) => ({ ...a, base: p.base_nombre }));
+        }
+      }
+      return;
+    }
+
+    const match =
+      ingenieros.find((i) => i.email && i.email.toLowerCase().trim() === cleanEmail) ||
+      ingenieros.find((i) => i.auth_id && i.auth_id === userSession.id) ||
+      (userSession.user_metadata?.nombre
+        ? ingenieros.find(
+            (i) => i.nombre.toUpperCase() === userSession.user_metadata.nombre.toUpperCase()
+          )
+        : null);
+
+    if (match) {
+      setIngenieroActivo(match.nombre);
+      setAjustes((a) => ({
+        ...a,
+        kmPorLitro: Number(match.rendimiento) || a.kmPorLitro,
+        precioLitro: Number(match.costo_litro) || a.precioLitro,
+        base: match.base_nombre && porNombre.has(match.base_nombre) ? match.base_nombre : a.base,
+      }));
+    }
+  }, [userSession, ingenieros, porNombre]);
 
   useEffect(() => {
     Promise.all([
@@ -784,6 +840,60 @@ export default function App() {
     siguientePendiente,
   ]);
 
+  // 1. Pantalla de carga mientras se verifica el estado de sesión
+  if (authLoading) {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-950 text-foreground gap-3">
+        <img
+          src="/logo-app.png"
+          alt="Tiendas Neto"
+          className="h-16 w-16 rounded-2xl p-1 bg-white object-contain shadow-2xl animate-pulse border border-white/10"
+        />
+        <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
+          <span className="h-2 w-2 rounded-full bg-primary animate-ping" />
+          <span>Iniciando Rutas Sureste…</span>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. BARRERA DE AUTENTICACIÓN ESTRICTA: No se muestra la plataforma antes de loguearse
+  if (!userSession) {
+    return (
+      <TooltipProvider delayDuration={200}>
+        <AuthScreen
+          onAuthSuccess={(user) => {
+            setUserSession(user);
+            if (user?.email?.includes('herwing')) {
+              setIngenieroActivo('HERWING EDUARDO VAZQUEZ MACIAS');
+            } else if (user?.user_metadata?.nombre) {
+              setIngenieroActivo(user.user_metadata.nombre);
+            }
+          }}
+          toast={toast}
+          ingenierosExistentes={ingenieros}
+        />
+        {toastState && (
+          <Card
+            className={cn(
+              'fixed bottom-5 left-1/2 z-50 flex -translate-x-1/2 items-center gap-2 rounded-lg px-3.5 py-2 shadow-lg transition-all',
+              toastState.tipo === 'err'
+                ? 'border-destructive bg-destructive text-destructive-foreground'
+                : 'border-border bg-foreground text-background'
+            )}
+          >
+            {toastState.tipo === 'err' ? (
+              <WarningCircle weight="fill" className="h-4 w-4 shrink-0" />
+            ) : (
+              <CheckCircle weight="fill" className="h-4 w-4 shrink-0 text-emerald-400" />
+            )}
+            <TypographySmall className="text-current">{toastState.msg}</TypographySmall>
+          </Card>
+        )}
+      </TooltipProvider>
+    );
+  }
+
   return (
     <TooltipProvider delayDuration={200}>
       <div className="grid h-screen w-screen grid-cols-1 lg:grid-cols-[460px_1fr] bg-background text-foreground overflow-hidden">
@@ -1129,6 +1239,7 @@ export default function App() {
           historial={historial}
           ajustes={ajustes}
           toast={toast}
+          isAdmin={isAdmin}
         />
 
         {/* ================= MODAL DE LOGIN / REGISTRO NETO ================= */}
