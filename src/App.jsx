@@ -63,6 +63,7 @@ import { CoordinateAuditTab } from '@/components/CoordinateAuditTab';
 import { HistoryAnalyticsTab } from '@/components/HistoryAnalyticsTab';
 import { AdminTeamTab } from '@/components/AdminTeamTab';
 import { BitacoraGeneratorModal } from '@/components/BitacoraGeneratorModal';
+import { EngineerProfileModal, esFichaCompleta } from '@/components/EngineerProfileModal';
 import { AuthModal } from '@/components/AuthModal';
 import { AuthScreen } from '@/components/AuthScreen';
 import { NewStoreModal } from '@/components/NewStoreModal';
@@ -131,6 +132,9 @@ export default function App() {
   const [bitacoraOpen, setBitacoraOpen] = useState(false);
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [newStoreModalOpen, setNewStoreModalOpen] = useState(false);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [isOnboardingMode, setIsOnboardingMode] = useState(false);
+  const onboardingCheckedRef = useRef(false);
 
   const [ajustes, setAjustes] = useState(() => ({
     ...AJUSTES_DEF,
@@ -294,6 +298,33 @@ export default function App() {
       }));
     }
   }, [userSession, ingenieros, porNombre]);
+
+  // Perfil del ingeniero actualmente conectado
+  const perfilActivo = useMemo(() => {
+    if (!ingenieros.length) return null;
+    const cleanEmail = userSession?.email?.toLowerCase().trim();
+    return (
+      (cleanEmail ? ingenieros.find((i) => i.email && i.email.toLowerCase().trim() === cleanEmail) : null) ||
+      (userSession?.id ? ingenieros.find((i) => i.auth_id === userSession.id) : null) ||
+      ingenieros.find((i) => i.nombre === ingenieroActivo) ||
+      ingenieros[0]
+    );
+  }, [ingenieros, ingenieroActivo, userSession]);
+
+  const perfilCompleto = useMemo(() => {
+    return esFichaCompleta(perfilActivo);
+  }, [perfilActivo]);
+
+  // Disparar onboarding guiado una sola vez si la ficha vehicular está incompleta
+  useEffect(() => {
+    if (!authLoading && userSession && ingenieros.length > 0 && !onboardingCheckedRef.current) {
+      onboardingCheckedRef.current = true;
+      if (!perfilCompleto) {
+        setIsOnboardingMode(true);
+        setProfileModalOpen(true);
+      }
+    }
+  }, [authLoading, userSession, ingenieros, perfilCompleto]);
 
   useEffect(() => {
     Promise.all([
@@ -915,47 +946,58 @@ export default function App() {
 
             <div className="flex items-center gap-1">
               {userSession ? (
-                isAdmin ? (
-                  <ActionTooltip label={`Administrador Maestro: ${userSession.email}`}>
-                    <div className="flex items-center gap-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 text-[11px] text-amber-700 dark:text-amber-300 font-semibold shadow-xs">
-                      <CrownSimple weight="fill" className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                      <span className="truncate max-w-28">Herwing (Admin)</span>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await supabase.auth.signOut();
-                          setUserSession(null);
-                          toast('Sesión cerrada');
-                        }}
-                        className="text-muted-foreground hover:text-foreground ml-1"
-                        title="Cerrar sesión"
-                      >
-                        <SignOut weight="bold" className="h-3 w-3" />
-                      </button>
-                    </div>
-                  </ActionTooltip>
-                ) : (
-                  <ActionTooltip label={`Conectado como ${userSession.email}`}>
-                    <div className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1 text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
-                      <span className="truncate max-w-24">
-                        {userSession.email.split('@')[0]}
+                <div className="flex items-center gap-1">
+                  <ActionTooltip
+                    label={
+                      perfilCompleto
+                        ? `Ficha: ${perfilActivo?.automovil || 'Auto'} ${perfilActivo?.placas || ''} · Clic para actualizar odómetro o datos`
+                        : '⚠️ Ficha vehicular incompleta · Clic para configurar'
+                    }
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsOnboardingMode(false);
+                        setProfileModalOpen(true);
+                      }}
+                      className={cn(
+                        'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition-all hover:opacity-90 shadow-xs border',
+                        isAdmin
+                          ? 'bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300'
+                          : perfilCompleto
+                          ? 'bg-emerald-500/10 border-emerald-500/25 text-emerald-700 dark:text-emerald-400'
+                          : 'bg-amber-500/15 border-amber-500/40 text-amber-700 dark:text-amber-400 animate-pulse'
+                      )}
+                    >
+                      {isAdmin ? (
+                        <CrownSimple weight="fill" className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                      ) : (
+                        <CarProfile weight="duotone" className="h-3.5 w-3.5 shrink-0" />
+                      )}
+                      <span className="truncate max-w-28 font-semibold">
+                        {isAdmin ? 'Herwing (Admin)' : userSession.email.split('@')[0]}
                       </span>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          await supabase.auth.signOut();
-                          setUserSession(null);
-                          toast('Sesión cerrada');
-                        }}
-                        className="text-muted-foreground hover:text-foreground ml-1"
-                        title="Cerrar sesión"
-                      >
-                        <SignOut weight="bold" className="h-3 w-3" />
-                      </button>
-                    </div>
+                      {!perfilCompleto && (
+                        <span className="h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0" />
+                      )}
+                    </button>
                   </ActionTooltip>
-                )
+
+                  <ActionTooltip label="Cerrar sesión">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await supabase.auth.signOut();
+                        setUserSession(null);
+                        toast('Sesión cerrada');
+                      }}
+                      className="p-1 rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors ml-0.5"
+                      title="Cerrar sesión"
+                    >
+                      <SignOut weight="bold" className="h-3.5 w-3.5" />
+                    </button>
+                  </ActionTooltip>
+                </div>
               ) : (
                 <ActionTooltip label="Iniciar sesión con @soyneto.com">
                   <Button
@@ -1240,6 +1282,49 @@ export default function App() {
           ajustes={ajustes}
           toast={toast}
           isAdmin={isAdmin}
+          onOpenProfile={() => {
+            setIsOnboardingMode(false);
+            setProfileModalOpen(true);
+          }}
+        />
+
+        {/* ================= MODAL DE FICHA VEHICULAR / ONBOARDING ================= */}
+        <EngineerProfileModal
+          open={profileModalOpen}
+          onOpenChange={(v) => {
+            setProfileModalOpen(v);
+            if (!v) setIsOnboardingMode(false);
+          }}
+          perfil={
+            perfilActivo || {
+              nombre: ingenieroActivo,
+              email: userSession?.email,
+              auth_id: userSession?.id,
+            }
+          }
+          isOnboarding={isOnboardingMode}
+          tiendas={tiendas}
+          toast={toast}
+          onSaveSuccess={(nuevoPerfil) => {
+            setIngenieros((prev) => {
+              const idx = prev.findIndex((i) => i.nombre === nuevoPerfil.nombre);
+              if (idx >= 0) {
+                const copia = [...prev];
+                copia[idx] = { ...copia[idx], ...nuevoPerfil };
+                return copia;
+              }
+              return [...prev, nuevoPerfil];
+            });
+            setAjustes((a) => ({
+              ...a,
+              kmPorLitro: Number(nuevoPerfil.rendimiento) || a.kmPorLitro,
+              precioLitro: Number(nuevoPerfil.costo_litro) || a.precioLitro,
+              base:
+                nuevoPerfil.base_nombre && porNombre.has(nuevoPerfil.base_nombre)
+                  ? nuevoPerfil.base_nombre
+                  : a.base,
+            }));
+          }}
         />
 
         {/* ================= MODAL DE LOGIN / REGISTRO NETO ================= */}

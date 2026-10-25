@@ -118,6 +118,7 @@ export function BitacoraGeneratorModal({
   ajustes,
   toast,
   isAdmin = false,
+  onOpenProfile,
 }) {
   const perfilActual = useMemo(() => {
     return (
@@ -177,6 +178,16 @@ export function BitacoraGeneratorModal({
 
   // Lista de bitácoras guardadas en Supabase / local
   const [bitacorasGuardadas, setBitacorasGuardadas] = useState([]);
+
+  // Validación estricta: Ficha vehicular obligatoria para poder generar/descargar bitácora
+  const perfilCompleto = useMemo(() => {
+    return Boolean(
+      String(formIng.no_empleado || '').trim() &&
+      String(formIng.placas || '').trim() &&
+      String(formIng.tarjeta_gasolina || '').trim() &&
+      String(formIng.automovil || '').trim()
+    );
+  }, [formIng]);
 
   useEffect(() => {
     setFormIng(perfilActual);
@@ -304,6 +315,11 @@ export function BitacoraGeneratorModal({
   };
 
   const guardarEnSupabase = async () => {
+    if (!perfilCompleto) {
+      toast('Completa tu ficha vehicular antes de guardar la bitácora en la nube', 'err');
+      onOpenProfile?.();
+      return;
+    }
     if (diasConsolidados.length === 0) {
       return toast('Agrega al menos una ruta antes de guardar la bitácora', 'err');
     }
@@ -339,6 +355,12 @@ export function BitacoraGeneratorModal({
   };
 
   const handleDescargarExcel = async (overrideData = null) => {
+    if (!overrideData && !perfilCompleto) {
+      toast('No se puede generar la bitácora: Ficha vehicular incompleta. Configura tus datos primero.', 'err');
+      onOpenProfile?.();
+      return;
+    }
+
     const dataUsar = overrideData || {
       modo: modoHojas,
       ingeniero: formIng,
@@ -423,6 +445,27 @@ export function BitacoraGeneratorModal({
 
           {/* ================= PESTAÑA 1: GENERADOR ACTIVO ================= */}
           <TabsContent value="generador" className="space-y-4 pt-2">
+            {!perfilCompleto && (
+              <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3.5 text-xs text-amber-800 dark:text-amber-300 flex items-start justify-between gap-3 animate-in fade-in">
+                <div className="flex items-start gap-2.5">
+                  <WarningCircle weight="fill" className="h-5 w-5 shrink-0 text-amber-500 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <span className="font-semibold text-sm block">Ficha vehicular pendiente de configuración</span>
+                    <p className="text-muted-foreground text-xs leading-normal">
+                      Para emitir tu bitácora oficial (.xlsx) de anticipo y comprobación, debes configurar tus datos de vehículo (No. de Empleado, Placas, Modelo y Tarjeta de Gasolina).
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  size="sm"
+                  className="bg-amber-600 hover:bg-amber-700 text-white shrink-0 text-xs gap-1.5"
+                  onClick={() => onOpenProfile?.()}
+                >
+                  <CarProfile weight="bold" className="h-4 w-4" />
+                  Configurar Ficha
+                </Button>
+              </div>
+            )}
             {/* 1. SELECCIÓN DE HOJAS A GENERAR EN EL ARCHIVO */}
             <Card className="p-3 bg-primary/5 border-primary/25 space-y-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -885,13 +928,27 @@ export function BitacoraGeneratorModal({
           {modalTab === 'generador' && (
             <Button
               size="lg"
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
-              onClick={() => handleDescargarExcel()}
-              disabled={descargando || diasConsolidados.length === 0}
+              className={cn(
+                'text-white',
+                perfilCompleto
+                  ? 'bg-emerald-600 hover:bg-emerald-700'
+                  : 'bg-muted-foreground/50 cursor-not-allowed opacity-75'
+              )}
+              onClick={() => {
+                if (!perfilCompleto) {
+                  toast('Debes completar tu ficha vehicular antes de descargar la bitácora', 'err');
+                  onOpenProfile?.();
+                  return;
+                }
+                handleDescargarExcel();
+              }}
+              disabled={descargando || diasConsolidados.length === 0 || !perfilCompleto}
             >
               <FileXls weight="duotone" className="h-4 w-4" />
               <span>
-                {descargando
+                {!perfilCompleto
+                  ? 'Configura tu ficha vehicular para descargar'
+                  : descargando
                   ? 'Generando archivo Excel…'
                   : modoHojas === 'ambas'
                   ? `Descargar Excel (Anticipo + Comprobación)`
