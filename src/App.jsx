@@ -59,7 +59,10 @@ import { RouteBuilderTab } from '@/components/RouteBuilderTab';
 import { CoordinateAuditTab } from '@/components/CoordinateAuditTab';
 import { HistoryAnalyticsTab } from '@/components/HistoryAnalyticsTab';
 import { BitacoraGeneratorModal } from '@/components/BitacoraGeneratorModal';
+import { AuthModal } from '@/components/AuthModal';
+import { NewStoreModal } from '@/components/NewStoreModal';
 import { MapCanvas } from '@/components/MapCanvas';
+import { supabase } from '@/lib/supabase';
 import { BRAND, INGENIEROS } from '@/lib/brand';
 import {
   cn,
@@ -117,8 +120,11 @@ export default function App() {
   const [historial, setHistorial] = useState([]);
   const [motor, setMotor] = useState(null);
   const [supabaseConnected, setSupabaseConnected] = useState(false);
+  const [userSession, setUserSession] = useState(null);
   const [tab, setTab] = useState('ruta');
   const [bitacoraOpen, setBitacoraOpen] = useState(false);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [newStoreModalOpen, setNewStoreModalOpen] = useState(false);
 
   const [ajustes, setAjustes] = useState(() => ({
     ...AJUSTES_DEF,
@@ -192,6 +198,31 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('ruteo.ingeniero', ingenieroActivo);
   }, [ingenieroActivo]);
+
+  // Escuchar sesión de Supabase Auth
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUserSession(session?.user || null);
+      if (session?.user?.email) {
+        setSupabaseConnected(true);
+        // Si el usuario logueado es Herwing, fijar su ingeniero
+        if (session.user.email.includes('herwing')) {
+          setIngenieroActivo('HERWING EDUARDO VAZQUEZ MACIAS');
+        }
+      }
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserSession(session?.user || null);
+      if (session?.user?.email?.includes('herwing')) {
+        setIngenieroActivo('HERWING EDUARDO VAZQUEZ MACIAS');
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     Promise.all([
@@ -738,6 +769,37 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-0.5">
+              {userSession ? (
+                <ActionTooltip label={`Conectado como ${userSession.email}`}>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onClick={async () => {
+                      await supabase.auth.signOut();
+                      setUserSession(null);
+                      toast('Sesión cerrada');
+                    }}
+                    className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 gap-1 h-7 px-2"
+                  >
+                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                    <span className="truncate max-w-24">
+                      {userSession.email.split('@')[0]}
+                    </span>
+                  </Button>
+                </ActionTooltip>
+              ) : (
+                <ActionTooltip label="Iniciar sesión con @soyneto.com">
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => setAuthModalOpen(true)}
+                    className="text-[11px] font-medium h-7 px-2 border-primary/40 text-primary"
+                  >
+                    Login Neto
+                  </Button>
+                </ActionTooltip>
+              )}
+
               <ActionTooltip label="Generar Bitácora Oficial Tiendas Neto (.xlsx)">
                 <Button
                   variant="ghost"
@@ -834,17 +896,8 @@ export default function App() {
                   autoSaveOnPaste={autoSaveOnPaste}
                   onToggleAutoSaveOnPaste={setAutoSaveOnPaste}
                   onSelectStore={seleccionarTiendaAudit}
-                  onStartNewStore={() =>
-                    setSel({
-                      nueva: true,
-                      nombre: '',
-                      nombreEdit: '',
-                      estado: 'Chiapas',
-                      lat: null,
-                      lng: null,
-                      orig: null,
-                    })
-                  }
+                  onOpenNewStoreModal={() => setNewStoreModalOpen(true)}
+                  onStartNewStore={() => setNewStoreModalOpen(true)}
                   onUpdateSelectedName={(val) =>
                     setSel((prev) => (prev ? { ...prev, nombreEdit: val } : prev))
                   }
@@ -986,6 +1039,29 @@ export default function App() {
           porNombre={porNombre}
           historial={historial}
           ajustes={ajustes}
+          toast={toast}
+        />
+
+        {/* ================= MODAL DE LOGIN / REGISTRO NETO ================= */}
+        <AuthModal
+          open={authModalOpen}
+          onOpenChange={setAuthModalOpen}
+          onAuthSuccess={(user) => {
+            setUserSession(user);
+            if (user?.email?.includes('herwing')) {
+              setIngenieroActivo('HERWING EDUARDO VAZQUEZ MACIAS');
+            }
+          }}
+          toast={toast}
+        />
+
+        {/* ================= MODAL DE REGISTRAR NUEVA TIENDA ================= */}
+        <NewStoreModal
+          open={newStoreModalOpen}
+          onOpenChange={setNewStoreModalOpen}
+          onStoreCreated={(nuevaLista) => {
+            setTiendasRaw(nuevaLista);
+          }}
           toast={toast}
         />
 

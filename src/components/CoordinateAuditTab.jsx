@@ -69,6 +69,7 @@ export function CoordinateAuditTab({
   onToggleAutoSaveOnPaste,
   onSelectStore,
   onStartNewStore,
+  onOpenNewStoreModal,
   onUpdateSelectedName,
   onUpdateSelectedState,
   onUnlockSelected,
@@ -150,7 +151,7 @@ export function CoordinateAuditTab({
       {/* ================= BARRA SUPERIOR DE CATÁLOGO ================= */}
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
-          <Button size="sm" onClick={onStartNewStore}>
+          <Button size="sm" onClick={() => onOpenNewStoreModal?.()}>
             <PlusCircle weight="duotone" />
             Nueva tienda
           </Button>

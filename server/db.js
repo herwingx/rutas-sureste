@@ -323,3 +323,4 @@ export async function syncBitacoraDelete(ingeniero, semana, anio) {
     console.error('[Supabase Sync] Error en syncBitacoraDelete:', err.message);
   }
 }
+
