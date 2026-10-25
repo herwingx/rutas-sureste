@@ -526,11 +526,20 @@ export function MapCanvas({
                 const esSel = tab === 'corregir' && sel?.nombre === t.nombre;
                 const nums = tab !== 'corregir' ? paradasPorNombre.get(t.nombre) : null;
                 const esBase = tab !== 'corregir' && t.nombre === baseNombre;
+                const esCedis = Boolean(
+                  t.nombre?.toUpperCase().includes('CEDIS') ||
+                  t.nombre?.toUpperCase().includes('ALMACEN')
+                );
+                const esResguardo = Boolean(
+                  t.nombre?.toUpperCase().includes('RESGUARDO')
+                );
+                const esHubLogistico = esCedis || esResguardo || esBase;
+
                 const pos =
                   esSel && sel.lat != null
                     ? { lat: sel.lat, lng: sel.lng }
                     : { lat: t.lat, lng: t.lng };
-                const mostrarLbl = showLabels || esSel || Boolean(nums) || esBase;
+                const mostrarLbl = showLabels || esSel || Boolean(nums) || esHubLogistico;
 
                 return (
                   <AdvancedMarker
@@ -538,7 +547,7 @@ export function MapCanvas({
                     position={pos}
                     title={t.nombre}
                     draggable={esSel && !selBloqueada}
-                    zIndex={esSel ? 1000 : nums ? 500 : esBase ? 400 : 25}
+                    zIndex={esSel ? 1000 : nums ? 500 : esBase ? 450 : esCedis ? 440 : esResguardo ? 430 : 25}
                     onClick={() => {
                       if (tab === 'corregir') {
                         if (!sel?.nueva) onSelectStore(t.nombre);
@@ -560,31 +569,45 @@ export function MapCanvas({
                     >
                       <div
                         className={cn(
-                          'flex items-center justify-center rounded-full border-2 border-white font-semibold text-white shadow-sm transition-all',
+                          'flex items-center justify-center rounded-full border-2 border-white font-semibold text-white shadow-md transition-all',
                           esSel
                             ? 'h-7 w-7 bg-blue-600 ring-4 ring-blue-500/35 scale-110'
                             : nums
-                              ? 'h-5 min-w-5 px-1 bg-blue-600 text-[10px] ring-2 ring-blue-500/25'
-                              : esBase
-                                ? 'h-6 w-6 bg-slate-900 ring-2 ring-slate-900/25'
-                                : 'h-3 w-3 bg-slate-700 hover:bg-blue-600 group-hover:scale-125'
+                              ? 'h-5.5 min-w-5.5 px-1 bg-blue-600 text-[10px] ring-2 ring-blue-500/25'
+                              : esCedis
+                                ? 'h-6.5 w-6.5 bg-orange-600 ring-4 ring-orange-500/40 shadow-orange-500/30'
+                                : esBase || esResguardo
+                                  ? 'h-6.5 w-6.5 bg-amber-600 ring-4 ring-amber-500/40 shadow-amber-500/30'
+                                  : 'h-3 w-3 bg-slate-700 hover:bg-blue-600 group-hover:scale-125'
                         )}
                       >
                         {nums ? (
                           nums.join(',')
                         ) : esSel ? (
                           <Crosshair weight="bold" className="h-3.5 w-3.5" />
-                        ) : esBase ? (
-                          <Warehouse weight="fill" className="h-3 w-3" />
+                        ) : esCedis || esResguardo || esBase ? (
+                          <Warehouse weight="fill" className="h-3.5 w-3.5 text-white" />
                         ) : null}
                       </div>
                       <span
                         className={cn(
-                          'pointer-events-none absolute left-full ml-1.5 whitespace-nowrap rounded bg-card/95 px-1.5 py-0.5 text-[10px] font-medium text-foreground border border-border/80 shadow-xs',
+                          'pointer-events-none absolute left-full ml-1.5 whitespace-nowrap rounded bg-card/95 px-1.5 py-0.5 text-[10px] font-medium text-foreground border border-border/80 shadow-xs flex items-center gap-1',
                           mostrarLbl ? 'inline-flex' : 'hidden group-hover:inline-flex',
-                          (esSel || nums) && 'bg-blue-600 text-white border-blue-600 font-semibold'
+                          (esSel || nums) && 'bg-blue-600 text-white border-blue-600 font-semibold',
+                          !esSel && !nums && esCedis && 'border-orange-500/50 text-orange-600 dark:text-orange-400 font-semibold bg-orange-500/10 dark:bg-orange-950/40',
+                          !esSel && !nums && (esResguardo || esBase) && 'border-amber-500/50 text-amber-600 dark:text-amber-400 font-semibold bg-amber-500/10 dark:bg-amber-950/40'
                         )}
                       >
+                        {esCedis && !nums && !esSel && (
+                          <span className="rounded bg-orange-600 px-1 py-0 text-[9px] font-bold text-white uppercase tracking-wider">
+                            CEDIS
+                          </span>
+                        )}
+                        {(esResguardo || esBase) && !esCedis && !nums && !esSel && (
+                          <span className="rounded bg-amber-600 px-1 py-0 text-[9px] font-bold text-white uppercase tracking-wider">
+                            BASE
+                          </span>
+                        )}
                         {t.nombre}
                       </span>
                     </div>

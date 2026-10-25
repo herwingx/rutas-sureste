@@ -593,6 +593,20 @@ export function CoordinateAuditTab({
                   </TypographySmall>
                 </div>
                 <div className="flex items-center gap-1.5 shrink-0">
+                  {t.nombre.includes('CEDIS') && (
+                    <Badge
+                      className="bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/30 text-[9px] px-1 py-0 h-4 font-bold"
+                    >
+                      CEDIS
+                    </Badge>
+                  )}
+                  {t.nombre.includes('RESGUARDO') && (
+                    <Badge
+                      className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 text-[9px] px-1 py-0 h-4 font-bold"
+                    >
+                      BASE
+                    </Badge>
+                  )}
                   {t.eco && t.eco !== '0' && (
                     <Badge
                       variant="outline"
