@@ -431,7 +431,17 @@ function construirHojaBitacora(ws, {
 
     ws.mergeCells(startRow, 2, endRow, 2);
     const fechaCell = ws.getCell(startRow, 2);
-    fechaCell.value = diaData?.fecha ? formatearFechaBitacora(diaData.fecha) : '';
+    if (diaData?.fecha) {
+      const parts = String(diaData.fecha).split('-').map(Number);
+      if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+        fechaCell.value = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2], 12, 0, 0));
+        fechaCell.numFmt = 'm/d/yyyy';
+      } else {
+        fechaCell.value = formatearFechaBitacora(diaData.fecha);
+      }
+    } else {
+      fechaCell.value = '';
+    }
     fechaCell.font = { name: FONT_NAME, size: 9, bold: true };
     fechaCell.alignment = { horizontal: 'center', vertical: 'middle' };
 

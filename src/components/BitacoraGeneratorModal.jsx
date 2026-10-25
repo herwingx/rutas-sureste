@@ -26,6 +26,7 @@ import {
   Plus,
   Trash,
   GasPump,
+  Receipt,
   CarProfile,
   ClockCounterClockwise,
   DownloadSimple,
@@ -61,7 +62,14 @@ import {
   TypographyMono,
 } from '@/components/ui/typography';
 import { calcularSemanaISO, descargarBitacoraNetoExcel } from '@/lib/bitacora-excel';
-import { cn, fechaMX, pesos, api } from '@/lib/utils';
+import {
+  cn,
+  fechaMX,
+  pesos,
+  api,
+  obtenerLunesDeSemanaISO,
+  obtenerCicloOperativoNeto,
+} from '@/lib/utils';
 
 function construirTramosDeRuta(item, porNombre, baseDefault) {
   const baseNombre = item.baseNombre || baseDefault || 'RESGUARDO TUXTLA';
@@ -172,13 +180,35 @@ export function BitacoraGeneratorModal({
   );
 
   const [incluirRutaActual, setIncluirRutaActual] = useState(true);
-  const [idsHistorialSel, setIdsHistorialSel] = useState([]);
+  const [idsComprobacionSel, setIdsComprobacionSel] = useState([]);
+  const [idsAnticipoSel, setIdsAnticipoSel] = useState([]);
+  const [subTabDias, setSubTabDias] = useState('comprobacion'); // 'comprobacion' | 'anticipo'
+
+  // Opciones de ciclo para el anticipo: 'ciclo_neto' (Mar -> Lun próx) o 'semana_natural' (Lun -> Sáb)
+  const [varianteAnticipo, setVarianteAnticipo] = useState('ciclo_neto');
+  // Flag por si al ingeniero se le olvidó pedir el lunes anterior y lo incluye ahora
+  const [incluirLunesOlvido, setIncluirLunesOlvido] = useState(false);
+
   const [puntosNuevosExtra, setPuntosNuevosExtra] = useState([]);
   const [descargando, setDescargando] = useState(false);
   const [guardandoSupabase, setGuardandoSupabase] = useState(false);
 
   // Lista de bitácoras guardadas en Supabase / local
   const [bitacorasGuardadas, setBitacorasGuardadas] = useState([]);
+
+  // Lunes base del ciclo para la semana y año seleccionados
+  const fechaLunesBase = useMemo(() => {
+    return obtenerLunesDeSemanaISO(semana, anio);
+  }, [semana, anio]);
+
+  // Ciclo operativo Tiendas Neto (Comprobación y Anticipo con próximo lunes)
+  const cicloNetoModal = useMemo(() => {
+    return obtenerCicloOperativoNeto(fechaLunesBase, {
+      modo: 'anticipo',
+      variante: varianteAnticipo,
+      incluirLunesOlvido,
+    });
+  }, [fechaLunesBase, varianteAnticipo, incluirLunesOlvido]);
 
   // Validación estricta: Ficha vehicular obligatoria para poder generar/descargar bitácora
   const perfilCompleto = useMemo(() => {
@@ -203,11 +233,12 @@ export function BitacoraGeneratorModal({
     }
   }, [rutaActual?.fecha]);
 
-  // Cargar lista de bitácoras guardadas al abrir el modal y auto-seleccionar días de la semana activa
+  // Cargar lista de bitácoras guardadas al abrir el modal y auto-seleccionar días
   useEffect(() => {
     if (open) {
       if (modoInicial) {
         setModoHojas(modoInicial);
+        setSubTabDias(modoInicial === 'anticipo' ? 'anticipo' : 'comprobacion');
       }
       api('GET', '/api/bitacoras')
         .then((data) => {
@@ -215,49 +246,59 @@ export function BitacoraGeneratorModal({
         })
         .catch(() => {});
 
-      // Auto-seleccionar todas las rutas del historial que coincidan con la semana y el ingeniero
-      const rutasDeLaSemana = (historial || []).filter((h) => {
+      // 1. Auto-seleccionar rutas para Comprobación (Semana concluida: Lunes a Sábado)
+      const fechasCompValidas = new Set(
+        cicloNetoModal.diasSemanaNatural.slice(0, 6).map((d) => d.fecha)
+      );
+      const rutasComp = (historial || []).filter((h) => {
         if (!h.fecha) return false;
-        const c = calcularSemanaISO(h.fecha);
-        const mismaSemana = c.semana === semana && c.anio === anio;
         const mismoIng = !h.ingeniero || !formIng.nombre || h.ingeniero === formIng.nombre;
-        if (!mismaSemana || !mismoIng) return false;
-        if (modoInicial === 'anticipo') return h.tipo === 'anticipo';
-        if (modoInicial === 'comprobacion') return h.tipo === 'comprobacion' || !h.tipo;
-        return true;
+        const tipoComp = h.tipo === 'comprobacion' || !h.tipo;
+        return mismoIng && tipoComp && fechasCompValidas.has(h.fecha);
       });
+      setIdsComprobacionSel(rutasComp.map((h) => h.id));
 
-      const idsCoincidentes = rutasDeLaSemana.map((h) => h.id);
-      if (idsCoincidentes.length > 0) {
-        setIdsHistorialSel(idsCoincidentes);
-      }
+      // 2. Auto-seleccionar rutas para Anticipo (Ciclo Neto: Martes a Sábado + Lunes siguiente)
+      const fechasAntValidas = new Set(cicloNetoModal.dias.map((d) => d.fecha));
+      const rutasAnt = (historial || []).filter((h) => {
+        if (!h.fecha) return false;
+        const mismoIng = !h.ingeniero || !formIng.nombre || h.ingeniero === formIng.nombre;
+        const tipoAnt = h.tipo === 'anticipo';
+        return mismoIng && tipoAnt && fechasAntValidas.has(h.fecha);
+      });
+      setIdsAnticipoSel(rutasAnt.map((h) => h.id));
     }
-  }, [open, modoInicial, semana, anio, formIng.nombre, historial]);
+  }, [open, modoInicial, semana, anio, formIng.nombre, historial, cicloNetoModal]);
 
-  // Selección de días consolidados (hasta 7 días por hoja)
-  const diasConsolidados = useMemo(() => {
+  // Días consolidados para COMPROBACION (hasta 7 días por hoja)
+  const diasComprobacion = useMemo(() => {
     const lista = [];
 
-    if (incluirRutaActual && rutaActual?.paradas?.length > 0) {
-      const tramosAct = construirTramosDeRuta(
-        {
-          ...rutaActual,
-          baseNombre,
-          tramos: tramosActuales,
-        },
-        porNombre,
-        baseNombre
+    if (
+      incluirRutaActual &&
+      rutaActual?.paradas?.length > 0 &&
+      rutaActual?.tipo !== 'anticipo'
+    ) {
+      const fechasCompValidas = new Set(
+        cicloNetoModal.diasSemanaNatural.slice(0, 6).map((d) => d.fecha)
       );
-      lista.push({
-        id: 'actual',
-        fecha: rutaActual.fecha,
-        nombre: rutaActual.nombre || 'Ruta activa',
-        paradas: rutaActual.paradas,
-        tramos: tramosAct,
-      });
+      if (fechasCompValidas.has(rutaActual.fecha)) {
+        const tramosAct = construirTramosDeRuta(
+          { ...rutaActual, baseNombre, tramos: tramosActuales },
+          porNombre,
+          baseNombre
+        );
+        lista.push({
+          id: 'actual_comp',
+          fecha: rutaActual.fecha,
+          nombre: rutaActual.nombre || 'Ruta activa',
+          paradas: rutaActual.paradas,
+          tramos: tramosAct,
+        });
+      }
     }
 
-    for (const id of idsHistorialSel) {
+    for (const id of idsComprobacionSel) {
       const h = historial.find((x) => x.id === id);
       if (!h) continue;
       if (incluirRutaActual && rutaActual?.id && rutaActual.id === h.id) continue;
@@ -272,12 +313,74 @@ export function BitacoraGeneratorModal({
     }
 
     return lista.sort((a, b) => a.fecha.localeCompare(b.fecha)).slice(0, 7);
-  }, [incluirRutaActual, rutaActual, tramosActuales, idsHistorialSel, historial, porNombre, baseNombre]);
+  }, [
+    incluirRutaActual,
+    rutaActual,
+    tramosActuales,
+    idsComprobacionSel,
+    historial,
+    porNombre,
+    baseNombre,
+    cicloNetoModal,
+  ]);
 
-  // Detección automática de puntos especiales
+  // Días consolidados para ANTICIPO (Ciclo Neto con próximo lunes incluido)
+  const diasAnticipo = useMemo(() => {
+    const lista = [];
+
+    if (
+      incluirRutaActual &&
+      rutaActual?.paradas?.length > 0 &&
+      rutaActual?.tipo === 'anticipo'
+    ) {
+      const fechasAntValidas = new Set(cicloNetoModal.dias.map((d) => d.fecha));
+      if (fechasAntValidas.has(rutaActual.fecha)) {
+        const tramosAct = construirTramosDeRuta(
+          { ...rutaActual, baseNombre, tramos: tramosActuales },
+          porNombre,
+          baseNombre
+        );
+        lista.push({
+          id: 'actual_ant',
+          fecha: rutaActual.fecha,
+          nombre: rutaActual.nombre || 'Ruta activa (Anticipo)',
+          paradas: rutaActual.paradas,
+          tramos: tramosAct,
+        });
+      }
+    }
+
+    for (const id of idsAnticipoSel) {
+      const h = historial.find((x) => x.id === id);
+      if (!h) continue;
+      if (incluirRutaActual && rutaActual?.id && rutaActual.id === h.id) continue;
+      const tramosH = construirTramosDeRuta(h, porNombre, baseNombre);
+      lista.push({
+        id: h.id,
+        fecha: h.fecha,
+        nombre: h.nombre || 'Ruta de anticipo',
+        paradas: h.paradas || [],
+        tramos: tramosH,
+      });
+    }
+
+    return lista.sort((a, b) => a.fecha.localeCompare(b.fecha)).slice(0, 7);
+  }, [
+    incluirRutaActual,
+    rutaActual,
+    tramosActuales,
+    idsAnticipoSel,
+    historial,
+    porNombre,
+    baseNombre,
+    cicloNetoModal,
+  ]);
+
+  // Detección automática de puntos especiales combinando ambas listas
   const puntosNuevosDetectados = useMemo(() => {
     const mapa = new Map();
-    diasConsolidados.forEach((d) => {
+    const todosDias = [...diasComprobacion, ...diasAnticipo];
+    todosDias.forEach((d) => {
       (d.paradas || []).forEach((p) => {
         const nom = (p.nombre || '').toUpperCase();
         const esEspecial =
@@ -304,19 +407,35 @@ export function BitacoraGeneratorModal({
       }
     });
     return Array.from(mapa.values()).slice(0, 9);
-  }, [diasConsolidados, puntosNuevosExtra]);
+  }, [diasComprobacion, diasAnticipo, puntosNuevosExtra]);
 
-  const resumenTotales = useMemo(() => {
-    const km = diasConsolidados.reduce(
+  const rend = Number(formIng.rendimiento) || 12.5;
+  const precio = Number(formIng.costo_litro) || 23.99;
+
+  const resumenComprobacion = useMemo(() => {
+    const km = diasComprobacion.reduce(
       (acc, d) => acc + d.tramos.reduce((s, t) => s + (t.km || 0), 0),
       0
     );
-    const rend = Number(formIng.rendimiento) || 12.5;
-    const precio = Number(formIng.costo_litro) || 23.99;
     const litros = km / rend;
     const importe = litros * precio;
     return { km, litros, importe, kmFinal: (Number(kmInicial) || 0) + km };
-  }, [diasConsolidados, formIng.rendimiento, formIng.costo_litro, kmInicial]);
+  }, [diasComprobacion, rend, precio, kmInicial]);
+
+  const resumenAnticipo = useMemo(() => {
+    const km = diasAnticipo.reduce(
+      (acc, d) => acc + d.tramos.reduce((s, t) => s + (t.km || 0), 0),
+      0
+    );
+    const litros = km / rend;
+    const importe = litros * precio;
+    return { km, litros, importe, kmFinal: (Number(kmInicial) || 0) + km };
+  }, [diasAnticipo, rend, precio, kmInicial]);
+
+  const resumenTotales = useMemo(() => {
+    if (modoHojas === 'anticipo') return resumenAnticipo;
+    return resumenComprobacion;
+  }, [modoHojas, resumenAnticipo, resumenComprobacion]);
 
   const guardarPerfil = async () => {
     setGuardandoPerfil(true);
@@ -341,9 +460,17 @@ export function BitacoraGeneratorModal({
       onOpenProfile?.();
       return;
     }
-    if (diasConsolidados.length === 0) {
-      return toast('Agrega al menos una ruta antes de guardar la bitácora', 'err');
+    const tieneDias =
+      modoHojas === 'anticipo'
+        ? diasAnticipo.length > 0
+        : modoHojas === 'comprobacion'
+        ? diasComprobacion.length > 0
+        : diasComprobacion.length > 0 || diasAnticipo.length > 0;
+
+    if (!tieneDias) {
+      return toast('Agrega al menos una ruta antes de archivar la bitácora', 'err');
     }
+
     setGuardandoSupabase(true);
     try {
       const payload = {
@@ -358,11 +485,15 @@ export function BitacoraGeneratorModal({
         complementos,
         observaciones_anticipo: obsAnticipo,
         observaciones_comprobacion: obsComprobacion,
-        dias_anticipo: diasConsolidados,
-        dias_comprobacion: diasConsolidados,
+        dias_anticipo: diasAnticipo,
+        dias_comprobacion: diasComprobacion,
         puntos_nuevos: puntosNuevosDetectados,
-        total_km: resumenTotales.km,
-        total_importe: Math.round(resumenTotales.importe * 100) / 100,
+        total_km: modoHojas === 'anticipo' ? resumenAnticipo.km : resumenComprobacion.km,
+        total_importe:
+          Math.round(
+            (modoHojas === 'anticipo' ? resumenAnticipo.importe : resumenComprobacion.importe) *
+              100
+          ) / 100,
       };
       await api('POST', '/api/bitacoras', payload);
       const lista = await api('GET', '/api/bitacoras');
@@ -377,7 +508,10 @@ export function BitacoraGeneratorModal({
 
   const handleDescargarExcel = async (overrideData = null) => {
     if (!overrideData && !perfilCompleto) {
-      toast('No se puede generar la bitácora: Ficha vehicular incompleta. Configura tus datos primero.', 'err');
+      toast(
+        'No se puede generar la bitácora: Ficha vehicular incompleta. Configura tus datos primero.',
+        'err'
+      );
       onOpenProfile?.();
       return;
     }
@@ -393,11 +527,20 @@ export function BitacoraGeneratorModal({
       complementos,
       observacionesAnticipo: obsAnticipo,
       observacionesComprobacion: obsComprobacion,
-      dias: diasConsolidados,
+      diasComprobacion,
+      diasAnticipo,
+      dias: modoHojas === 'anticipo' ? diasAnticipo : diasComprobacion,
       puntosNuevos: puntosNuevosDetectados,
     };
 
-    if (!overrideData && diasConsolidados.length === 0) {
+    const tieneDias =
+      modoHojas === 'anticipo'
+        ? diasAnticipo.length > 0
+        : modoHojas === 'comprobacion'
+        ? diasComprobacion.length > 0
+        : diasComprobacion.length > 0 || diasAnticipo.length > 0;
+
+    if (!overrideData && !tieneDias) {
       return toast(
         'Agrega al menos una parada a tu ruta o selecciona un día del historial',
         'err'
@@ -406,7 +549,6 @@ export function BitacoraGeneratorModal({
 
     setDescargando(true);
     try {
-      // Auto-guardar en base de datos para que quede disponible en el historial
       if (!overrideData) {
         guardarEnSupabase().catch(() => {});
       }
@@ -420,8 +562,14 @@ export function BitacoraGeneratorModal({
     }
   };
 
-  const toggleHistorialId = (id) => {
-    setIdsHistorialSel((prev) =>
+  const toggleComprobacionId = (id) => {
+    setIdsComprobacionSel((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const toggleAnticipoId = (id) => {
+    setIdsAnticipoSel((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
     );
   };
@@ -720,132 +868,305 @@ export function BitacoraGeneratorModal({
               </div>
             </div>
 
-            {/* 4. DÍAS INCLUIDOS (HASTA 7 BLOQUES POR HOJA) */}
+            {/* 4. DÍAS INCLUIDOS (SEPARADOS POR COMPROBACIÓN Y ANTICIPO) */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-xs flex items-center gap-1.5">
+                <Label className="text-xs flex items-center gap-1.5 font-semibold">
                   <CalendarCheck weight="duotone" className="h-4 w-4 text-primary" />
-                  <span>Días incluidos en la semana ({diasConsolidados.length} de 7 bloques)</span>
+                  <span>Días incluidos para la bitácora</span>
                 </Label>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="xs"
-                    className="text-[10px] h-6 px-2 text-primary hover:text-primary"
-                    onClick={() => {
-                      const ids = historial
-                        .filter((h) => {
-                          if (!h.fecha) return false;
-                          const c = calcularSemanaISO(h.fecha);
-                          return c.semana === semana && c.anio === anio;
-                        })
-                        .map((h) => h.id);
-                      setIdsHistorialSel(ids);
-                    }}
-                  >
-                    Seleccionar Semana {semana}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="xs"
-                    className="text-[10px] h-6 px-1.5 text-muted-foreground"
-                    onClick={() => setIdsHistorialSel([])}
-                  >
-                    Limpiar
-                  </Button>
-                </div>
               </div>
 
-              <Card className="divide-y divide-border max-h-48 overflow-y-auto">
-                {rutaActual?.paradas?.length > 0 && (
-                  <div className="flex items-center justify-between gap-2 px-3 py-2 bg-primary/5">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Switch
-                        checked={incluirRutaActual}
-                        onCheckedChange={setIncluirRutaActual}
-                      />
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <Badge variant="default" className="text-[10px] px-1.5 py-0">
-                            Ruta activa en pantalla
-                          </Badge>
-                          <Badge variant="outline" className="text-[9px] uppercase px-1 py-0">
-                            {modoHojas === 'anticipo' ? 'Anticipo' : 'Comprobación'}
-                          </Badge>
-                          <TypographySmall className="font-semibold text-xs">
-                            {fechaMX(rutaActual.fecha)}
-                          </TypographySmall>
+              {/* Selector de pestaña de días si el modo es 'ambas' */}
+              {modoHojas === 'ambas' && (
+                <div className="grid grid-cols-2 p-0.5 rounded-lg bg-muted/60 border border-border/50 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setSubTabDias('comprobacion')}
+                    className={cn(
+                      'flex items-center justify-center gap-1.5 py-1 px-3 rounded-md transition-all cursor-pointer font-medium',
+                      subTabDias === 'comprobacion'
+                        ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    <GasPump weight="duotone" className="h-3.5 w-3.5" />
+                    <span>⛽ 1. Comprobación ({diasComprobacion.length} días)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSubTabDias('anticipo')}
+                    className={cn(
+                      'flex items-center justify-center gap-1.5 py-1 px-3 rounded-md transition-all cursor-pointer font-medium',
+                      subTabDias === 'anticipo'
+                        ? 'bg-amber-600 text-white font-semibold shadow-xs'
+                        : 'text-muted-foreground hover:text-foreground'
+                    )}
+                  >
+                    <Receipt weight="duotone" className="h-3.5 w-3.5" />
+                    <span>📋 2. Anticipo ({diasAnticipo.length} días)</span>
+                  </button>
+                </div>
+              )}
+
+              {/* LISTA COMPROBACIÓN */}
+              {(modoHojas === 'comprobacion' || (modoHojas === 'ambas' && subTabDias === 'comprobacion')) && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span className="text-[11px]">
+                      ⛽ Comprobación de la semana {semana} (Lunes a Sábado concluida)
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="xs"
+                      className="text-[10px] h-6 px-1.5 text-muted-foreground"
+                      onClick={() => setIdsComprobacionSel([])}
+                    >
+                      Limpiar
+                    </Button>
+                  </div>
+
+                  <Card className="divide-y divide-border max-h-48 overflow-y-auto">
+                    {rutaActual?.paradas?.length > 0 && rutaActual?.tipo !== 'anticipo' && (
+                      <div className="flex items-center justify-between gap-2 px-3 py-2 bg-primary/5">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Switch
+                            checked={incluirRutaActual}
+                            onCheckedChange={setIncluirRutaActual}
+                          />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <Badge variant="default" className="text-[10px] px-1.5 py-0">
+                                Ruta activa en pantalla
+                              </Badge>
+                              <Badge variant="outline" className="text-[9px] uppercase px-1 py-0 text-blue-600 border-blue-500/40">
+                                Comprobación
+                              </Badge>
+                              <TypographySmall className="font-semibold text-xs">
+                                {fechaMX(rutaActual.fecha)}
+                              </TypographySmall>
+                            </div>
+                            <TypographyMuted className="text-[11px] truncate block">
+                              {rutaActual.paradas.map((p) => p.nombre).join(' → ')}
+                            </TypographyMuted>
+                          </div>
                         </div>
-                        <TypographyMuted className="text-[11px] truncate block">
-                          {rutaActual.paradas.map((p) => p.nombre).join(' → ')}
-                        </TypographyMuted>
                       </div>
+                    )}
+
+                    {historial
+                      .filter((h) => {
+                        const fechasCompValidas = new Set(
+                          cicloNetoModal.diasSemanaNatural.slice(0, 6).map((d) => d.fecha)
+                        );
+                        return fechasCompValidas.has(h.fecha) && (h.tipo === 'comprobacion' || !h.tipo);
+                      })
+                      .map((h) => {
+                        const esMismaActual =
+                          incluirRutaActual &&
+                          rutaActual?.id === h.id &&
+                          rutaActual?.tipo !== 'anticipo';
+                        const checked = esMismaActual || idsComprobacionSel.includes(h.id);
+                        return (
+                          <div
+                            key={h.id}
+                            onClick={() => !esMismaActual && toggleComprobacionId(h.id)}
+                            className={cn(
+                              'flex items-center justify-between gap-2 px-3 py-2 text-xs cursor-pointer transition-colors hover:bg-accent/50',
+                              checked && 'bg-blue-500/10'
+                            )}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Switch
+                                checked={checked}
+                                disabled={esMismaActual}
+                                onCheckedChange={() => !esMismaActual && toggleComprobacionId(h.id)}
+                              />
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <TypographySmall className="font-medium">
+                                    {fechaMX(h.fecha)}
+                                  </TypographySmall>
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[9px] uppercase px-1 py-0 text-blue-600 border-blue-500/40 bg-blue-500/10"
+                                  >
+                                    Comprobación
+                                  </Badge>
+                                  {h.nombre && (
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 truncate max-w-28">
+                                      {h.nombre}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <TypographyMuted className="text-[11px] truncate block">
+                                  {(h.paradas || []).map((p) => p.nombre).join(' → ')}
+                                </TypographyMuted>
+                              </div>
+                            </div>
+                            <TypographyMono className="text-[11px] text-muted-foreground shrink-0 font-semibold">
+                              {h.totalKm} km
+                            </TypographyMono>
+                          </div>
+                        );
+                      })}
+                  </Card>
+                </div>
+              )}
+
+              {/* LISTA ANTICIPO */}
+              {(modoHojas === 'anticipo' || (modoHojas === 'ambas' && subTabDias === 'anticipo')) && (
+                <div className="space-y-2">
+                  <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/30 space-y-1.5">
+                    <div className="flex flex-wrap items-center justify-between gap-1.5">
+                      <div className="flex items-center gap-1 bg-background/80 p-0.5 rounded-md border border-amber-500/30 text-xs">
+                        <button
+                          type="button"
+                          onClick={() => setVarianteAnticipo('ciclo_neto')}
+                          className={cn(
+                            'px-2 py-0.5 rounded text-[10.5px] font-semibold transition-all cursor-pointer',
+                            varianteAnticipo === 'ciclo_neto'
+                              ? 'bg-amber-600 text-white shadow-xs'
+                              : 'text-muted-foreground hover:text-foreground'
+                          )}
+                          title="Martes a Sábado + Lunes siguiente"
+                        >
+                          ⭐ Ciclo Neto (Mar ➔ Lun próx)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setVarianteAnticipo('semana_natural')}
+                          className={cn(
+                            'px-2 py-0.5 rounded text-[10.5px] font-semibold transition-all cursor-pointer',
+                            varianteAnticipo === 'semana_natural'
+                              ? 'bg-amber-600 text-white shadow-xs'
+                              : 'text-muted-foreground hover:text-foreground'
+                          )}
+                          title="Lunes a Sábado de esta semana"
+                        >
+                          Semana Natural (Lun ➔ Sáb)
+                        </button>
+                      </div>
+
+                      {varianteAnticipo === 'ciclo_neto' && (
+                        <button
+                          type="button"
+                          onClick={() => setIncluirLunesOlvido((p) => !p)}
+                          className={cn(
+                            'flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] border transition-all cursor-pointer shrink-0',
+                            incluirLunesOlvido
+                              ? 'border-amber-500 bg-amber-500/20 text-amber-800 dark:text-amber-200 font-bold'
+                              : 'border-border/70 bg-background/80 text-muted-foreground hover:text-foreground'
+                          )}
+                          title="¿Se te olvidó pedir el lunes la semana pasada? Actívalo aquí para incluirlo en este anticipo"
+                        >
+                          <span>{incluirLunesOlvido ? '✓ Incluye LUN actual' : '+ LUN actual (olvido)'}</span>
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="text-[11px] text-amber-800 dark:text-amber-300 leading-tight flex items-center gap-1.5">
+                      <span>💡</span>
+                      <span>
+                        {varianteAnticipo === 'ciclo_neto'
+                          ? 'El depósito cae lunes tarde. Este anticipo contempla hasta el lunes siguiente para arrancar con saldo.'
+                          : 'Anticipo configurado por semana natural (Lunes a Sábado).'}
+                      </span>
                     </div>
                   </div>
-                )}
 
-                {historial.map((h) => {
-                  const esMismaActual = incluirRutaActual && rutaActual?.id === h.id;
-                  const checked = esMismaActual || idsHistorialSel.includes(h.id);
-                  const cSem = h.fecha ? calcularSemanaISO(h.fecha) : null;
-                  const esEstaSemana = cSem && cSem.semana === semana && cSem.anio === anio;
-                  return (
-                    <div
-                      key={h.id}
-                      onClick={() => !esMismaActual && toggleHistorialId(h.id)}
-                      className={cn(
-                        'flex items-center justify-between gap-2 px-3 py-2 text-xs cursor-pointer transition-colors hover:bg-accent/50',
-                        checked && 'bg-accent/30',
-                        esEstaSemana && !checked && 'bg-primary/5'
-                      )}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <Switch
-                          checked={checked}
-                          disabled={esMismaActual}
-                          onCheckedChange={() => !esMismaActual && toggleHistorialId(h.id)}
-                        />
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5">
-                            <TypographySmall className="font-medium">
-                              {fechaMX(h.fecha)}
-                            </TypographySmall>
-                            <Badge
-                              variant="outline"
-                              className={cn(
-                                'text-[9px] uppercase px-1 py-0',
-                                h.tipo === 'anticipo'
-                                  ? 'text-amber-600 border-amber-500/40 bg-amber-500/10'
-                                  : 'text-blue-600 border-blue-500/40 bg-blue-500/10'
-                              )}
-                            >
-                              {h.tipo === 'anticipo' ? 'Anticipo' : 'Comprobación'}
-                            </Badge>
-                            {esEstaSemana && (
-                              <Badge variant="secondary" className="text-[9px] px-1 py-0">
-                                Sem {semana}
+                  <Card className="divide-y divide-border max-h-48 overflow-y-auto">
+                    {rutaActual?.paradas?.length > 0 && rutaActual?.tipo === 'anticipo' && (
+                      <div className="flex items-center justify-between gap-2 px-3 py-2 bg-amber-500/10">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Switch
+                            checked={incluirRutaActual}
+                            onCheckedChange={setIncluirRutaActual}
+                          />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <Badge variant="default" className="text-[10px] px-1.5 py-0 bg-amber-600 text-white">
+                                Ruta activa en pantalla
                               </Badge>
-                            )}
-                            {h.nombre && (
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 truncate max-w-28">
-                                {h.nombre}
+                              <Badge variant="outline" className="text-[9px] uppercase px-1 py-0 text-amber-600 border-amber-500/40">
+                                Anticipo
                               </Badge>
-                            )}
+                              <TypographySmall className="font-semibold text-xs">
+                                {fechaMX(rutaActual.fecha)}
+                              </TypographySmall>
+                            </div>
+                            <TypographyMuted className="text-[11px] truncate block">
+                              {rutaActual.paradas.map((p) => p.nombre).join(' → ')}
+                            </TypographyMuted>
                           </div>
-                          <TypographyMuted className="text-[11px] truncate block">
-                            {(h.paradas || []).map((p) => p.nombre).join(' → ')}
-                          </TypographyMuted>
                         </div>
                       </div>
-                      <TypographyMono className="text-[11px] text-muted-foreground shrink-0 font-semibold">
-                        {h.totalKm} km
-                      </TypographyMono>
-                    </div>
-                  );
-                })}
-              </Card>
+                    )}
+
+                    {historial
+                      .filter((h) => {
+                        const fechasAntValidas = new Set(cicloNetoModal.dias.map((d) => d.fecha));
+                        return fechasAntValidas.has(h.fecha) && h.tipo === 'anticipo';
+                      })
+                      .map((h) => {
+                        const esMismaActual =
+                          incluirRutaActual &&
+                          rutaActual?.id === h.id &&
+                          rutaActual?.tipo === 'anticipo';
+                        const checked = esMismaActual || idsAnticipoSel.includes(h.id);
+                        const esProx = h.fecha === cicloNetoModal.fechaProximoLunes;
+                        return (
+                          <div
+                            key={h.id}
+                            onClick={() => !esMismaActual && toggleAnticipoId(h.id)}
+                            className={cn(
+                              'flex items-center justify-between gap-2 px-3 py-2 text-xs cursor-pointer transition-colors hover:bg-accent/50',
+                              checked && 'bg-amber-500/10'
+                            )}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <Switch
+                                checked={checked}
+                                disabled={esMismaActual}
+                                onCheckedChange={() => !esMismaActual && toggleAnticipoId(h.id)}
+                              />
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <TypographySmall className="font-medium">
+                                    {fechaMX(h.fecha)}
+                                  </TypographySmall>
+                                  <Badge
+                                    variant="outline"
+                                    className="text-[9px] uppercase px-1 py-0 text-amber-600 border-amber-500/40 bg-amber-500/10"
+                                  >
+                                    Anticipo
+                                  </Badge>
+                                  {esProx && (
+                                    <Badge variant="secondary" className="text-[9px] px-1 py-0 bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold">
+                                      ⭐ Lun próx (Sem +1)
+                                    </Badge>
+                                  )}
+                                  {h.nombre && (
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 truncate max-w-28">
+                                      {h.nombre}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <TypographyMuted className="text-[11px] truncate block">
+                                  {(h.paradas || []).map((p) => p.nombre).join(' → ')}
+                                </TypographyMuted>
+                              </div>
+                            </div>
+                            <TypographyMono className="text-[11px] text-muted-foreground shrink-0 font-semibold">
+                              {h.totalKm} km
+                            </TypographyMono>
+                          </div>
+                        );
+                      })}
+                  </Card>
+                </div>
+              )}
             </div>
 
             {/* 5. OBSERVACIONES POR HOJA */}
@@ -880,22 +1201,35 @@ export function BitacoraGeneratorModal({
                   <GasPump weight="duotone" className="h-5 w-5" />
                 </div>
                 <div>
-                  <TypographySmall className="font-semibold block">
-                    Total: {resumenTotales.km} km · {resumenTotales.litros.toFixed(1)} L · {pesos(resumenTotales.importe)}
-                  </TypographySmall>
-                  <TypographyMuted className="text-xs">
-                    Odómetro: {Number(kmInicial).toLocaleString()} → {resumenTotales.kmFinal.toLocaleString()} km · {diasConsolidados.length} días
-                  </TypographyMuted>
+                  {modoHojas === 'ambas' ? (
+                    <div className="space-y-0.5">
+                      <TypographySmall className="font-semibold block text-xs">
+                        ⛽ Comprobación: {resumenComprobacion.km} km · {resumenComprobacion.litros.toFixed(1)} L · {pesos(resumenComprobacion.importe)} ({diasComprobacion.length} días)
+                      </TypographySmall>
+                      <TypographySmall className="font-semibold block text-xs text-amber-700 dark:text-amber-400">
+                        📋 Anticipo: {resumenAnticipo.km} km · {resumenAnticipo.litros.toFixed(1)} L · {pesos(resumenAnticipo.importe)} ({diasAnticipo.length} días · {varianteAnticipo === 'ciclo_neto' ? 'incluye Lun próx' : 'semana natural'})
+                      </TypographySmall>
+                    </div>
+                  ) : (
+                    <div>
+                      <TypographySmall className="font-semibold block">
+                        Total: {resumenTotales.km} km · {resumenTotales.litros.toFixed(1)} L · {pesos(resumenTotales.importe)}
+                      </TypographySmall>
+                      <TypographyMuted className="text-xs">
+                        Odómetro: {Number(kmInicial).toLocaleString()} → {resumenTotales.kmFinal.toLocaleString()} km · {modoHojas === 'anticipo' ? diasAnticipo.length : diasComprobacion.length} días
+                      </TypographyMuted>
+                    </div>
+                  )}
                 </div>
               </div>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={guardarEnSupabase}
-                disabled={guardandoSupabase || diasConsolidados.length === 0}
+                disabled={guardandoSupabase || (diasComprobacion.length === 0 && diasAnticipo.length === 0)}
               >
                 <FloppyDiskBack weight="duotone" />
-                {guardandoSupabase ? 'Guardando…' : 'Archivar en Servidor'}
+                <span>{guardandoSupabase ? 'Archivando...' : 'Archivar en Servidor'}</span>
               </Button>
             </Card>
           </TabsContent>

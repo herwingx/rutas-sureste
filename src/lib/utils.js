@@ -98,6 +98,136 @@ export const obtenerDiasSemana = (fechaStr) => {
 };
 
 /**
+ * Retorna la fecha ISO (YYYY-MM-DD) del Lunes correspondiente a un número de semana ISO y año.
+ * @param {number} semana - Número de semana ISO (1-53)
+ * @param {number} anio - Año de 4 dígitos
+ * @returns {string}
+ */
+export const obtenerLunesDeSemanaISO = (semana, anio) => {
+  const jan4 = new Date(Date.UTC(anio, 0, 4));
+  const dayOfWeek = jan4.getUTCDay() || 7;
+  const firstMonday = new Date(jan4);
+  firstMonday.setUTCDate(jan4.getUTCDate() - (dayOfWeek - 1));
+
+  const targetMonday = new Date(firstMonday);
+  targetMonday.setUTCDate(firstMonday.getUTCDate() + (semana - 1) * 7);
+
+  const y = targetMonday.getUTCFullYear();
+  const m = String(targetMonday.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(targetMonday.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+/**
+ * Retorna la información completa del Ciclo Operativo de Tiendas Neto para una fecha base:
+ * - Lunes de la semana en curso (lunesActual)
+ * - Martes a Sábado de la semana en curso
+ * - Lunes de la siguiente semana (lunesSiguiente, que se pide por anticipado porque el depósito cae en la tarde)
+ * - Listas de días pre-construidas para 'comprobacion' y 'anticipo' (con variante estándar o flexible).
+ *
+ * @param {string} fechaStr - Fecha ISO (YYYY-MM-DD).
+ * @param {Object} [opciones]
+ * @param {'comprobacion' | 'anticipo'} [opciones.modo='comprobacion']
+ * @param {'ciclo_neto' | 'semana_natural' | 'completa'} [opciones.variante='ciclo_neto']
+ * @param {boolean} [opciones.incluirLunesOlvido=false] - Por si al ingeniero se le olvidó pedir el lunes anterior y lo incluye ahora.
+ */
+export const obtenerCicloOperativoNeto = (
+  fechaStr,
+  {
+    modo = 'comprobacion',
+    variante = 'ciclo_neto',
+    incluirLunesOlvido = false,
+  } = {}
+) => {
+  const d = fechaStr ? new Date(fechaStr + 'T12:00:00') : new Date();
+  if (Number.isNaN(d.getTime())) {
+    return {
+      dias: [],
+      diasSemanaNatural: [],
+      lunesActual: null,
+      proximoLunes: null,
+      fechaLunesActual: '',
+      fechaProximoLunes: '',
+    };
+  }
+
+  const day = d.getDay();
+  const diffToMonday = (day === 0 ? -6 : 1) - day;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + diffToMonday);
+
+  const formatISO = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const dia = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${dia}`;
+  };
+
+  const nombres = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+  const diasSemanaNatural = [];
+  for (let i = 0; i < 7; i++) {
+    const cur = new Date(monday);
+    cur.setDate(monday.getDate() + i);
+    diasSemanaNatural.push({
+      fecha: formatISO(cur),
+      diaNombre: nombres[i],
+      diaMes: String(cur.getDate()).padStart(2, '0'),
+      mesNum: String(cur.getMonth() + 1).padStart(2, '0'),
+      esFinDeSemana: i >= 5,
+      esProximoLunes: false,
+      esLunesActual: i === 0,
+    });
+  }
+
+  // Lunes de la siguiente semana (+7 días desde el lunes base)
+  const nextMon = new Date(monday);
+  nextMon.setDate(monday.getDate() + 7);
+  const proximoLunes = {
+    fecha: formatISO(nextMon),
+    diaNombre: 'Lun (+1)',
+    diaMes: String(nextMon.getDate()).padStart(2, '0'),
+    mesNum: String(nextMon.getMonth() + 1).padStart(2, '0'),
+    esFinDeSemana: false,
+    esProximoLunes: true,
+    esLunesActual: false,
+    etiqueta: 'Lunes próx.',
+  };
+
+  const lunesActual = diasSemanaNatural[0];
+
+  let dias = [];
+  if (modo === 'comprobacion') {
+    // Comprobación abarca la semana concluida: Lunes a Sábado
+    dias = diasSemanaNatural.slice(0, 6);
+  } else {
+    // Anticipo
+    if (variante === 'semana_natural') {
+      dias = diasSemanaNatural.slice(0, 6);
+    } else if (variante === 'completa') {
+      dias = [...diasSemanaNatural.slice(0, 6), proximoLunes];
+    } else {
+      // ciclo_neto (estándar Tiendas Neto):
+      // Martes a Sábado + Lunes de la siguiente semana (+ opcional Lunes actual por olvido)
+      const marASab = diasSemanaNatural.slice(1, 6);
+      if (incluirLunesOlvido) {
+        dias = [lunesActual, ...marASab, proximoLunes];
+      } else {
+        dias = [...marASab, proximoLunes];
+      }
+    }
+  }
+
+  return {
+    dias,
+    lunesActual,
+    proximoLunes,
+    diasSemanaNatural,
+    fechaLunesActual: lunesActual.fecha,
+    fechaProximoLunes: proximoLunes.fecha,
+  };
+};
+
+/**
  * Formatea un monto numérico como moneda en Pesos Mexicanos (`$1,234.56`).
  * @param {number} n
  * @returns {string}

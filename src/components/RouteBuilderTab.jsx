@@ -87,6 +87,7 @@ import {
   pesos,
   duracion,
   obtenerDiasSemana,
+  obtenerCicloOperativoNeto,
 } from '@/lib/utils';
 import { calcularSemanaISO } from '@/lib/bitacora-excel';
 
@@ -131,9 +132,70 @@ export function RouteBuilderTab({
   const [dragIdx, setDragIdx] = useState(null);
   const [dropTarget, setDropTarget] = useState(null);
 
+  // Variante del ciclo de anticipo: 'ciclo_neto' (Mar -> Lun próx) o 'semana_natural' (Lun -> Sáb)
+  const [varianteAnticipo, setVarianteAnticipo] = useState(() => {
+    try {
+      return localStorage.getItem('neto_variante_anticipo') || 'ciclo_neto';
+    } catch {
+      return 'ciclo_neto';
+    }
+  });
+
+  // Flag flexible: por si al ingeniero se le olvidó pedir el lunes en el anticipo previo y lo incluye en este
+  const [incluirLunesOlvido, setIncluirLunesOlvido] = useState(() => {
+    try {
+      return localStorage.getItem('neto_incluir_lunes_olvido') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  // Base para anclar la semana activa sin que salte de semana al seleccionar el lunes próximo
+  const [fechaSemanaBase, setFechaSemanaBase] = useState(
+    () => ruta.fecha || new Date().toISOString().slice(0, 10)
+  );
+
+  // Cálculo del ciclo operativo Neto (Comprobación vs Anticipo)
+  const cicloInfo = useMemo(() => {
+    return obtenerCicloOperativoNeto(fechaSemanaBase, {
+      modo: modoOperativo,
+      variante: varianteAnticipo,
+      incluirLunesOlvido,
+    });
+  }, [fechaSemanaBase, modoOperativo, varianteAnticipo, incluirLunesOlvido]);
+
+  // Si la fecha seleccionada en DatePicker está fuera del ciclo, actualizamos la semana base
+  useEffect(() => {
+    if (!ruta.fecha) return;
+    const dentroDeCiclo =
+      cicloInfo.dias.some((d) => d.fecha === ruta.fecha) ||
+      ruta.fecha === cicloInfo.fechaLunesActual ||
+      ruta.fecha === cicloInfo.fechaProximoLunes;
+    if (!dentroDeCiclo) {
+      setFechaSemanaBase(ruta.fecha);
+    }
+  }, [ruta.fecha, cicloInfo]);
+
   // Información de Semana y Días de la semana para flujo ágil
-  const semanaInfo = useMemo(() => calcularSemanaISO(ruta.fecha), [ruta.fecha]);
-  const diasSemana = useMemo(() => obtenerDiasSemana(ruta.fecha), [ruta.fecha]);
+  const semanaInfo = useMemo(() => calcularSemanaISO(fechaSemanaBase), [fechaSemanaBase]);
+  const diasSemana = cicloInfo.dias;
+
+  const handleCambiarVarianteAnticipo = (nueva) => {
+    setVarianteAnticipo(nueva);
+    try {
+      localStorage.setItem('neto_variante_anticipo', nueva);
+    } catch {}
+  };
+
+  const handleToggleLunesOlvido = () => {
+    setIncluirLunesOlvido((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('neto_incluir_lunes_olvido', String(next));
+      } catch {}
+      return next;
+    });
+  };
 
   // Mapa de días guardados en el historial para este ingeniero en el modo operativo activo
   const mapaDiasHistorial = useMemo(() => {
@@ -167,8 +229,10 @@ export function RouteBuilderTab({
   const nombreDiaActual = useMemo(() => {
     const d = new Date(ruta.fecha + 'T12:00:00');
     const nombres = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const esProx = ruta.fecha === cicloInfo.fechaProximoLunes;
+    if (esProx) return 'Lunes (Próx. semana)';
     return nombres[d.getDay()] || 'Día';
-  }, [ruta.fecha]);
+  }, [ruta.fecha, cicloInfo.fechaProximoLunes]);
 
   const diaMesActual = useMemo(() => {
     if (!ruta.fecha) return '';
@@ -177,6 +241,28 @@ export function RouteBuilderTab({
   }, [ruta.fecha]);
 
   const siguienteDiaInfo = useMemo(() => {
+    // Si estamos en modo anticipo con ciclo neto:
+    // El orden de días es: Martes -> Miércoles -> Jueves -> Viernes -> Sábado -> Lunes (+1)
+    if (modoOperativo === 'anticipo' && varianteAnticipo === 'ciclo_neto') {
+      const idx = cicloInfo.dias.findIndex((d) => d.fecha === ruta.fecha);
+      if (idx >= 0 && idx < cicloInfo.dias.length - 1) {
+        const sig = cicloInfo.dias[idx + 1];
+        return {
+          iso: sig.fecha,
+          label: `${sig.diaNombre} ${sig.diaMes}`,
+          nombre: sig.esProximoLunes ? 'Lun próx.' : sig.diaNombre,
+          esUltimo: false,
+        };
+      } else if (idx === cicloInfo.dias.length - 1) {
+        return {
+          iso: null,
+          label: 'Anticipo completo',
+          nombre: 'Bitácora',
+          esUltimo: true,
+        };
+      }
+    }
+
     const d = new Date(ruta.fecha + 'T12:00:00');
     d.setDate(d.getDate() + 1);
     if (d.getDay() === 0) d.setDate(d.getDate() + 1); // saltar domingo
@@ -188,8 +274,9 @@ export function RouteBuilderTab({
       iso: `${y}-${m}-${diaNum}`,
       label: `${nombres[d.getDay()]} ${diaNum}`,
       nombre: nombres[d.getDay()],
+      esUltimo: false,
     };
-  }, [ruta.fecha]);
+  }, [ruta.fecha, modoOperativo, varianteAnticipo, cicloInfo]);
 
   const estaGuardado = useMemo(() => {
     if (ruta.id) return true;
@@ -202,14 +289,14 @@ export function RouteBuilderTab({
   }, [ruta.id, mapaDiasHistorial, ruta.fecha, ruta.paradas, totales.km]);
 
   const diasListosSemana = useMemo(() => {
-    return diasSemana.filter(
+    return cicloInfo.dias.filter(
       (d) => mapaDiasHistorial[d.fecha] || (ruta.fecha === d.fecha && ruta.paradas.length > 0)
     );
-  }, [diasSemana, mapaDiasHistorial, ruta.fecha, ruta.paradas.length]);
+  }, [cicloInfo.dias, mapaDiasHistorial, ruta.fecha, ruta.paradas.length]);
 
   const kmAcumuladoSemana = useMemo(() => {
     let sum = 0;
-    diasSemana.forEach((d) => {
+    cicloInfo.dias.forEach((d) => {
       if (ruta.fecha === d.fecha) {
         sum += totales.km;
       } else if (mapaDiasHistorial[d.fecha]) {
@@ -217,7 +304,7 @@ export function RouteBuilderTab({
       }
     });
     return Math.round(sum);
-  }, [diasSemana, ruta.fecha, totales.km, mapaDiasHistorial]);
+  }, [cicloInfo.dias, ruta.fecha, totales.km, mapaDiasHistorial]);
 
   const anticipoDisponibleParaImportar = useMemo(() => {
     if (modoOperativo !== 'comprobacion') return null;
@@ -415,16 +502,86 @@ export function RouteBuilderTab({
           </span>
         </div>
 
+        {/* Controles de ciclo cuando estamos en modo Anticipo */}
+        {modoOperativo === 'anticipo' && (
+          <div className="pt-1.5 border-t border-border/40 space-y-1.5">
+            <div className="flex flex-wrap items-center justify-between gap-1.5">
+              <div className="flex items-center gap-1 bg-muted/50 p-0.5 rounded-md border border-border/50">
+                <button
+                  type="button"
+                  onClick={() => handleCambiarVarianteAnticipo('ciclo_neto')}
+                  className={cn(
+                    'px-2 py-1 rounded text-[10px] font-semibold transition-all cursor-pointer',
+                    varianteAnticipo === 'ciclo_neto'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                  title="Estándar Tiendas Neto: Martes a Sábado + Lunes de la siguiente semana porque el depósito cae en la tarde"
+                >
+                  ⭐ Ciclo Neto (Mar ➔ Lun próx)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCambiarVarianteAnticipo('semana_natural')}
+                  className={cn(
+                    'px-2 py-1 rounded text-[10px] font-semibold transition-all cursor-pointer',
+                    varianteAnticipo === 'semana_natural'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                  title="Presupuesto semanal natural de Lunes a Sábado"
+                >
+                  Semana Natural (Lun ➔ Sáb)
+                </button>
+              </div>
+
+              {varianteAnticipo === 'ciclo_neto' && (
+                <button
+                  type="button"
+                  onClick={handleToggleLunesOlvido}
+                  className={cn(
+                    'flex items-center gap-1 px-2 py-1 rounded-md text-[10px] border transition-all cursor-pointer shrink-0',
+                    incluirLunesOlvido
+                      ? 'border-amber-500 bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold'
+                      : 'border-border/70 text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                  )}
+                  title="¿Se te olvidó pedir el lunes en el anticipo previo? Actívalo para incluirlo también en este anticipo"
+                >
+                  <span>{incluirLunesOlvido ? '✓ LUN actual incluido' : '+ LUN actual (olvido)'}</span>
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-500/10 border border-amber-500/20 text-[10.5px] text-amber-800 dark:text-amber-300 leading-tight">
+              <span className="shrink-0 text-xs">💡</span>
+              <span className="truncate">
+                {varianteAnticipo === 'ciclo_neto'
+                  ? 'El depósito cae lunes tarde. Este anticipo contempla hasta el lunes entrante para arrancar con saldo.'
+                  : 'Anticipo configurado por semana natural (Lunes a Sábado).'}
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Tira interactiva de días de la semana */}
         <div className="pt-1.5 border-t border-border/40">
           <div className="flex items-center justify-between pb-1 text-[10px] text-muted-foreground">
-            <span>Días de la semana</span>
+            <span>
+              {modoOperativo === 'comprobacion'
+                ? 'Días de comprobación (Semana concluida)'
+                : 'Días de anticipo'}
+            </span>
             <span className="font-mono font-medium">
-              {diasListosSemana.length} de {diasSemana.slice(0, 6).length} listos
+              {diasListosSemana.length} de {diasSemana.length} listos
             </span>
           </div>
-          <div className="grid grid-cols-6 gap-1">
-            {diasSemana.slice(0, 6).map((d) => {
+          <div
+            className={cn(
+              'grid gap-1',
+              diasSemana.length === 7 ? 'grid-cols-7' : 'grid-cols-6'
+            )}
+          >
+            {diasSemana.map((d) => {
               const esActivo = ruta.fecha === d.fecha;
               const guardado = mapaDiasHistorial[d.fecha];
               return (
@@ -439,17 +596,28 @@ export function RouteBuilderTab({
                     }
                   }}
                   className={cn(
-                    'flex flex-col items-center justify-center py-1.5 px-1 rounded-lg border text-center transition-all cursor-pointer',
+                    'flex flex-col items-center justify-center py-1.5 px-1 rounded-lg border text-center transition-all cursor-pointer relative',
                     esActivo
                       ? 'border-primary bg-primary/10 text-primary font-bold ring-2 ring-primary/40 shadow-xs'
                       : guardado
                       ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20'
+                      : d.esProximoLunes
+                      ? 'border-amber-500/60 bg-amber-500/10 text-amber-800 dark:text-amber-300 hover:bg-amber-500/20'
                       : 'border-border/60 bg-card/60 text-muted-foreground hover:bg-muted hover:text-foreground'
                   )}
-                  title={`${d.diaNombre} ${d.diaMes} · ${guardado ? `${guardado.totalKm} km guardados` : 'Sin ruta'}`}
+                  title={`${d.diaNombre} ${d.diaMes} ${d.esProximoLunes ? '(Lunes próxima semana)' : ''} · ${guardado ? `${guardado.totalKm} km guardados` : 'Sin ruta'}`}
                 >
-                  <span className="text-[9px] uppercase font-bold tracking-tight">{d.diaNombre}</span>
-                  <span className="text-xs font-semibold tabular-nums leading-none mt-0.5">{d.diaMes}</span>
+                  {d.esProximoLunes && (
+                    <span className="absolute -top-1.5 right-0.5 text-[7px] font-bold px-1 rounded bg-amber-600 text-white uppercase tracking-tight shadow-xs">
+                      Próx
+                    </span>
+                  )}
+                  <span className="text-[9px] uppercase font-bold tracking-tight">
+                    {d.diaNombre}
+                  </span>
+                  <span className="text-xs font-semibold tabular-nums leading-none mt-0.5">
+                    {d.diaMes}
+                  </span>
                   <span className="text-[8px] mt-1 leading-none font-mono">
                     {guardado ? `${Math.round(guardado.totalKm)}k ✓` : esActivo ? 'En curso' : '—'}
                   </span>
