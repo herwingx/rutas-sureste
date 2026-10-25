@@ -1,9 +1,7 @@
 /**
  * @fileoverview Capa de acceso, persistencia atómica y sincronización en tiempo real con Supabase
- * para el catálogo de tiendas (`data/tiendas.json`) y perfiles de ingenieros (`data/ingenieros.json`).
- * Garantiza que cada modificación cree primero un respaldo automático en `data/backups/`
- * (conservando hasta 40 versiones recientes), escriba mediante archivo temporal (`.tmp` + `renameSync`)
- * y propague el cambio asíncronamente al schema `rutas_sureste` en Supabase.
+ * para el catálogo de tiendas (`data/tiendas.json`), perfiles de ingenieros (`data/ingenieros.json`)
+ * y bitácoras semanales (`data/bitacoras-semanales.json`).
  */
 
 import fs from 'node:fs';
@@ -12,41 +10,24 @@ import {
   DATA_DIR,
   DB_FILE,
   INGENIEROS_FILE,
+  BITACORAS_FILE,
   BACKUP_DIR,
   SUPABASE_URL,
   SUPABASE_KEY,
   SUPABASE_SCHEMA,
 } from './config.js';
 
-/** Número máximo de respaldos históricos a conservar en `data/backups/` */
 const MAX_BACKUPS = 40;
 
-/**
- * Convierte una cadena `"lat,lng"` en un objeto numérico `{ lat, lng }`.
- * @param {string} str - Coordenadas separadas por coma.
- * @returns {{ lat: number, lng: number }}
- */
 export function parseCoords(str) {
   const [lat, lng] = String(str).split(',').map(Number);
   return { lat, lng };
 }
 
-/**
- * Formatea un par de coordenadas numéricas con 7 decimales de precisión (~1.1 cm).
- * @param {number} lat - Latitud decimal.
- * @param {number} lng - Longitud decimal.
- * @returns {string} Cadena `"lat,lng"` lista para almacenar en `tiendas.json`.
- */
 export function formatCoords(lat, lng) {
   return `${Number(lat).toFixed(7)},${Number(lng).toFixed(7)}`;
 }
 
-/**
- * Ordena el catálogo colocando primero el punto base (`RESGUARDO`), luego `CEDIS` y el resto
- * de tiendas en orden alfabético español.
- * @param {Array<Object>} tiendas - Lista de tiendas a ordenar.
- * @returns {Array<Object>} Lista ordenada.
- */
 export function ordenar(tiendas) {
   const resguardo = tiendas.filter((t) => t.nombre.includes('RESGUARDO'));
   const cedis = tiendas.filter(
@@ -59,19 +40,11 @@ export function ordenar(tiendas) {
   return [...resguardo, ...cedis, ...resto];
 }
 
-/**
- * Lee el catálogo completo de tiendas desde `data/tiendas.json`.
- * @returns {Array<Object>} Arreglo de tiendas.
- */
 export function cargar() {
   if (!fs.existsSync(DB_FILE)) return [];
   return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
 }
 
-/**
- * Crea una copia de seguridad fechada de `data/tiendas.json` dentro de `data/backups/`
- * y depura respaldos antiguos cuando se supera el límite `MAX_BACKUPS`.
- */
 function respaldar() {
   if (!fs.existsSync(DB_FILE)) return;
   fs.mkdirSync(BACKUP_DIR, { recursive: true });
@@ -86,12 +59,6 @@ function respaldar() {
     .forEach((f) => fs.unlinkSync(path.join(BACKUP_DIR, f)));
 }
 
-/**
- * Guarda de forma atómica el catálogo de tiendas en `data/tiendas.json`.
- * @param {Array<Object>} tiendas - Lista completa de tiendas a persistir.
- * @param {{ backup?: boolean }} [options] - Si `backup` es `true`, respalda la versión previa.
- * @returns {Array<Object>} Lista de tiendas ya ordenada y guardada.
- */
 export function guardar(tiendas, { backup = true } = {}) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   if (backup) respaldar();
@@ -102,11 +69,6 @@ export function guardar(tiendas, { backup = true } = {}) {
   return ordenadas;
 }
 
-/**
- * Normaliza el nombre de una tienda eliminando espacios repetidos y convirtiendo a mayúsculas.
- * @param {string} nombre - Nombre crudo ingresado por el usuario.
- * @returns {string} Nombre limpio en mayúsculas.
- */
 export function normalizarNombre(nombre) {
   return String(nombre || '')
     .trim()
@@ -118,10 +80,6 @@ export function normalizarNombre(nombre) {
 // PERFILES DE INGENIEROS
 // ============================================================================
 
-/**
- * Lee los perfiles de los ingenieros desde `data/ingenieros.json`.
- * @returns {Array<Object>}
- */
 export function cargarIngenieros() {
   if (!fs.existsSync(INGENIEROS_FILE)) return [];
   try {
@@ -131,17 +89,33 @@ export function cargarIngenieros() {
   }
 }
 
-/**
- * Guarda de forma atómica la lista de perfiles de ingenieros en `data/ingenieros.json`.
- * @param {Array<Object>} ingenieros
- * @returns {Array<Object>}
- */
 export function guardarIngenieros(ingenieros) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
   const tmp = INGENIEROS_FILE + '.tmp';
   fs.writeFileSync(tmp, JSON.stringify(ingenieros, null, 2));
   fs.renameSync(tmp, INGENIEROS_FILE);
   return ingenieros;
+}
+
+// ============================================================================
+// BITÁCORAS SEMANALES GUARDADAS
+// ============================================================================
+
+export function cargarBitacoras() {
+  if (!fs.existsSync(BITACORAS_FILE)) return [];
+  try {
+    return JSON.parse(fs.readFileSync(BITACORAS_FILE, 'utf8'));
+  } catch {
+    return [];
+  }
+}
+
+export function guardarBitacoras(bitacoras) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  const tmp = BITACORAS_FILE + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(bitacoras, null, 2));
+  fs.renameSync(tmp, BITACORAS_FILE);
+  return bitacoras;
 }
 
 // ============================================================================
@@ -163,10 +137,6 @@ export function supabaseActivo() {
   return Boolean(SUPABASE_URL && SUPABASE_KEY);
 }
 
-/**
- * Sincroniza (upsert) una tienda individual en `rutas_sureste.tiendas`.
- * Si `nombreOriginal` cambió, actualiza por nombre original.
- */
 export async function syncTiendaUpsert(tienda, nombreOriginal = null) {
   if (!supabaseActivo()) return;
   try {
@@ -211,9 +181,6 @@ export async function syncTiendaUpsert(tienda, nombreOriginal = null) {
   }
 }
 
-/**
- * Elimina una tienda en `rutas_sureste.tiendas`.
- */
 export async function syncTiendaDelete(nombre) {
   if (!supabaseActivo()) return;
   try {
@@ -226,9 +193,6 @@ export async function syncTiendaDelete(nombre) {
   }
 }
 
-/**
- * Sincroniza (upsert) un perfil de ingeniero en `rutas_sureste.ingenieros`.
- */
 export async function syncIngenieroUpsert(ing) {
   if (!supabaseActivo()) return;
   try {
@@ -262,9 +226,6 @@ export async function syncIngenieroUpsert(ing) {
   }
 }
 
-/**
- * Sincroniza (upsert) un registro de ruta en `rutas_sureste.rutas_historial`.
- */
 export async function syncHistorialUpsert(item) {
   if (!supabaseActivo()) return;
   try {
@@ -294,9 +255,6 @@ export async function syncHistorialUpsert(item) {
   }
 }
 
-/**
- * Elimina un registro de ruta de `rutas_sureste.rutas_historial`.
- */
 export async function syncHistorialDelete(uuid) {
   if (!supabaseActivo()) return;
   try {
@@ -312,4 +270,56 @@ export async function syncHistorialDelete(uuid) {
   }
 }
 
-// ============================================================================
+export async function syncBitacoraUpsert(b) {
+  if (!supabaseActivo()) return;
+  try {
+    const payload = {
+      ingeniero: b.ingeniero,
+      semana: Number(b.semana),
+      anio: Number(b.anio) || new Date().getFullYear(),
+      tipo: b.tipo || 'ambas',
+      km_inicial: Number(b.km_inicial || 0),
+      rendimiento: Number(b.rendimiento || 12.5),
+      costo_litro: Number(b.costo_litro || 23.99),
+      dispersion: Number(b.dispersion || 0),
+      complementos: Number(b.complementos || 0),
+      observaciones_anticipo: b.observaciones_anticipo || '',
+      observaciones_comprobacion: b.observaciones_comprobacion || '',
+      dias_anticipo: b.dias_anticipo || [],
+      dias_comprobacion: b.dias_comprobacion || [],
+      puntos_nuevos: b.puntos_nuevos || [],
+      total_km: Number(b.total_km || 0),
+      total_importe: Number(b.total_importe || 0),
+      updated_at: new Date().toISOString(),
+    };
+    await fetch(
+      `${SUPABASE_URL}/rest/v1/bitacoras_semanales?on_conflict=ingeniero,anio,semana`,
+      {
+        method: 'POST',
+        headers: supabaseHeaders({
+          Prefer: 'resolution=merge-duplicates,return=minimal',
+        }),
+        body: JSON.stringify(payload),
+      }
+    );
+  } catch (err) {
+    console.error('[Supabase Sync] Error en syncBitacoraUpsert:', err.message);
+  }
+}
+
+export async function syncBitacoraDelete(ingeniero, semana, anio) {
+  if (!supabaseActivo()) return;
+  try {
+    await fetch(
+      `${SUPABASE_URL}/rest/v1/bitacoras_semanales?ingeniero=eq.${encodeURIComponent(
+        ingeniero
+      )}&semana=eq.${semana}&anio=eq.${anio}`,
+      {
+        method: 'DELETE',
+        headers: supabaseHeaders({ Prefer: 'return=minimal' }),
+      }
+    );
+  } catch (err) {
+    console.error('[Supabase Sync] Error en syncBitacoraDelete:', err.message);
+  }
+}

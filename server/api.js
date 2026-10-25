@@ -274,6 +274,67 @@ const rutas = {
   /** Devuelve el historial de rutas guardadas */
   'GET /api/historial': () => leerHistorial(),
 
+  /** Devuelve la lista de bitácoras semanales guardadas */
+  'GET /api/bitacoras': () => db.cargarBitacoras(),
+
+  /** Guarda o actualiza una bitácora semanal (anticipo/comprobación) localmente y en Supabase */
+  'POST /api/bitacoras': async (body) => {
+    const ingeniero = String(body.ingeniero || '').trim();
+    const semana = Number(body.semana);
+    const anio = Number(body.anio) || new Date().getFullYear();
+    if (!ingeniero || !semana) {
+      throw httpError(400, 'Se requiere ingeniero y número de semana');
+    }
+
+    const bitacoras = db.cargarBitacoras();
+    const item = {
+      id: body.id || `${ingeniero}-${anio}-W${semana}`,
+      ingeniero,
+      semana,
+      anio,
+      tipo: body.tipo || 'ambas',
+      km_inicial: Number(body.km_inicial || 0),
+      rendimiento: Number(body.rendimiento || 12.5),
+      costo_litro: Number(body.costo_litro || 23.99),
+      dispersion: Number(body.dispersion || 0),
+      complementos: Number(body.complementos || 0),
+      observaciones_anticipo: String(body.observaciones_anticipo || '').trim(),
+      observaciones_comprobacion: String(body.observaciones_comprobacion || '').trim(),
+      dias_anticipo: body.dias_anticipo || [],
+      dias_comprobacion: body.dias_comprobacion || [],
+      puntos_nuevos: body.puntos_nuevos || [],
+      total_km: Number(body.total_km || 0),
+      total_importe: Number(body.total_importe || 0),
+      actualizado_en: new Date().toISOString(),
+    };
+
+    const idx = bitacoras.findIndex(
+      (b) => b.ingeniero === ingeniero && b.semana === semana && b.anio === anio
+    );
+    if (idx >= 0) bitacoras[idx] = item;
+    else bitacoras.unshift(item);
+
+    bitacoras.sort((a, b) => b.anio - a.anio || b.semana - a.semana);
+    db.guardarBitacoras(bitacoras);
+    db.syncBitacoraUpsert(item);
+    return item;
+  },
+
+  /** Elimina una bitácora semanal guardada */
+  'DELETE /api/bitacoras': (body) => {
+    const ingeniero = String(body.ingeniero || '').trim();
+    const semana = Number(body.semana);
+    const anio = Number(body.anio) || new Date().getFullYear();
+    const bitacoras = db
+      .cargarBitacoras()
+      .filter(
+        (b) => !(b.ingeniero === ingeniero && b.semana === semana && b.anio === anio)
+      );
+    db.guardarBitacoras(bitacoras);
+    db.syncBitacoraDelete(ingeniero, semana, anio);
+    return bitacoras;
+  },
+
   /** Guarda o actualiza una ruta en el historial ordenando por fecha descendente */
   'POST /api/historial': (body) => {
     const h = leerHistorial();

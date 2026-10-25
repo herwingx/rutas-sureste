@@ -35,6 +35,9 @@ export const DB_FILE = path.join(DATA_DIR, 'tiendas.json');
 /** Archivo maestro de perfiles de ingenieros de soporte técnico */
 export const INGENIEROS_FILE = path.join(DATA_DIR, 'ingenieros.json');
 
+/** Archivo de registro histórico de bitácoras semanales generadas */
+export const BITACORAS_FILE = path.join(DATA_DIR, 'bitacoras-semanales.json');
+
 /** Archivo de registro histórico de rutas diarias */
 export const HISTORIAL_FILE = path.join(DATA_DIR, 'historial-rutas.json');
 

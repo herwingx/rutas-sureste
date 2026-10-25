@@ -1,21 +1,17 @@
 /**
  * @fileoverview Generador nativo de la Bitácora Oficial de Gasolina Tiendas Neto (`.xlsx`).
  *
- * Construye desde cero un libro de Excel idéntico al formato corporativo de Tiendas Neto
- * ("Formato para comprobación de gastos de combustible" / Anticipo):
+ * Características:
+ * - Soporta generar **ambas hojas (`COMPROBACION` y `ANTICIPO`) en el mismo archivo `.xlsx`**
+ *   o generar solo la hoja elegida (`comprobacion`, `anticipo` o `ambas`).
  * - Inserta el logotipo oficial de Tiendas Neto (`public/logo-neto.png`) en `B1:C3`.
- * - Rellena el encabezado con los datos del ingeniero, vehículo, tarjeta, CECO, región,
- *   semana, rendimiento (`km/L`), costo por litro y odómetro inicial/final (`B4:G13`).
- * - Rellena la tabla lateral `DOMICILIO` (`I3:J5`) y `SUCURSALES NUEVAS/PUNTOS` (`I6:J16`)
- *   con hipervínculos directos a Google Maps para cada apertura, hotel o desvío temporal.
- * - Rellena los 6 bloques diarios de 8 filas cada uno (`filas 17 a 64`) con celdas de fecha
- *   combinadas verticalmente, tramos `Recorrido 1 -> Recorrido 2`, `Km recorridos`, y fórmulas
- *   dinámicas de Excel para `Lts Autorizados` (`=E17/$G$6`) e `Importe Gasolina` (`=F17*$G$8`).
- * - Deja listos los 3 recuadros con bordes y fondo durazno/gris para pegar evidencias:
- *   `FOTOGRAFIA DEL ODOMETRO` (`I18:J30`), `FOTOGRAFIA DEL RENDIMIENTO` (`I32:J44`) y
- *   `FOTOGRAFIA DEL TICKET` (`L18:M48`).
- * - Incluye las filas de totales (`fila 65`), dispersión/complementos/saldo (`filas 66-68`)
- *   y el cuadro obligatorio de `Observaciones` (`filas 72-76`).
+ * - Rellena el encabezado (`B4:G13`) con datos del vehículo, tarjeta, CECO, región, semana y odómetros.
+ * - Rellena la tabla lateral `DOMICILIO` (`I3:J5`) y `SUCURSALES NUEVAS/PUNTOS` (`I6:J16`).
+ * - Rellena los **7 bloques diarios de 8 filas cada uno (`filas 17 a 72`)** con fecha combinada,
+ *   tramos `Recorrido 1 -> Recorrido 2`, kilómetros y fórmulas dinámicas de Excel.
+ * - Rellena fila 73 `Total` (`SUM(E17:E72)`), filas 74-76 `DISPERSION`, `COMPLEMENTOS` y `SALDO A FAVOR`.
+ * - Crea los 3 marcos para fotos (`FOTOGRAFIA DEL ODOMETRO`, `FOTOGRAFIA DEL RENDIMIENTO` y `FOTOGRAFIA DEL TICKET`).
+ * - Rellena el recuadro obligatorio de `Observaciones` (`filas 80-84`).
  */
 
 import ExcelJS from 'exceljs';
@@ -36,35 +32,37 @@ const BORDER_BOTTOM_ONLY = {
 const FILL_HEADER_LIGHT = {
   type: 'pattern',
   pattern: 'solid',
-  fgColor: { argb: 'FFD9E1F2' }, // Azul claro corporativo en cabecera
+  fgColor: { argb: 'FFD9E1F2' },
 };
 
 const FILL_SECTION_BLUE = {
   type: 'pattern',
   pattern: 'solid',
-  fgColor: { argb: 'FFB4C6E7' }, // Azul medio para barras de título (Combustible, Domicilio, Fotografías)
+  fgColor: { argb: 'FFB4C6E7' },
 };
 
 const FILL_PEACH = {
   type: 'pattern',
   pattern: 'solid',
-  fgColor: { argb: 'FFFCE4D6' }, // Durazno claro para recuadros de fotos y subcabecera TIENDA/UBICACIÓN
+  fgColor: { argb: 'FFFCE4D6' },
 };
 
 const FILL_TICKET = {
   type: 'pattern',
   pattern: 'solid',
-  fgColor: { argb: 'FFEDEDED' }, // Gris suave para el área de ticket
+  fgColor: { argb: 'FFEDEDED' },
 };
 
 /**
- * Calcula el número de semana ISO (1-53) a partir de una fecha `YYYY-MM-DD`.
+ * Calcula el número de semana ISO (1-53) y año correspondiente a partir de una fecha `YYYY-MM-DD`.
  * @param {string} fechaStr
- * @returns {number}
+ * @returns {{ semana: number, anio: number }}
  */
 export function calcularSemanaISO(fechaStr) {
   const d = fechaStr ? new Date(fechaStr + 'T12:00:00') : new Date();
-  if (Number.isNaN(d.getTime())) return 1;
+  if (Number.isNaN(d.getTime())) {
+    return { semana: 1, anio: new Date().getFullYear() };
+  }
   const target = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
   const dayNr = (target.getUTCDay() + 6) % 7;
   target.setUTCDate(target.getUTCDate() - dayNr + 3);
@@ -73,14 +71,11 @@ export function calcularSemanaISO(fechaStr) {
   if (target.getUTCDay() !== 4) {
     target.setUTCMonth(0, 1 + ((4 - target.getUTCDay() + 7) % 7));
   }
-  return 1 + Math.ceil((firstThursday - target) / 604800000);
+  const semana = 1 + Math.ceil((firstThursday - target) / 604800000);
+  const anio = new Date(firstThursday).getUTCFullYear();
+  return { semana, anio };
 }
 
-/**
- * Formatea una fecha `YYYY-MM-DD` al formato `M/D/YYYY` o `DD/MM/YYYY` usado en Excel.
- * @param {string} fechaStr
- * @returns {string}
- */
 function formatearFechaBitacora(fechaStr) {
   if (!fechaStr) return '';
   const [y, m, d] = String(fechaStr).split('-').map(Number);
@@ -88,11 +83,6 @@ function formatearFechaBitacora(fechaStr) {
   return `${d}/${m}/${y}`;
 }
 
-/**
- * Descarga como `ArrayBuffer` una imagen pública (p. ej. `/logo-neto.png`) para incrustarla en el `.xlsx`.
- * @param {string} url
- * @returns {Promise<ArrayBuffer | null>}
- */
 async function cargarImagenBuffer(url) {
   try {
     const res = await fetch(url);
@@ -103,11 +93,6 @@ async function cargarImagenBuffer(url) {
   }
 }
 
-/**
- * Aplica una etiqueta con asterisco rojo inicial (`*Nombre:`) usando RichText de ExcelJS.
- * @param {import('exceljs').Cell} cell
- * @param {string} textoSinAsterisco
- */
 function setAsteriskLabel(cell, textoSinAsterisco) {
   cell.value = {
     richText: [
@@ -124,25 +109,12 @@ function setAsteriskLabel(cell, textoSinAsterisco) {
 }
 
 /**
- * Genera y descarga el archivo `.xlsx` oficial de Bitácora de Combustible de Tiendas Neto.
- *
- * @param {Object} params
- * @param {Object} params.ingeniero - Perfil completo del ingeniero activo.
- * @param {number} params.semana - Número de semana del año (ej. 44).
- * @param {number} params.kmInicial - Odómetro inicial en kilómetros.
- * @param {number} params.rendimiento - Rendimiento autorizado (km/L, ej. 12.5).
- * @param {number} params.costoLitro - Precio por litro ($ MXN, ej. 23.99).
- * @param {number} [params.dispersion] - Monto dispersado opcional.
- * @param {number} [params.complementos] - Monto de complementos opcional.
- * @param {string} [params.observaciones] - Texto obligatorio de observaciones al pie.
- * @param {Array<{ fecha: string, tramos: Array<{ origen: string, destino: string, km: number }> }>} params.dias
- *        Lista de hasta 6 días con sus respectivos tramos (`Recorrido 1`, `Recorrido 2`, `Km`).
- * @param {Array<{ nombre: string, link: string }>} [params.puntosNuevos]
- *        Lista de sucursales nuevas, aperturas u hoteles con su enlace de Google Maps.
+ * Construye una hoja individual (COMPROBACION o ANTICIPO) dentro de un workbook ExcelJS.
  */
-export async function descargarBitacoraNetoExcel({
+function construirHojaBitacora(ws, {
+  nombreHoja = 'COMPROBACION',
   ingeniero = {},
-  semana = calcularSemanaISO(),
+  semana = 44,
   kmInicial = 0,
   rendimiento = 12.5,
   costoLitro = 23.99,
@@ -151,47 +123,36 @@ export async function descargarBitacoraNetoExcel({
   observaciones = '',
   dias = [],
   puntosNuevos = [],
+  logoImageId = null,
 }) {
-  const wb = new ExcelJS.Workbook();
-  wb.creator = 'Rutas Sureste - Tiendas Neto';
-  wb.created = new Date();
+  ws.views = [{ showGridLines: true, zoomScale: 90 }];
+  ws.pageSetup = {
+    paperSize: 9, // A4
+    orientation: 'landscape',
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 1,
+  };
 
-  const ws = wb.addWorksheet('Comprobación Gasolina', {
-    views: [{ showGridLines: true, zoomScale: 90 }],
-    pageSetup: {
-      paperSize: 9, // A4
-      orientation: 'landscape',
-      fitToPage: true,
-      fitToWidth: 1,
-      fitToHeight: 1,
-    },
-  });
-
-  // 1. Ancho exacto de columnas A..M
+  // Columnas exactas A..M
   ws.columns = [
-    { key: 'A', width: 2.5 }, // Margen izquierdo
-    { key: 'B', width: 15.5 }, // Fecha / Etiquetas izq
-    { key: 'C', width: 25.5 }, // Recorrido 1 / Valores izq
-    { key: 'D', width: 25.5 }, // Recorrido 2
-    { key: 'E', width: 14.5 }, // Km recorridos
-    { key: 'F', width: 17.5 }, // Lts Autorizados / Etiquetas der
-    { key: 'G', width: 17.5 }, // Importe Gasolina / Valores der
-    { key: 'H', width: 2.5 }, // Separador central
-    { key: 'I', width: 22.0 }, // TIENDA / Fotos izq
-    { key: 'J', width: 28.0 }, // UBICACIÓN (LINK) / Fotos der
-    { key: 'K', width: 2.5 }, // Separador fotos
-    { key: 'L', width: 15.5 }, // Fotografía del ticket izq
-    { key: 'M', width: 15.5 }, // Fotografía del ticket der
+    { key: 'A', width: 2.5 },
+    { key: 'B', width: 15.5 },
+    { key: 'C', width: 25.5 },
+    { key: 'D', width: 25.5 },
+    { key: 'E', width: 14.5 },
+    { key: 'F', width: 17.5 },
+    { key: 'G', width: 17.5 },
+    { key: 'H', width: 2.5 },
+    { key: 'I', width: 22.0 },
+    { key: 'J', width: 28.0 },
+    { key: 'K', width: 2.5 },
+    { key: 'L', width: 15.5 },
+    { key: 'M', width: 15.5 },
   ];
 
-  // 2. Incrustar logo de Tiendas Neto en B1:C3
-  const logoBuffer = await cargarImagenBuffer('/logo-neto.png');
-  if (logoBuffer) {
-    const imageId = wb.addImage({
-      buffer: logoBuffer,
-      extension: 'png',
-    });
-    ws.addImage(imageId, {
+  if (logoImageId !== null) {
+    ws.addImage(logoImageId, {
       tl: { col: 1.05, row: 0.15 },
       ext: { width: 130, height: 56 },
     });
@@ -201,7 +162,7 @@ export async function descargarBitacoraNetoExcel({
   ws.getRow(2).height = 16;
   ws.getRow(3).height = 16;
 
-  // 3. Pintar bloque de cabecera B4:G13 con fondo azul claro corporativo
+  // Cabecera B4:G13 con fondo azul claro
   for (let r = 4; r <= 13; r++) {
     ws.getRow(r).height = 16.5;
     for (let c = 2; c <= 7; c++) {
@@ -212,7 +173,7 @@ export async function descargarBitacoraNetoExcel({
     }
   }
 
-  // Fila 4: Título del formato
+  // Fila 4: Título
   ws.mergeCells('B4:E4');
   const titleCell = ws.getCell('B4');
   titleCell.value = 'Formato para comprobación de gastos de combustible';
@@ -222,14 +183,14 @@ export async function descargarBitacoraNetoExcel({
   setAsteriskLabel(ws.getCell('B5'), 'Nombre:');
   ws.mergeCells('C5:D5');
   ws.getCell('C5').value = (ingeniero.nombre || '').toUpperCase();
-  ws.getCell('C5').font = { name: FONT_NAME, size: 9, bold: false };
+  ws.getCell('C5').font = { name: FONT_NAME, size: 9 };
   ws.getCell('C5').alignment = { horizontal: 'center', vertical: 'middle' };
   ws.getCell('C5').border = BORDER_BOTTOM_ONLY;
   ws.getCell('D5').border = BORDER_BOTTOM_ONLY;
 
   setAsteriskLabel(ws.getCell('F5'), 'Semana:');
   ws.getCell('F5').alignment = { horizontal: 'right', vertical: 'middle' };
-  ws.getCell('G5').value = Number(semana) || calcularSemanaISO();
+  ws.getCell('G5').value = Number(semana) || 1;
   ws.getCell('G5').font = { name: FONT_NAME, size: 9, bold: true };
   ws.getCell('G5').alignment = { horizontal: 'right', vertical: 'middle' };
   ws.getCell('G5').border = BORDER_BOTTOM_ONLY;
@@ -255,7 +216,9 @@ export async function descargarBitacoraNetoExcel({
   // Fila 7: *No. Empleado y *No. De Tarjeta de gasolina
   setAsteriskLabel(ws.getCell('B7'), 'No. Empleado:');
   ws.mergeCells('C7:D7');
-  ws.getCell('C7').value = ingeniero.no_empleado ? Number(ingeniero.no_empleado) || ingeniero.no_empleado : '';
+  ws.getCell('C7').value = ingeniero.no_empleado
+    ? Number(ingeniero.no_empleado) || ingeniero.no_empleado
+    : '';
   ws.getCell('C7').font = { name: FONT_NAME, size: 9 };
   ws.getCell('C7').alignment = { horizontal: 'center', vertical: 'middle' };
   ws.getCell('C7').border = BORDER_BOTTOM_ONLY;
@@ -320,7 +283,7 @@ export async function descargarBitacoraNetoExcel({
   ws.getCell('C11').border = BORDER_BOTTOM_ONLY;
   ws.getCell('D11').border = BORDER_BOTTOM_ONLY;
 
-  // Filas 12 y 13: *Kilometro inicial, *Kilometro Final y *Total KM Recorridos
+  // Filas 12 y 13: Odómetros
   setAsteriskLabel(ws.getCell('B12'), 'Kilometro inicial:');
   setAsteriskLabel(ws.getCell('D12'), 'Kilometro Final');
   setAsteriskLabel(ws.getCell('F12'), 'Total KM Recorridos');
@@ -332,21 +295,19 @@ export async function descargarBitacoraNetoExcel({
   ws.getCell('C13').alignment = { horizontal: 'right', vertical: 'middle' };
   ws.getCell('C13').border = BORDER_BOTTOM_ONLY;
 
-  ws.getCell('E13').value = { formula: 'C13+G13', result: kmIniNum };
+  ws.getCell('E13').value = { formula: 'C13+E73', result: kmIniNum };
   ws.getCell('E13').numFmt = '#,##0';
   ws.getCell('E13').font = { name: FONT_NAME, size: 9, bold: true };
   ws.getCell('E13').alignment = { horizontal: 'right', vertical: 'middle' };
   ws.getCell('E13').border = BORDER_BOTTOM_ONLY;
 
-  ws.getCell('G13').value = { formula: 'E65', result: 0 };
+  ws.getCell('G13').value = { formula: 'E13-C13', result: 0 };
   ws.getCell('G13').numFmt = '#,##0';
   ws.getCell('G13').font = { name: FONT_NAME, size: 10, bold: true };
   ws.getCell('G13').alignment = { horizontal: 'right', vertical: 'middle' };
   ws.getCell('G13').border = BORDER_BOTTOM_ONLY;
 
-  // ==========================================================================
-  // 4. Tabla derecha superior: DOMICILIO y SUCURSALES NUEVAS/PUNTOS (I3:J16)
-  // ==========================================================================
+  // Tabla derecha superior: DOMICILIO y SUCURSALES NUEVAS (I3:J16)
   ws.mergeCells('I3:J3');
   ws.getCell('I3').value = 'DOMICILIO';
   ws.getCell('I3').font = { name: FONT_NAME, size: 9, bold: true, color: { argb: 'FF0000FF' } };
@@ -427,9 +388,7 @@ export async function descargarBitacoraNetoExcel({
     }
   }
 
-  // ==========================================================================
-  // 5. Tabla Principal: COMBUSTIBLE (B15:G64 — 6 bloques de 8 filas cada uno)
-  // ==========================================================================
+  // Tabla Principal: COMBUSTIBLE (B15:G72 — 7 bloques diarios de 8 filas cada uno)
   ws.getRow(15).height = 17;
   ws.mergeCells('B15:G15');
   const combTitle = ws.getCell('B15');
@@ -462,13 +421,12 @@ export async function descargarBitacoraNetoExcel({
   const rendNum = Number(rendimiento) || 12.5;
   const costoNum = Number(costoLitro) || 23.99;
 
-  for (let blockIdx = 0; blockIdx < 6; blockIdx++) {
+  for (let blockIdx = 0; blockIdx < 7; blockIdx++) {
     const startRow = 17 + blockIdx * 8;
     const endRow = startRow + 7;
     const diaData = dias[blockIdx] || null;
     const tramosDia = diaData?.tramos || [];
 
-    // Combinar verticalmente la columna Fecha (B) en las 8 filas del día
     ws.mergeCells(startRow, 2, endRow, 2);
     const fechaCell = ws.getCell(startRow, 2);
     fechaCell.value = diaData?.fecha ? formatearFechaBitacora(diaData.fecha) : '';
@@ -522,26 +480,23 @@ export async function descargarBitacoraNetoExcel({
         cRec1.value = String(tramo.origen || '').toUpperCase();
         cRec2.value = String(tramo.destino || '').toUpperCase();
         cKm.value = kmVal;
-        cLts.value = { formula: `IF(E${r}>0,E${r}/$G$6,0)`, result: ltsVal };
-        cImp.value = { formula: `IF(F${r}>0,F${r}*$G$8,0)`, result: impVal };
+        cLts.value = { formula: `+E${r}/$G$6`, result: ltsVal };
+        cImp.value = { formula: `+F${r}*$G$8`, result: impVal };
       } else {
         cRec1.value = '';
         cRec2.value = '';
         cKm.value = null;
-        cLts.value = { formula: `IF(E${r}>0,E${r}/$G$6,0)`, result: 0 };
-        cImp.value = { formula: `IF(F${r}>0,F${r}*$G$8,0)`, result: 0 };
+        cLts.value = { formula: `+E${r}/$G$6`, result: 0 };
+        cImp.value = { formula: `+F${r}*$G$8`, result: 0 };
       }
     }
   }
 
-  // Aktualizar resultados precalculados en cabecera (E13 y G13)
-  ws.getCell('G13').value = { formula: 'E65', result: totalKmAcumulado };
-  ws.getCell('E13').value = { formula: 'C13+G13', result: kmIniNum + totalKmAcumulado };
+  // Actualizar odómetro final en cabecera
+  ws.getCell('E13').value = { formula: 'C13+E73', result: kmIniNum + totalKmAcumulado };
+  ws.getCell('G13').value = { formula: 'E13-C13', result: totalKmAcumulado };
 
-  // ==========================================================================
-  // 6. Recuadros vacíos para Fotografías (Odómetro, Rendimiento y Ticket)
-  // ==========================================================================
-  // A) FOTOGRAFIA DEL ODOMETRO (I18:J18 título, I19:J30 recuadro durazno)
+  // 3 Marcos para Fotos
   ws.mergeCells('I18:J18');
   ws.getCell('I18').value = 'FOTOGRAFIA DEL ODOMETRO';
   ws.getCell('I18').font = { name: FONT_NAME, size: 9, bold: true, color: { argb: 'FF0000FF' } };
@@ -564,7 +519,6 @@ export async function descargarBitacoraNetoExcel({
     }
   }
 
-  // B) FOTOGRAFIA DEL RENDIMIENTO (I32:J32 título, I33:J44 recuadro durazno)
   ws.mergeCells('I32:J32');
   ws.getCell('I32').value = 'FOTOGRAFIA DEL RENDIMIENTO';
   ws.getCell('I32').font = { name: FONT_NAME, size: 9, bold: true, color: { argb: 'FF0000FF' } };
@@ -587,7 +541,6 @@ export async function descargarBitacoraNetoExcel({
     }
   }
 
-  // C) FOTOGRAFIA DEL TICKET (L18:M18 título, L19:M48 recuadro vertical para ticket)
   ws.mergeCells('L18:M18');
   ws.getCell('L18').value = 'FOTOGRAFIA DEL TICKET';
   ws.getCell('L18').font = { name: FONT_NAME, size: 9, bold: true, color: { argb: 'FF0000FF' } };
@@ -610,38 +563,37 @@ export async function descargarBitacoraNetoExcel({
     }
   }
 
-  // ==========================================================================
-  // 7. Fila 65: Totales y Filas 66-68: Dispersión / Complementos / Saldo a Favor
-  // ==========================================================================
-  ws.getRow(65).height = 17;
-  ws.mergeCells('B65:D65');
-  ws.getCell('B65').value = 'Total';
-  ws.getCell('B65').font = { name: FONT_NAME, size: 10, bold: true };
-  ws.getCell('B65').alignment = { horizontal: 'center', vertical: 'middle' };
-  ws.getCell('B65').fill = FILL_HEADER_LIGHT;
+  // Fila 73: Total
+  ws.getRow(73).height = 17;
+  ws.mergeCells('B73:D73');
+  ws.getCell('B73').value = 'Total ';
+  ws.getCell('B73').font = { name: FONT_NAME, size: 10, bold: true };
+  ws.getCell('B73').alignment = { horizontal: 'center', vertical: 'middle' };
+  ws.getCell('B73').fill = FILL_HEADER_LIGHT;
   for (let c = 2; c <= 7; c++) {
-    ws.getCell(65, c).border = BORDER_THIN;
-    ws.getCell(65, c).fill = FILL_HEADER_LIGHT;
+    ws.getCell(73, c).border = BORDER_THIN;
+    ws.getCell(73, c).fill = FILL_HEADER_LIGHT;
   }
 
-  ws.getCell('E65').value = { formula: 'SUM(E17:E64)', result: totalKmAcumulado };
-  ws.getCell('E65').font = { name: FONT_NAME, size: 10, bold: true };
-  ws.getCell('E65').alignment = { horizontal: 'center', vertical: 'middle' };
-  ws.getCell('E65').numFmt = '#,##0';
+  ws.getCell('E73').value = { formula: 'SUM(E17:E72)', result: totalKmAcumulado };
+  ws.getCell('E73').font = { name: FONT_NAME, size: 10, bold: true };
+  ws.getCell('E73').alignment = { horizontal: 'center', vertical: 'middle' };
+  ws.getCell('E73').numFmt = '#,##0';
 
-  ws.getCell('F65').value = { formula: 'SUM(F17:F64)', result: totalLtsAcumulado };
-  ws.getCell('F65').font = { name: FONT_NAME, size: 10, bold: true };
-  ws.getCell('F65').alignment = { horizontal: 'center', vertical: 'middle' };
-  ws.getCell('F65').numFmt = '0.0';
+  ws.getCell('F73').value = { formula: 'SUM(F17:F72)', result: totalLtsAcumulado };
+  ws.getCell('F73').font = { name: FONT_NAME, size: 10, bold: true };
+  ws.getCell('F73').alignment = { horizontal: 'center', vertical: 'middle' };
+  ws.getCell('F73').numFmt = '0.00';
 
-  ws.getCell('G65').value = { formula: 'SUM(G17:G64)', result: totalImpAcumulado };
-  ws.getCell('G65').font = { name: FONT_NAME, size: 10, bold: true };
-  ws.getCell('G65').alignment = { horizontal: 'right', vertical: 'middle' };
-  ws.getCell('G65').numFmt = '"$"#,##0.00';
+  ws.getCell('G73').value = { formula: 'SUM(G17:G72)', result: totalImpAcumulado };
+  ws.getCell('G73').font = { name: FONT_NAME, size: 10, bold: true };
+  ws.getCell('G73').alignment = { horizontal: 'right', vertical: 'middle' };
+  ws.getCell('G73').numFmt = '"$"#,##0.00';
 
+  // Fila 74: DISPERSION y Fila 75: COMPLEMENTOS
   const filasResumen = [
-    { row: 66, label: 'DISPERSION', val: Number(dispersion) || 0 },
-    { row: 67, label: 'COMPLEMENTOS', val: Number(complementos) || 0 },
+    { row: 74, label: 'DISPERSION', val: Number(dispersion) || 0 },
+    { row: 75, label: 'COMPLEMENTOS', val: Number(complementos) || 0 },
   ];
   filasResumen.forEach(({ row, label, val }) => {
     ws.getRow(row).height = 16;
@@ -657,53 +609,132 @@ export async function descargarBitacoraNetoExcel({
     ws.getCell(row, 7).border = BORDER_THIN;
   });
 
-  ws.getRow(68).height = 16;
-  ws.getCell('F68').value = 'SALDO A FAVOR';
-  ws.getCell('F68').font = { name: FONT_NAME, size: 9, bold: true };
-  ws.getCell('F68').alignment = { horizontal: 'right', vertical: 'middle' };
-  ws.getCell('F68').border = BORDER_THIN;
+  // Fila 76: SALDO A FAVOR (solo en comprobación)
+  ws.getRow(76).height = 16;
+  if (nombreHoja === 'COMPROBACION') {
+    ws.getCell('F76').value = 'SALDO A FAVOR';
+    ws.getCell('F76').font = { name: FONT_NAME, size: 9, bold: true };
+    ws.getCell('F76').alignment = { horizontal: 'right', vertical: 'middle' };
+    ws.getCell('F76').border = BORDER_THIN;
 
-  const saldoRes = totalImpAcumulado - (Number(dispersion) || 0) - (Number(complementos) || 0);
-  ws.getCell('G68').value = { formula: 'G65-G66-G67', result: saldoRes };
-  ws.getCell('G68').font = { name: FONT_NAME, size: 9, bold: true };
-  ws.getCell('G68').alignment = { horizontal: 'right', vertical: 'middle' };
-  ws.getCell('G68').numFmt = '"$"#,##0.00;("$"#,##0.00);"$" -';
-  ws.getCell('G68').border = BORDER_THIN;
+    const saldoRes = totalImpAcumulado - (Number(dispersion) || 0) - (Number(complementos) || 0);
+    ws.getCell('G76').value = { formula: '+G73-G74-G75', result: saldoRes };
+    ws.getCell('G76').font = { name: FONT_NAME, size: 9, bold: true };
+    ws.getCell('G76').alignment = { horizontal: 'right', vertical: 'middle' };
+    ws.getCell('G76').numFmt = '"$"#,##0.00;("$"#,##0.00);"$" -';
+    ws.getCell('G76').border = BORDER_THIN;
+  }
 
-  // ==========================================================================
-  // 8. Bloque de Observaciones (* DATO OBLIGATORIO) en B72:G76
-  // ==========================================================================
-  ws.getRow(72).height = 16;
-  ws.mergeCells('B72:G72');
-  ws.getCell('B72').value = 'Observaciones';
-  ws.getCell('B72').font = { name: FONT_NAME, size: 10, bold: true };
-  ws.getCell('B72').fill = FILL_SECTION_BLUE;
-  ws.getCell('B72').alignment = { horizontal: 'center', vertical: 'middle' };
-  for (let c = 2; c <= 7; c++) ws.getCell(72, c).border = BORDER_THIN;
+  // Bloque Observaciones (B80:G84)
+  ws.getRow(80).height = 16;
+  ws.mergeCells('B80:G80');
+  ws.getCell('B80').value = 'Observaciones';
+  ws.getCell('B80').font = { name: FONT_NAME, size: 10, bold: true };
+  ws.getCell('B80').fill = FILL_SECTION_BLUE;
+  ws.getCell('B80').alignment = { horizontal: 'center', vertical: 'middle' };
+  for (let c = 2; c <= 7; c++) ws.getCell(80, c).border = BORDER_THIN;
 
-  ws.getRow(73).height = 15;
-  ws.mergeCells('B73:G73');
-  ws.getCell('B73').value = '* DATO OBLIGATORIO';
-  ws.getCell('B73').font = { name: FONT_NAME, size: 8.5, bold: true, color: { argb: 'FFFF0000' } };
-  ws.getCell('B73').alignment = { horizontal: 'center', vertical: 'middle' };
-  for (let c = 2; c <= 7; c++) ws.getCell(73, c).border = BORDER_THIN;
+  ws.getRow(81).height = 15;
+  ws.mergeCells('B81:G81');
+  ws.getCell('B81').value = '* DATO OBLIGATORIO';
+  ws.getCell('B81').font = { name: FONT_NAME, size: 8.5, bold: true, color: { argb: 'FFFF0000' } };
+  ws.getCell('B81').alignment = { horizontal: 'center', vertical: 'middle' };
+  for (let c = 2; c <= 7; c++) ws.getCell(81, c).border = BORDER_THIN;
 
-  ws.mergeCells('B74:G76');
-  const obsCell = ws.getCell('B74');
+  ws.mergeCells('B82:G84');
+  const obsCell = ws.getCell('B82');
   obsCell.value = (
     observaciones ||
-    'SE REALIZA COMPROBACIÓN DE GASTOS DE COMBUSTIBLE CORRESPONDIENTE A LOS RECORRIDOS DE ATENCIÓN A SUCURSALES EN REGIÓN SURESTE.'
+    (nombreHoja === 'ANTICIPO'
+      ? `ANTICIPO PARA LA SEMANA ${semana} SE REALIZARAN MANTENIMIENTOS PREVENTIVOS Y ATENCIÓN A SUCURSALES EN REGIÓN ${ingeniero.region || 'TUXTLA'}.`
+      : `COMPROBACION DE RUTA SEMANA ${semana} POR MANTENIMIENTOS PREVENTIVOS Y ATENCIÓN A SUCURSALES EN REGIÓN ${ingeniero.region || 'TUXTLA'}.`)
   ).toUpperCase();
   obsCell.font = { name: FONT_NAME, size: 9 };
   obsCell.alignment = { horizontal: 'left', vertical: 'top', wrapText: true };
-  for (let r = 74; r <= 76; r++) {
+  for (let r = 82; r <= 84; r++) {
     ws.getRow(r).height = 16;
     for (let c = 2; c <= 7; c++) {
       ws.getCell(r, c).border = BORDER_THIN;
     }
   }
 
-  // 9. Generar buffer y disparar descarga compatible con todos los navegadores
+  return { totalKmAcumulado, totalImpAcumulado };
+}
+
+/**
+ * Genera el libro Excel de Bitácora Oficial Tiendas Neto (`.xlsx`).
+ * Puede incluir las pestañas `COMPROBACION`, `ANTICIPO` o ambas dentro del mismo archivo.
+ */
+export async function descargarBitacoraNetoExcel({
+  modo = 'ambas', // 'ambas' | 'comprobacion' | 'anticipo'
+  ingeniero = {},
+  semana = 44,
+  kmInicial = 0,
+  rendimiento = 12.5,
+  costoLitro = 23.99,
+  dispersion = 0,
+  complementos = 0,
+  observaciones = '',
+  observacionesAnticipo = '',
+  observacionesComprobacion = '',
+  dias = [],
+  diasAnticipo = [],
+  diasComprobacion = [],
+  puntosNuevos = [],
+}) {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Rutas Sureste - Tiendas Neto';
+  wb.created = new Date();
+
+  const logoBuffer = await cargarImagenBuffer('/logo-neto.png');
+  let logoImageId = null;
+  if (logoBuffer) {
+    logoImageId = wb.addImage({
+      buffer: logoBuffer,
+      extension: 'png',
+    });
+  }
+
+  const listaDiasAnticipo = diasAnticipo.length ? diasAnticipo : dias;
+  const listaDiasComprobacion = diasComprobacion.length ? diasComprobacion : dias;
+
+  // Si el modo es 'ambas', se crean ambas hojas en el mismo archivo
+  if (modo === 'ambas' || modo === 'comprobacion') {
+    const wsComp = wb.addWorksheet('COMPROBACION');
+    construirHojaBitacora(wsComp, {
+      nombreHoja: 'COMPROBACION',
+      ingeniero,
+      semana,
+      kmInicial,
+      rendimiento,
+      costoLitro,
+      dispersion,
+      complementos,
+      observaciones: observacionesComprobacion || observaciones,
+      dias: listaDiasComprobacion,
+      puntosNuevos,
+      logoImageId,
+    });
+  }
+
+  if (modo === 'ambas' || modo === 'anticipo') {
+    const wsAnt = wb.addWorksheet('ANTICIPO');
+    construirHojaBitacora(wsAnt, {
+      nombreHoja: 'ANTICIPO',
+      ingeniero,
+      semana,
+      kmInicial,
+      rendimiento,
+      costoLitro,
+      dispersion,
+      complementos,
+      observaciones: observacionesAnticipo || observaciones,
+      dias: listaDiasAnticipo,
+      puntosNuevos,
+      logoImageId,
+    });
+  }
+
   const buffer = await wb.xlsx.writeBuffer();
   const blob = new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -712,7 +743,9 @@ export async function descargarBitacoraNetoExcel({
     .trim()
     .replace(/\s+/g, '_')
     .replace(/[^A-Z0-9_]/gi, '');
-  const filename = `${nombreIngLimpio}_semana_${semana}.xlsx`;
+  const etiquetaModo =
+    modo === 'ambas' ? 'anticipo_y_comprobacion' : modo;
+  const filename = `${nombreIngLimpio}_semana_${semana}_${etiquetaModo}.xlsx`;
 
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -725,4 +758,3 @@ export async function descargarBitacoraNetoExcel({
 
   return filename;
 }
-

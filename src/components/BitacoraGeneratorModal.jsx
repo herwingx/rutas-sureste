@@ -1,16 +1,18 @@
 /**
- * @fileoverview Modal Generador de Bitácora Oficial de Combustible Tiendas Neto (`BitacoraGeneratorModal.jsx`).
+ * @fileoverview Modal Generador y Gestor de Bitácoras Semanales Tiendas Neto (`BitacoraGeneratorModal.jsx`).
  *
- * Permite a cualquier ingeniero del equipo:
- * 1. Seleccionar su perfil (`HERWING`, `BRAYAN`, `ROMAN`, `VICTOR`, `OMAR`) y editar/guardar sus datos
- *    vehiculares y administrativos (No. Empleado, Tarjeta de Gasolina, Automóvil, Placas, Serie VIN,
- *    CECO, Región, Rendimiento km/L, Costo por Litro y Domicilio).
- * 2. Seleccionar hasta 6 días de rutas (incluyendo la ruta activa en pantalla y/o rutas guardadas en
- *    el Historial) para consolidar la bitácora semanal de Anticipo o Comprobación.
- * 3. Detectar automáticamente puntos temporales, hoteles o aperturas (`APERTURA ...`, `HOTEL ...`) y
- *    generar su enlace de Google Maps para la tabla lateral `SUCURSALES NUEVAS/PUNTOS`.
- * 4. Descargar el archivo `.xlsx` nativo con logotipo de Tiendas Neto, fórmulas activas de Excel y
- *    los 3 recuadros vacíos para fotografías (Odómetro, Rendimiento y Ticket).
+ * Características mejoradas:
+ * 1. **Cálculo automático inteligente de Semana**: Al seleccionar cualquier fecha o ruta,
+ *    se calcula automáticamente la semana del año (`ISO 8601`) y el rango de días (`Lunes a Domingo`).
+ * 2. **Soporte para hojas en el mismo archivo `.xlsx`**:
+ *    - Pestaña `ANTICIPO`
+ *    - Pestaña `COMPROBACION`
+ *    - Opción recomendada: **Ambas hojas en el mismo archivo** (como en tu plantilla original).
+ * 3. **Persistencia y consulta en Supabase**:
+ *    - Permite guardar la bitácora de la semana en `rutas_sureste.bitacoras_semanales`.
+ *    - Pestaña de historial de bitácoras por semana para descargar cualquier semana pasada en cualquier momento.
+ * 4. **Asignación de días independiente o sincronizada**: Permite elegir qué rutas pertenecen a la
+ *    proyección de Anticipo y cuáles a la Comprobación real de gastos.
  */
 
 import { useState, useEffect, useMemo } from 'react';
@@ -25,6 +27,10 @@ import {
   Trash,
   GasPump,
   CarProfile,
+  ClockCounterClockwise,
+  DownloadSimple,
+  Stack,
+  ArrowSquareOut,
 } from '@phosphor-icons/react';
 import {
   Dialog,
@@ -41,6 +47,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import {
   Select,
   SelectTrigger,
@@ -56,9 +63,6 @@ import {
 import { calcularSemanaISO, descargarBitacoraNetoExcel } from '@/lib/bitacora-excel';
 import { cn, fechaMX, pesos, api } from '@/lib/utils';
 
-/**
- * Construye los tramos `[origen, destino, km]` de un registro de ruta guardada o activa.
- */
 function construirTramosDeRuta(item, porNombre, baseDefault) {
   const baseNombre = item.baseNombre || baseDefault || 'RESGUARDO TUXTLA';
   const baseTienda = porNombre.get(baseNombre);
@@ -67,7 +71,11 @@ function construirTramosDeRuta(item, porNombre, baseDefault) {
     pts.push({ nombre: baseTienda.nombre, lat: baseTienda.lat, lng: baseTienda.lng });
   }
   (item.paradas || []).forEach((p) => pts.push(p));
-  if (item.baseFin !== false && baseTienda && ((item.paradas || []).length > 0 || !item.baseInicio)) {
+  if (
+    item.baseFin !== false &&
+    baseTienda &&
+    ((item.paradas || []).length > 0 || !item.baseInicio)
+  ) {
     pts.push({ nombre: baseTienda.nombre, lat: baseTienda.lat, lng: baseTienda.lng });
   }
 
@@ -76,7 +84,6 @@ function construirTramosDeRuta(item, porNombre, baseDefault) {
     const tGuardado = item.tramos?.[i];
     let km = tGuardado?.km;
     if (km == null && pts[i].lat != null && pts[i + 1].lat != null) {
-      // Estimación por si una ruta histórica antigua no guardó tramos individuales
       const R = 6371;
       const dLat = ((pts[i + 1].lat - pts[i].lat) * Math.PI) / 180;
       const dLng = ((pts[i + 1].lng - pts[i].lng) * Math.PI) / 180;
@@ -134,24 +141,41 @@ export function BitacoraGeneratorModal({
     );
   }, [ingenieros, ingenieroActivo, ajustes, baseNombre]);
 
+  const [modalTab, setModalTab] = useState('generador'); // 'generador' | 'guardadas'
   const [formIng, setFormIng] = useState(perfilActual);
   const [editandoPerfil, setEditandoPerfil] = useState(false);
   const [guardandoPerfil, setGuardandoPerfil] = useState(false);
 
-  const [semana, setSemana] = useState(() => calcularSemanaISO(rutaActual?.fecha));
+  // Modo de exportación: 'ambas' (hojas COMPROBACION y ANTICIPO juntas), 'comprobacion' o 'anticipo'
+  const [modoHojas, setModoHojas] = useState('ambas');
+
+  // Cálculo automático de semana ISO y año
+  const fechaReferencia = rutaActual?.fecha || new Date().toISOString().slice(0, 10);
+  const calcDef = useMemo(() => calcularSemanaISO(fechaReferencia), [fechaReferencia]);
+  const [semana, setSemana] = useState(calcDef.semana);
+  const [anio, setAnio] = useState(calcDef.anio);
+
   const [kmInicial, setKmInicial] = useState(perfilActual.km_inicial_ultimo || 17374);
   const [dispersion, setDispersion] = useState(0);
   const [complementos, setComplementos] = useState(0);
-  const [tipoFormato, setTipoFormato] = useState('comprobacion'); // 'comprobacion' | 'anticipo'
-  const [observaciones, setObservaciones] = useState(
-    'SE REALIZA COMPROBACIÓN DE GASTOS DE COMBUSTIBLE CORRESPONDIENTE A LOS RECORRIDOS DE ATENCIÓN A SUCURSALES Y MANTENIMIENTO EN REGIÓN SURESTE.'
+
+  const [obsAnticipo, setObsAnticipo] = useState(
+    () =>
+      `ANTICIPO PARA LA SEMANA ${calcDef.semana} SE REALIZARAN MANTENIMIENTOS PREVENTIVOS Y ATENCIÓN A SUCURSALES EN REGIÓN ${perfilActual.region || 'TUXTLA'}.`
+  );
+  const [obsComprobacion, setObsComprobacion] = useState(
+    () =>
+      `COMPROBACION DE RUTA SEMANA ${calcDef.semana} POR MANTENIMIENTOS PREVENTIVOS Y ATENCIÓN A SUCURSALES EN REGIÓN ${perfilActual.region || 'TUXTLA'}.`
   );
 
-  // Selección de días: incluye por defecto la ruta actual (si tiene paradas)
   const [incluirRutaActual, setIncluirRutaActual] = useState(true);
   const [idsHistorialSel, setIdsHistorialSel] = useState([]);
   const [puntosNuevosExtra, setPuntosNuevosExtra] = useState([]);
   const [descargando, setDescargando] = useState(false);
+  const [guardandoSupabase, setGuardandoSupabase] = useState(false);
+
+  // Lista de bitácoras guardadas en Supabase / local
+  const [bitacorasGuardadas, setBitacorasGuardadas] = useState([]);
 
   useEffect(() => {
     setFormIng(perfilActual);
@@ -160,24 +184,24 @@ export function BitacoraGeneratorModal({
 
   useEffect(() => {
     if (rutaActual?.fecha) {
-      setSemana(calcularSemanaISO(rutaActual.fecha));
+      const c = calcularSemanaISO(rutaActual.fecha);
+      setSemana(c.semana);
+      setAnio(c.anio);
     }
   }, [rutaActual?.fecha]);
 
-  const cambiarPlantillaObs = (tipo) => {
-    setTipoFormato(tipo);
-    if (tipo === 'anticipo') {
-      setObservaciones(
-        `SE SOLICITA ANTICIPO DE COMBUSTIBLE PARA LA SEMANA ${semana} CORRESPONDIENTE A LA PROGRAMACIÓN DE RUTAS DE SOPORTE TÉCNICO EN REGIÓN ${formIng.region || 'TUXTLA'}.`
-      );
-    } else {
-      setObservaciones(
-        `SE REALIZA COMPROBACIÓN DE GASTOS DE COMBUSTIBLE DE LA SEMANA ${semana} CORRESPONDIENTE A LOS RECORRIDOS DE ATENCIÓN A SUCURSALES EN REGIÓN ${formIng.region || 'TUXTLA'}.`
-      );
+  // Cargar lista de bitácoras guardadas al abrir el modal
+  useEffect(() => {
+    if (open) {
+      api('GET', '/api/bitacoras')
+        .then((data) => {
+          if (Array.isArray(data)) setBitacorasGuardadas(data);
+        })
+        .catch(() => {});
     }
-  };
+  }, [open]);
 
-  // Construir los bloques diarios seleccionados (máximo 6 días ordenados por fecha ascendente)
+  // Selección de días consolidados (hasta 7 días por hoja)
   const diasConsolidados = useMemo(() => {
     const lista = [];
 
@@ -203,7 +227,6 @@ export function BitacoraGeneratorModal({
     for (const id of idsHistorialSel) {
       const h = historial.find((x) => x.id === id);
       if (!h) continue;
-      // Evitar duplicar la misma ruta si la ruta actual ya está guardada con el mismo id
       if (incluirRutaActual && rutaActual?.id && rutaActual.id === h.id) continue;
       const tramosH = construirTramosDeRuta(h, porNombre, baseNombre);
       lista.push({
@@ -215,10 +238,10 @@ export function BitacoraGeneratorModal({
       });
     }
 
-    return lista.sort((a, b) => a.fecha.localeCompare(b.fecha)).slice(0, 6);
+    return lista.sort((a, b) => a.fecha.localeCompare(b.fecha)).slice(0, 7);
   }, [incluirRutaActual, rutaActual, tramosActuales, idsHistorialSel, historial, porNombre, baseNombre]);
 
-  // Detectar automáticamente aperturas, hoteles o desvíos temporales en los días seleccionados
+  // Detección automática de puntos especiales
   const puntosNuevosDetectados = useMemo(() => {
     const mapa = new Map();
     diasConsolidados.forEach((d) => {
@@ -271,7 +294,7 @@ export function BitacoraGeneratorModal({
       });
       onSaveIngeniero(listaActualizada, formIng);
       setEditandoPerfil(false);
-      toast('Perfil de ingeniero guardado y sincronizado con Supabase');
+      toast('Perfil de ingeniero sincronizado con Supabase');
     } catch (e) {
       toast(e.message, 'err');
     } finally {
@@ -279,32 +302,72 @@ export function BitacoraGeneratorModal({
     }
   };
 
-  const handleDescargarExcel = async () => {
+  const guardarEnSupabase = async () => {
     if (diasConsolidados.length === 0) {
-      return toast('Agrega al menos una parada a tu ruta o selecciona un día del historial para generar la bitácora', 'err');
+      return toast('Agrega al menos una ruta antes de guardar la bitácora', 'err');
     }
-    setDescargando(true);
+    setGuardandoSupabase(true);
     try {
-      // Guardar último km inicial en el perfil del ingeniero
-      await api('PATCH', '/api/ingenieros', {
-        ...formIng,
-        km_inicial_ultimo: Number(kmInicial) || 0,
-      })
-        .then((lista) => onSaveIngeniero(lista, formIng))
-        .catch(() => {});
-
-      const archivo = await descargarBitacoraNetoExcel({
-        ingeniero: formIng,
+      const payload = {
+        ingeniero: formIng.nombre,
         semana,
-        kmInicial,
+        anio,
+        tipo: modoHojas,
+        km_inicial: Number(kmInicial) || 0,
         rendimiento: formIng.rendimiento,
-        costoLitro: formIng.costo_litro,
+        costo_litro: formIng.costo_litro,
         dispersion,
         complementos,
-        observaciones,
-        dias: diasConsolidados,
-        puntosNuevos: puntosNuevosDetectados,
-      });
+        observaciones_anticipo: obsAnticipo,
+        observaciones_comprobacion: obsComprobacion,
+        dias_anticipo: diasConsolidados,
+        dias_comprobacion: diasConsolidados,
+        puntos_nuevos: puntosNuevosDetectados,
+        total_km: resumenTotales.km,
+        total_importe: Math.round(resumenTotales.importe * 100) / 100,
+      };
+      await api('POST', '/api/bitacoras', payload);
+      const lista = await api('GET', '/api/bitacoras');
+      setBitacorasGuardadas(lista);
+      toast(`Bitácora Semana ${semana} (${anio}) guardada en Supabase`);
+    } catch (e) {
+      toast('Error guardando en Supabase: ' + e.message, 'err');
+    } finally {
+      setGuardandoSupabase(false);
+    }
+  };
+
+  const handleDescargarExcel = async (overrideData = null) => {
+    const dataUsar = overrideData || {
+      modo: modoHojas,
+      ingeniero: formIng,
+      semana,
+      kmInicial,
+      rendimiento: formIng.rendimiento,
+      costoLitro: formIng.costo_litro,
+      dispersion,
+      complementos,
+      observacionesAnticipo: obsAnticipo,
+      observacionesComprobacion: obsComprobacion,
+      dias: diasConsolidados,
+      puntosNuevos: puntosNuevosDetectados,
+    };
+
+    if (!overrideData && diasConsolidados.length === 0) {
+      return toast(
+        'Agrega al menos una parada a tu ruta o selecciona un día del historial',
+        'err'
+      );
+    }
+
+    setDescargando(true);
+    try {
+      // Auto-guardar en base de datos para que quede disponible en el historial
+      if (!overrideData) {
+        guardarEnSupabase().catch(() => {});
+      }
+
+      const archivo = await descargarBitacoraNetoExcel(dataUsar);
       toast(`Bitácora descargada: ${archivo}`);
     } catch (e) {
       toast('Error generando Excel: ' + e.message, 'err');
@@ -332,337 +395,293 @@ export function BitacoraGeneratorModal({
               />
               <div>
                 <DialogTitle className="flex items-center gap-2">
-                  <span>Bitácora Oficial de Combustible (.xlsx)</span>
+                  <span>Bitácora Oficial de Combustible Tiendas Neto</span>
                   <Badge variant="secondary" className="text-[10px]">
-                    Semana {semana}
+                    Semana {semana} ({anio})
                   </Badge>
                 </DialogTitle>
                 <DialogDescription>
-                  Genera el formato oficial de Tiendas Neto con fórmulas automáticas, datos de vehículo y recuadros para fotos.
+                  Genera el formato corporativo con pestañas de Comprobación y Anticipo, fórmulas y almacenamiento en Supabase.
                 </DialogDescription>
               </div>
             </div>
           </div>
         </DialogHeader>
 
-        <div className="space-y-4 py-1">
-          {/* ================= 1. SELECTOR DE INGENIERO Y DATOS DE CABECERA ================= */}
-          <Card className="p-3 bg-muted/20 border-border/80 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2 flex-1 min-w-60">
-                <UserGear weight="duotone" className="h-4 w-4 text-primary shrink-0" />
-                <div className="flex-1">
-                  <Label className="text-[11px] text-muted-foreground">Ingeniero responsable</Label>
-                  <Select
-                    value={ingenieroActivo}
-                    onValueChange={(val) => {
-                      onSelectIngeniero(val);
-                    }}
-                  >
-                    <SelectTrigger size="sm" className="mt-0.5 bg-card font-semibold">
-                      <SelectValue placeholder="Selecciona tu nombre" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ingenieros.map((ing) => (
-                        <SelectItem key={ing.nombre} value={ing.nombre}>
-                          {ing.nombre} ({ing.region || 'SURESTE'})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+        <Tabs value={modalTab} onValueChange={setModalTab} className="w-full">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="generador" className="gap-1.5">
+              <Stack weight="duotone" className="h-4 w-4" />
+              <span>Generar Bitácora Semana {semana}</span>
+            </TabsTrigger>
+            <TabsTrigger value="guardadas" className="gap-1.5">
+              <ClockCounterClockwise weight="duotone" className="h-4 w-4" />
+              <span>Semanas Guardadas ({bitacorasGuardadas.length})</span>
+            </TabsTrigger>
+          </TabsList>
+
+          {/* ================= PESTAÑA 1: GENERADOR ACTIVO ================= */}
+          <TabsContent value="generador" className="space-y-4 pt-2">
+            {/* 1. SELECCIÓN DE HOJAS A GENERAR EN EL ARCHIVO */}
+            <Card className="p-3 bg-primary/5 border-primary/25 space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <FileXls weight="duotone" className="h-4 w-4 text-primary" />
+                  <Label className="text-xs font-semibold">
+                    Hojas a incluir en el mismo archivo Excel (.xlsx):
+                  </Label>
+                </div>
+                <div className="flex items-center gap-1">
+                  {[
+                    { id: 'ambas', label: 'Ambas (COMPROBACION + ANTICIPO)' },
+                    { id: 'comprobacion', label: 'Solo Comprobación' },
+                    { id: 'anticipo', label: 'Solo Anticipo' },
+                  ].map((m) => (
+                    <Button
+                      key={m.id}
+                      type="button"
+                      variant={modoHojas === m.id ? 'default' : 'outline'}
+                      size="xs"
+                      onClick={() => setModoHojas(m.id)}
+                      className="text-[11px] h-6 px-2"
+                    >
+                      {m.label}
+                    </Button>
+                  ))}
                 </div>
               </div>
-
-              <Button
-                type="button"
-                variant={editandoPerfil ? 'secondary' : 'outline'}
-                size="xs"
-                onClick={() => setEditandoPerfil((v) => !v)}
-              >
-                <CarProfile weight="duotone" />
-                {editandoPerfil ? 'Ocultar ficha vehicular' : 'Editar datos de auto / tarjeta'}
-              </Button>
-            </div>
-
-            {/* Resumen compacto del perfil */}
-            {!editandoPerfil && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
-                <div className="rounded-md bg-card px-2.5 py-1.5 border border-border/60">
-                  <span className="text-[10px] text-muted-foreground block">No. Empleado / CECO</span>
-                  <TypographyMono className="font-semibold text-xs">
-                    {formIng.no_empleado || 'Sin asignar'} · {formIng.ceco || '108266'}
-                  </TypographyMono>
-                </div>
-                <div className="rounded-md bg-card px-2.5 py-1.5 border border-border/60">
-                  <span className="text-[10px] text-muted-foreground block">Vehículo / Placas</span>
-                  <TypographyMono className="font-semibold text-xs">
-                    {formIng.automovil || '—'} · {formIng.placas || '—'}
-                  </TypographyMono>
-                </div>
-                <div className="rounded-md bg-card px-2.5 py-1.5 border border-border/60">
-                  <span className="text-[10px] text-muted-foreground block">Tarjeta Gasolina</span>
-                  <TypographyMono className="font-semibold text-xs truncate block">
-                    {formIng.tarjeta_gasolina || '—'}
-                  </TypographyMono>
-                </div>
-                <div className="rounded-md bg-card px-2.5 py-1.5 border border-border/60">
-                  <span className="text-[10px] text-muted-foreground block">Rendimiento / Litro</span>
-                  <TypographyMono className="font-semibold text-xs">
-                    {formIng.rendimiento} km/L · ${formIng.costo_litro}
-                  </TypographyMono>
-                </div>
-              </div>
-            )}
-
-            {/* Formulario expandible de perfil del ingeniero */}
-            {editandoPerfil && (
-              <div className="space-y-2.5 pt-2 border-t border-border/60">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <div>
-                    <Label className="text-[11px]">No. Empleado</Label>
-                    <Input
-                      size="sm"
-                      value={formIng.no_empleado}
-                      onChange={(e) => setFormIng((f) => ({ ...f, no_empleado: e.target.value }))}
-                      placeholder="Ej. 1221362"
-                      className="bg-card font-mono"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-[11px]">No. Tarjeta de Gasolina</Label>
-                    <Input
-                      size="sm"
-                      value={formIng.tarjeta_gasolina}
-                      onChange={(e) =>
-                        setFormIng((f) => ({ ...f, tarjeta_gasolina: e.target.value }))
-                      }
-                      placeholder="16 dígitos"
-                      className="bg-card font-mono"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-[11px]">CECO</Label>
-                    <Input
-                      size="sm"
-                      value={formIng.ceco}
-                      onChange={(e) => setFormIng((f) => ({ ...f, ceco: e.target.value }))}
-                      placeholder="108266"
-                      className="bg-card font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
-                  <div>
-                    <Label className="text-[11px]">Automóvil</Label>
-                    <Input
-                      size="sm"
-                      value={formIng.automovil}
-                      onChange={(e) => setFormIng((f) => ({ ...f, automovil: e.target.value }))}
-                      placeholder="Ej. AVEO"
-                      className="bg-card"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-[11px]">Placas</Label>
-                    <Input
-                      size="sm"
-                      value={formIng.placas}
-                      onChange={(e) => setFormIng((f) => ({ ...f, placas: e.target.value }))}
-                      placeholder="Ej. PEB-798-C"
-                      className="bg-card font-mono"
-                    />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <Label className="text-[11px]">No. Serie Vehicular (VIN)</Label>
-                    <Input
-                      size="sm"
-                      value={formIng.serie}
-                      onChange={(e) => setFormIng((f) => ({ ...f, serie: e.target.value }))}
-                      placeholder="Ej. LZWPRMGN0TF108615"
-                      className="bg-card font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <div>
-                    <Label className="text-[11px]">Región</Label>
-                    <Input
-                      size="sm"
-                      value={formIng.region}
-                      onChange={(e) => setFormIng((f) => ({ ...f, region: e.target.value }))}
-                      placeholder="TUXTLA"
-                      className="bg-card"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-[11px]">Rendimiento (km/L)</Label>
-                    <Input
-                      size="sm"
-                      type="number"
-                      step="0.1"
-                      value={formIng.rendimiento}
-                      onChange={(e) =>
-                        setFormIng((f) => ({ ...f, rendimiento: parseFloat(e.target.value) || 12.5 }))
-                      }
-                      className="bg-card font-mono"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-[11px]">Costo por litro ($ MXN)</Label>
-                    <Input
-                      size="sm"
-                      type="number"
-                      step="0.01"
-                      value={formIng.costo_litro}
-                      onChange={(e) =>
-                        setFormIng((f) => ({
-                          ...f,
-                          costo_litro: parseFloat(e.target.value) || 23.99,
-                        }))
-                      }
-                      className="bg-card font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div>
-                    <Label className="text-[11px]">Dirección de Domicilio / Resguardo</Label>
-                    <Input
-                      size="sm"
-                      value={formIng.domicilio_direccion}
-                      onChange={(e) =>
-                        setFormIng((f) => ({ ...f, domicilio_direccion: e.target.value }))
-                      }
-                      placeholder="Dirección de resguardo (opcional)"
-                      className="bg-card"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-[11px]">Link Google Maps de Domicilio</Label>
-                    <Input
-                      size="sm"
-                      value={formIng.domicilio_link}
-                      onChange={(e) =>
-                        setFormIng((f) => ({ ...f, domicilio_link: e.target.value }))
-                      }
-                      placeholder="https://maps.app.goo.gl/..."
-                      className="bg-card font-mono"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end">
-                  <Button size="xs" onClick={guardarPerfil} disabled={guardandoPerfil}>
-                    <FloppyDiskBack weight="duotone" />
-                    {guardandoPerfil ? 'Guardando…' : 'Guardar perfil en Supabase'}
-                  </Button>
-                </div>
-              </div>
-            )}
-          </Card>
-
-          {/* ================= 2. PARÁMETROS DE SEMANA Y ODÓMETRO ================= */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            <div className="space-y-1">
-              <Label className="text-xs">Semana del año</Label>
-              <Input
-                size="sm"
-                type="number"
-                min="1"
-                max="53"
-                value={semana}
-                onChange={(e) => setSemana(Number(e.target.value) || 1)}
-                className="font-mono font-semibold"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Kilómetro Inicial</Label>
-              <Input
-                size="sm"
-                type="number"
-                value={kmInicial}
-                onChange={(e) => setKmInicial(Number(e.target.value) || 0)}
-                className="font-mono font-semibold"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Kilómetro Final (Auto)</Label>
-              <Input
-                size="sm"
-                value={resumenTotales.kmFinal.toLocaleString('es-MX')}
-                readOnly
-                className="font-mono bg-muted/50"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs">Dispersión previa ($)</Label>
-              <Input
-                size="sm"
-                type="number"
-                step="0.01"
-                value={dispersion || ''}
-                onChange={(e) => setDispersion(parseFloat(e.target.value) || 0)}
-                placeholder="0.00"
-                className="font-mono"
-              />
-            </div>
-          </div>
-
-          {/* ================= 3. SELECCIÓN DE DÍAS A INCLUIR (MÁX 6 BLOQUES) ================= */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs flex items-center gap-1.5">
-                <CalendarCheck weight="duotone" className="h-4 w-4 text-primary" />
-                <span>Días incluidos en la bitácora ({diasConsolidados.length} de 6 bloques)</span>
-              </Label>
-              <TypographyMuted className="text-[11px]">
-                Cada día ocupa un bloque de 8 filas en el Excel oficial
+              <TypographyMuted className="text-[11px] block">
+                {modoHojas === 'ambas'
+                  ? '✓ El archivo contendrá 2 pestañas separadas ("COMPROBACION" y "ANTICIPO") listas para RH y Finanzas.'
+                  : modoHojas === 'comprobacion'
+                  ? 'Genera únicamente la pestaña de comprobación de gastos con saldo a favor.'
+                  : 'Genera únicamente la pestaña de proyección y solicitud de anticipo.'}
               </TypographyMuted>
-            </div>
+            </Card>
 
-            <Card className="divide-y divide-border max-h-48 overflow-y-auto">
-              {/* Ruta actual en el armador */}
-              {rutaActual?.paradas?.length > 0 && (
-                <div className="flex items-center justify-between gap-2 px-3 py-2 bg-primary/5">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Switch
-                      checked={incluirRutaActual}
-                      onCheckedChange={setIncluirRutaActual}
-                    />
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <Badge variant="default" className="text-[10px] px-1.5 py-0">
-                          Ruta activa
-                        </Badge>
-                        <TypographySmall className="font-semibold">
-                          {fechaMX(rutaActual.fecha)}
-                        </TypographySmall>
-                        {rutaActual.nombre && (
-                          <span className="text-xs text-muted-foreground">
-                            · {rutaActual.nombre}
-                          </span>
-                        )}
-                      </div>
-                      <TypographyMuted className="text-[11px] truncate block">
-                        {rutaActual.paradas.map((p) => p.nombre).join(' → ')}
-                      </TypographyMuted>
+            {/* 2. SELECTOR DE INGENIERO Y DATOS DE CABECERA */}
+            <Card className="p-3 bg-muted/20 border-border/80 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 flex-1 min-w-60">
+                  <UserGear weight="duotone" className="h-4 w-4 text-primary shrink-0" />
+                  <div className="flex-1">
+                    <Label className="text-[11px] text-muted-foreground">Ingeniero responsable</Label>
+                    <Select
+                      value={ingenieroActivo}
+                      onValueChange={(val) => onSelectIngeniero(val)}
+                    >
+                      <SelectTrigger size="sm" className="mt-0.5 bg-card font-semibold">
+                        <SelectValue placeholder="Selecciona tu nombre" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ingenieros.map((ing) => (
+                          <SelectItem key={ing.nombre} value={ing.nombre}>
+                            {ing.nombre} ({ing.region || 'SURESTE'})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  variant={editandoPerfil ? 'secondary' : 'outline'}
+                  size="xs"
+                  onClick={() => setEditandoPerfil((v) => !v)}
+                >
+                  <CarProfile weight="duotone" />
+                  {editandoPerfil ? 'Ocultar ficha vehicular' : 'Editar auto / tarjeta / CECO'}
+                </Button>
+              </div>
+
+              {!editandoPerfil ? (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
+                  <div className="rounded-md bg-card px-2.5 py-1.5 border border-border/60">
+                    <span className="text-[10px] text-muted-foreground block">No. Empleado / CECO</span>
+                    <TypographyMono className="font-semibold text-xs">
+                      {formIng.no_empleado || 'Sin asignar'} · {formIng.ceco || '108266'}
+                    </TypographyMono>
+                  </div>
+                  <div className="rounded-md bg-card px-2.5 py-1.5 border border-border/60">
+                    <span className="text-[10px] text-muted-foreground block">Vehículo / Placas</span>
+                    <TypographyMono className="font-semibold text-xs">
+                      {formIng.automovil || '—'} · {formIng.placas || '—'}
+                    </TypographyMono>
+                  </div>
+                  <div className="rounded-md bg-card px-2.5 py-1.5 border border-border/60">
+                    <span className="text-[10px] text-muted-foreground block">Tarjeta Gasolina</span>
+                    <TypographyMono className="font-semibold text-xs truncate block">
+                      {formIng.tarjeta_gasolina || '—'}
+                    </TypographyMono>
+                  </div>
+                  <div className="rounded-md bg-card px-2.5 py-1.5 border border-border/60">
+                    <span className="text-[10px] text-muted-foreground block">Rendimiento / Litro</span>
+                    <TypographyMono className="font-semibold text-xs">
+                      {formIng.rendimiento} km/L · ${formIng.costo_litro}
+                    </TypographyMono>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2.5 pt-2 border-t border-border/60">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div>
+                      <Label className="text-[11px]">No. Empleado</Label>
+                      <Input
+                        size="sm"
+                        value={formIng.no_empleado}
+                        onChange={(e) => setFormIng((f) => ({ ...f, no_empleado: e.target.value }))}
+                        className="bg-card font-mono"
+                      />
                     </div>
+                    <div>
+                      <Label className="text-[11px]">No. Tarjeta Gasolina</Label>
+                      <Input
+                        size="sm"
+                        value={formIng.tarjeta_gasolina}
+                        onChange={(e) =>
+                          setFormIng((f) => ({ ...f, tarjeta_gasolina: e.target.value }))
+                        }
+                        className="bg-card font-mono"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[11px]">CECO</Label>
+                      <Input
+                        size="sm"
+                        value={formIng.ceco}
+                        onChange={(e) => setFormIng((f) => ({ ...f, ceco: e.target.value }))}
+                        className="bg-card font-mono"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div>
+                      <Label className="text-[11px]">Automóvil</Label>
+                      <Input
+                        size="sm"
+                        value={formIng.automovil}
+                        onChange={(e) => setFormIng((f) => ({ ...f, automovil: e.target.value }))}
+                        className="bg-card"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[11px]">Placas</Label>
+                      <Input
+                        size="sm"
+                        value={formIng.placas}
+                        onChange={(e) => setFormIng((f) => ({ ...f, placas: e.target.value }))}
+                        className="bg-card font-mono"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-[11px]">No. Serie Vehicular (VIN)</Label>
+                      <Input
+                        size="sm"
+                        value={formIng.serie}
+                        onChange={(e) => setFormIng((f) => ({ ...f, serie: e.target.value }))}
+                        className="bg-card font-mono"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-end">
+                    <Button size="xs" onClick={guardarPerfil} disabled={guardandoPerfil}>
+                      <FloppyDiskBack weight="duotone" />
+                      {guardandoPerfil ? 'Guardando…' : 'Guardar en Supabase'}
+                    </Button>
                   </div>
                 </div>
               )}
+            </Card>
 
-              {/* Rutas del Historial */}
-              {historial.length === 0 && !rutaActual?.paradas?.length ? (
-                <div className="p-4 text-center">
-                  <TypographyMuted className="text-xs">
-                    No hay rutas activas ni guardadas en el historial.
-                  </TypographyMuted>
+            {/* 3. SEMANA AUTOMÁTICA Y ODÓMETRO */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Semana</Label>
+                  <span className="text-[10px] text-primary font-medium">Auto ISO</span>
                 </div>
-              ) : (
-                historial.map((h) => {
+                <Input
+                  size="sm"
+                  type="number"
+                  min="1"
+                  max="53"
+                  value={semana}
+                  onChange={(e) => setSemana(Number(e.target.value) || 1)}
+                  className="font-mono font-semibold"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Kilómetro Inicial</Label>
+                <Input
+                  size="sm"
+                  type="number"
+                  value={kmInicial}
+                  onChange={(e) => setKmInicial(Number(e.target.value) || 0)}
+                  className="font-mono font-semibold"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Kilómetro Final (Auto)</Label>
+                <Input
+                  size="sm"
+                  value={resumenTotales.kmFinal.toLocaleString('es-MX')}
+                  readOnly
+                  className="font-mono bg-muted/50"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Dispersión ($)</Label>
+                <Input
+                  size="sm"
+                  type="number"
+                  step="0.01"
+                  value={dispersion || ''}
+                  onChange={(e) => setDispersion(parseFloat(e.target.value) || 0)}
+                  placeholder="0.00"
+                  className="font-mono"
+                />
+              </div>
+            </div>
+
+            {/* 4. DÍAS INCLUIDOS (HASTA 7 BLOQUES POR HOJA) */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs flex items-center gap-1.5">
+                  <CalendarCheck weight="duotone" className="h-4 w-4 text-primary" />
+                  <span>Días incluidos en la semana ({diasConsolidados.length} de 7 bloques)</span>
+                </Label>
+                <TypographyMuted className="text-[11px]">
+                  Bloques 17..72 en el Excel oficial
+                </TypographyMuted>
+              </div>
+
+              <Card className="divide-y divide-border max-h-44 overflow-y-auto">
+                {rutaActual?.paradas?.length > 0 && (
+                  <div className="flex items-center justify-between gap-2 px-3 py-2 bg-primary/5">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Switch
+                        checked={incluirRutaActual}
+                        onCheckedChange={setIncluirRutaActual}
+                      />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant="default" className="text-[10px] px-1.5 py-0">
+                            Ruta activa
+                          </Badge>
+                          <TypographySmall className="font-semibold">
+                            {fechaMX(rutaActual.fecha)}
+                          </TypographySmall>
+                        </div>
+                        <TypographyMuted className="text-[11px] truncate block">
+                          {rutaActual.paradas.map((p) => p.nombre).join(' → ')}
+                        </TypographyMuted>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {historial.map((h) => {
                   const esMismaActual = incluirRutaActual && rutaActual?.id === h.id;
                   const checked = esMismaActual || idsHistorialSel.includes(h.id);
                   return (
@@ -701,155 +720,175 @@ export function BitacoraGeneratorModal({
                       </TypographyMono>
                     </div>
                   );
-                })
-              )}
-            </Card>
-          </div>
-
-          {/* ================= 4. SUCURSALES NUEVAS / PUNTOS (TABLA DERECHA I6:J16) ================= */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs">
-                Sucursales nuevas / aperturas / hoteles ({puntosNuevosDetectados.length})
-              </Label>
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                onClick={() =>
-                  setPuntosNuevosExtra((prev) => [...prev, { nombre: '', link: '' }])
-                }
-              >
-                <Plus weight="bold" />
-                Agregar punto con link
-              </Button>
+                })}
+              </Card>
             </div>
 
-            {puntosNuevosDetectados.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {puntosNuevosDetectados.map((p, idx) => (
-                  <Badge key={idx} variant="secondary" className="gap-1.5 text-[11px]">
-                    <span>{p.nombre}</span>
-                    {p.link && <span className="text-[10px] text-primary">✓ Link Maps</span>}
-                  </Badge>
-                ))}
+            {/* 5. OBSERVACIONES POR HOJA */}
+            {(modoHojas === 'ambas' || modoHojas === 'anticipo') && (
+              <div className="space-y-1">
+                <Label className="text-xs">Observaciones Anticipo (Semana {semana})</Label>
+                <Textarea
+                  rows={2}
+                  value={obsAnticipo}
+                  onChange={(e) => setObsAnticipo(e.target.value)}
+                  className="text-xs"
+                />
               </div>
             )}
 
-            {puntosNuevosExtra.map((item, idx) => (
-              <div key={idx} className="flex items-center gap-1.5">
-                <Input
-                  size="sm"
-                  value={item.nombre}
-                  onChange={(e) =>
-                    setPuntosNuevosExtra((prev) =>
-                      prev.map((x, i) => (i === idx ? { ...x, nombre: e.target.value } : x))
-                    )
-                  }
-                  placeholder="Ej. APERTURA VILLAFLORES"
-                  className="w-48"
+            {(modoHojas === 'ambas' || modoHojas === 'comprobacion') && (
+              <div className="space-y-1">
+                <Label className="text-xs">Observaciones Comprobación (Semana {semana})</Label>
+                <Textarea
+                  rows={2}
+                  value={obsComprobacion}
+                  onChange={(e) => setObsComprobacion(e.target.value)}
+                  className="text-xs"
                 />
-                <Input
-                  size="sm"
-                  value={item.link}
-                  onChange={(e) =>
-                    setPuntosNuevosExtra((prev) =>
-                      prev.map((x, i) => (i === idx ? { ...x, link: e.target.value } : x))
-                    )
-                  }
-                  placeholder="https://maps.app.goo.gl/..."
-                  className="flex-1 font-mono"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={() =>
-                    setPuntosNuevosExtra((prev) => prev.filter((_, i) => i !== idx))
-                  }
-                >
-                  <Trash />
-                </Button>
               </div>
-            ))}
-          </div>
+            )}
 
-          {/* ================= 5. OBSERVACIONES (* DATO OBLIGATORIO) ================= */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs">
-                Observaciones <span className="text-destructive font-semibold">* DATO OBLIGATORIO</span>
-              </Label>
-              <div className="flex items-center gap-1">
-                <Button
-                  type="button"
-                  variant={tipoFormato === 'comprobacion' ? 'secondary' : 'ghost'}
-                  size="xs"
-                  onClick={() => cambiarPlantillaObs('comprobacion')}
-                >
-                  <Sparkle weight="duotone" />
-                  Plantilla Comprobación
-                </Button>
-                <Button
-                  type="button"
-                  variant={tipoFormato === 'anticipo' ? 'secondary' : 'ghost'}
-                  size="xs"
-                  onClick={() => cambiarPlantillaObs('anticipo')}
-                >
-                  <Sparkle weight="duotone" />
-                  Plantilla Anticipo
-                </Button>
+            {/* 6. RESUMEN Y BOTONES DE ACCIÓN */}
+            <Card className="p-3 bg-primary/5 border-primary/25 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                  <GasPump weight="duotone" className="h-5 w-5" />
+                </div>
+                <div>
+                  <TypographySmall className="font-semibold block">
+                    Total: {resumenTotales.km} km · {resumenTotales.litros.toFixed(1)} L · {pesos(resumenTotales.importe)}
+                  </TypographySmall>
+                  <TypographyMuted className="text-xs">
+                    Odómetro: {Number(kmInicial).toLocaleString()} → {resumenTotales.kmFinal.toLocaleString()} km · {diasConsolidados.length} días
+                  </TypographyMuted>
+                </div>
               </div>
-            </div>
-            <Textarea
-              rows={2}
-              value={observaciones}
-              onChange={(e) => setObservaciones(e.target.value)}
-              placeholder="Escribe el motivo de la comprobación o solicitud de anticipo..."
-              className="text-xs"
-            />
-          </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={guardarEnSupabase}
+                disabled={guardandoSupabase || diasConsolidados.length === 0}
+              >
+                <FloppyDiskBack weight="duotone" />
+                {guardandoSupabase ? 'Guardando…' : 'Guardar en Supabase'}
+              </Button>
+            </Card>
+          </TabsContent>
 
-          {/* ================= 6. RESUMEN DE TOTALES PRE-DESCARGA ================= */}
-          <Card className="p-3 bg-primary/5 border-primary/25 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <GasPump weight="duotone" className="h-5 w-5" />
-              </div>
-              <div>
-                <TypographySmall className="font-semibold block">
-                  Total a comprobar: {resumenTotales.km} km · {resumenTotales.litros.toFixed(1)} L
-                </TypographySmall>
+          {/* ================= PESTAÑA 2: HISTORIAL DE SEMANAS GUARDADAS ================= */}
+          <TabsContent value="guardadas" className="space-y-3 pt-2">
+            {bitacorasGuardadas.length === 0 ? (
+              <Card className="p-8 text-center bg-muted/15 border-dashed">
                 <TypographyMuted className="text-xs">
-                  Importe estimado: <strong className="text-foreground">{pesos(resumenTotales.importe)}</strong> · Odómetro: {Number(kmInicial).toLocaleString()} → {resumenTotales.kmFinal.toLocaleString()} km
+                  No hay bitácoras semanales guardadas todavía en Supabase.
+                  Al generar o presionar "Guardar en Supabase" se archivarán aquí para descargarlas cuando quieras.
                 </TypographyMuted>
+              </Card>
+            ) : (
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {bitacorasGuardadas.map((b) => (
+                  <Card key={`${b.ingeniero}-${b.anio}-${b.semana}`} className="p-3 hover:border-primary/40 transition-colors">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <TypographySmall className="font-semibold">
+                            Semana {b.semana} ({b.anio})
+                          </TypographySmall>
+                          <Badge variant="outline" className="text-[10px]">
+                            {b.tipo === 'ambas'
+                              ? 'Anticipo + Comprobación'
+                              : b.tipo.toUpperCase()}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground truncate">
+                            {b.ingeniero.split(' ')[0]}
+                          </span>
+                        </div>
+                        <TypographyMuted className="text-[11px] mt-0.5">
+                          {b.total_km} km recorridos · {pesos(b.total_importe || 0)} · Odómetro ini: {Number(b.km_inicial || 0).toLocaleString()}
+                        </TypographyMuted>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Button
+                          size="xs"
+                          onClick={() => {
+                            handleDescargarExcel({
+                              modo: b.tipo || 'ambas',
+                              ingeniero: formIng,
+                              semana: b.semana,
+                              kmInicial: b.km_inicial,
+                              rendimiento: b.rendimiento,
+                              costoLitro: b.costo_litro,
+                              dispersion: b.dispersion,
+                              complementos: b.complementos,
+                              observacionesAnticipo: b.observaciones_anticipo,
+                              observacionesComprobacion: b.observaciones_comprobacion,
+                              diasAnticipo: b.dias_anticipo || [],
+                              diasComprobacion: b.dias_comprobacion || [],
+                              puntosNuevos: b.puntos_nuevos || [],
+                            });
+                          }}
+                        >
+                          <DownloadSimple weight="bold" />
+                          Descargar .xlsx
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={async () => {
+                            await api('DELETE', '/api/bitacoras', {
+                              ingeniero: b.ingeniero,
+                              semana: b.semana,
+                              anio: b.anio,
+                            });
+                            setBitacorasGuardadas((prev) =>
+                              prev.filter(
+                                (x) =>
+                                  !(
+                                    x.ingeniero === b.ingeniero &&
+                                    x.semana === b.semana &&
+                                    x.anio === b.anio
+                                  )
+                              )
+                            );
+                            toast(`Bitácora Semana ${b.semana} eliminada`);
+                          }}
+                        >
+                          <Trash className="text-muted-foreground hover:text-destructive" />
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
               </div>
-            </div>
-            <Badge variant="outline" className="text-[11px]">
-              3 recuadros de fotos listos
-            </Badge>
-          </Card>
-        </div>
+            )}
+          </TabsContent>
+        </Tabs>
 
         <DialogFooter className="gap-2">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cerrar
           </Button>
-          <Button
-            size="lg"
-            onClick={handleDescargarExcel}
-            disabled={descargando || diasConsolidados.length === 0}
-          >
-            <FileXls weight="duotone" className="h-4 w-4" />
-            <span>
-              {descargando
-                ? 'Generando archivo Excel…'
-                : `Descargar Bitácora Neto (.xlsx)`}
-            </span>
-          </Button>
+          {modalTab === 'generador' && (
+            <Button
+              size="lg"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={() => handleDescargarExcel()}
+              disabled={descargando || diasConsolidados.length === 0}
+            >
+              <FileXls weight="duotone" className="h-4 w-4" />
+              <span>
+                {descargando
+                  ? 'Generando archivo Excel…'
+                  : modoHojas === 'ambas'
+                  ? `Descargar Excel (Anticipo + Comprobación)`
+                  : `Descargar Bitácora (.xlsx)`}
+              </span>
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
-
