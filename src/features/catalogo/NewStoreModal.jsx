@@ -1,9 +1,10 @@
 /**
- * @fileoverview Modal para Agregar Nueva Tienda con Sincronización Inmediata a Supabase (`NewStoreModal.jsx`).
+ * @fileoverview Modal para Agregar Nueva Tienda, CEDIS o Cross Dock con Sincronización Inmediata a Supabase (`NewStoreModal.jsx`).
  *
  * Características:
  * - Disponible para todos los ingenieros autenticados.
- * - Sube la nueva tienda al schema `rutas_sureste.tiendas` en Supabase y al catálogo local.
+ * - Soporta selección de tipo: Tienda / Sucursal, CEDIS, Cross Dock o Base / Resguardo.
+ * - Sube la nueva ubicación al schema `rutas_sureste.tiendas` en Supabase y al catálogo local.
  * - Soporta extracción inteligente de coordenadas desde link de Google Maps o par lat,lng.
  * - Asigna automáticamente ECO, CECO, Estado, Región, Empresa, Zona e Ingeniero responsable.
  */
@@ -11,6 +12,7 @@
 import { useState } from 'react';
 import {
   Storefront,
+  Warehouse,
   ClipboardText,
   PlusCircle,
 } from '@phosphor-icons/react';
@@ -33,10 +35,11 @@ import {
   SelectItem,
 } from '@/components/ui/select';
 import { ESTADOS, INGENIEROS } from '@/lib/brand';
-import { coordsLocales, fmtCoords, api } from '@/lib/utils';
+import { coordsLocales, fmtCoords, api, cn } from '@/lib/utils';
 
 export function NewStoreModal({ open, onOpenChange, onStoreCreated, toast }) {
   const [nombre, setNombre] = useState('');
+  const [tipo, setTipo] = useState('tienda'); // 'tienda' | 'cedis' | 'crossdock' | 'resguardo'
   const [eco, setEco] = useState('');
   const [ceco, setCeco] = useState('');
   const [estado, setEstado] = useState('Chiapas');
@@ -45,6 +48,25 @@ export function NewStoreModal({ open, onOpenChange, onStoreCreated, toast }) {
   const [coordText, setCoordText] = useState('');
   const [latLng, setLatLng] = useState(null);
   const [guardando, setGuardando] = useState(false);
+
+  const handleTipoChange = (nuevoTipo) => {
+    setTipo(nuevoTipo);
+    let limpio = nombre
+      .replace(/^CEDIS\s*(NETO)?\s*/i, '')
+      .replace(/^CROSS\s*DOCK\s*/i, '')
+      .replace(/^RESGUARDO\s*/i, '')
+      .trim();
+
+    if (nuevoTipo === 'cedis') {
+      setNombre(`CEDIS NETO ${limpio}`.trim());
+    } else if (nuevoTipo === 'crossdock') {
+      setNombre(`CROSS DOCK ${limpio}`.trim());
+    } else if (nuevoTipo === 'resguardo') {
+      setNombre(`RESGUARDO ${limpio}`.trim());
+    } else {
+      setNombre(limpio);
+    }
+  };
 
   const procesarCoords = async (txt) => {
     const raw = String(txt || '').trim();
@@ -63,7 +85,7 @@ export function NewStoreModal({ open, onOpenChange, onStoreCreated, toast }) {
     e?.preventDefault();
     const cleanNombre = nombre.trim().toUpperCase();
     if (!cleanNombre) {
-      return toast?.('Escribe el nombre de la sucursal', 'err');
+      return toast?.('Escribe el nombre de la sucursal o centro', 'err');
     }
     if (!latLng && !coordText.trim()) {
       return toast?.('Pega las coordenadas o enlace de Google Maps', 'err');
@@ -93,12 +115,13 @@ export function NewStoreModal({ open, onOpenChange, onStoreCreated, toast }) {
       };
 
       const nuevaLista = await api('POST', '/api/tiendas', payload);
-      toast?.(`Tienda "${cleanNombre}" creada y sincronizada para todos los ingenieros`);
+      toast?.(`"${cleanNombre}" registrada y sincronizada en el catálogo`);
       onStoreCreated?.(nuevaLista, payload);
       onOpenChange(false);
 
       // Limpiar formulario
       setNombre('');
+      setTipo('tienda');
       setEco('');
       setCeco('');
       setZona('');
@@ -120,22 +143,78 @@ export function NewStoreModal({ open, onOpenChange, onStoreCreated, toast }) {
               <Storefront weight="duotone" className="h-5 w-5" />
             </div>
             <div>
-              <DialogTitle className="text-base">Registrar Nueva Tienda en el Catálogo</DialogTitle>
+              <DialogTitle className="text-base">Registrar Tienda, CEDIS o Cross Dock</DialogTitle>
               <DialogDescription className="text-xs">
-                La tienda se guardará en el catálogo central y estará disponible de inmediato para todos los ingenieros.
+                Se guardará en el catálogo central y se sincronizará de inmediato para todo el equipo.
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
         <form onSubmit={handleGuardar} className="space-y-3.5 py-1">
+          {/* Tipo de Instalación */}
           <div className="space-y-1.5">
-            <Label className="text-xs">Nombre de la Sucursal</Label>
+            <Label className="text-xs">Tipo de Instalación</Label>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+              <Button
+                type="button"
+                variant={tipo === 'tienda' ? 'default' : 'outline'}
+                size="xs"
+                className="justify-center gap-1 text-[11px]"
+                onClick={() => handleTipoChange('tienda')}
+              >
+                <Storefront weight="duotone" />
+                Tienda
+              </Button>
+              <Button
+                type="button"
+                variant={tipo === 'cedis' ? 'default' : 'outline'}
+                size="xs"
+                className={cn(
+                  'justify-center gap-1 text-[11px]',
+                  tipo === 'cedis' && 'bg-orange-600 hover:bg-orange-700 text-white'
+                )}
+                onClick={() => handleTipoChange('cedis')}
+              >
+                <Warehouse weight="duotone" />
+                CEDIS
+              </Button>
+              <Button
+                type="button"
+                variant={tipo === 'crossdock' ? 'default' : 'outline'}
+                size="xs"
+                className={cn(
+                  'justify-center gap-1 text-[11px]',
+                  tipo === 'crossdock' && 'bg-purple-600 hover:bg-purple-700 text-white'
+                )}
+                onClick={() => handleTipoChange('crossdock')}
+              >
+                <Warehouse weight="duotone" />
+                Cross Dock
+              </Button>
+              <Button
+                type="button"
+                variant={tipo === 'resguardo' ? 'default' : 'outline'}
+                size="xs"
+                className={cn(
+                  'justify-center gap-1 text-[11px]',
+                  tipo === 'resguardo' && 'bg-amber-600 hover:bg-amber-700 text-white'
+                )}
+                onClick={() => handleTipoChange('resguardo')}
+              >
+                <Warehouse weight="duotone" />
+                Base
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label className="text-xs">Nombre de la Sucursal o Centro</Label>
             <Input
               size="sm"
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
-              placeholder="Ej. TUXTLA PATRIA NUEVA"
+              placeholder="Ej. CEDIS NETO TUXTLA o TUXTLA PATRIA NUEVA"
               className="font-semibold uppercase"
               required
               autoFocus
@@ -149,8 +228,8 @@ export function NewStoreModal({ open, onOpenChange, onStoreCreated, toast }) {
                 size="sm"
                 value={eco}
                 onChange={(e) => setEco(e.target.value)}
-                placeholder="Ej. 1420"
-                className="font-mono"
+                placeholder="Ej. 1420 o NET0016"
+                className="font-mono text-xs"
               />
             </div>
             <div className="space-y-1.5">
@@ -160,7 +239,7 @@ export function NewStoreModal({ open, onOpenChange, onStoreCreated, toast }) {
                 value={ceco}
                 onChange={(e) => setCeco(e.target.value)}
                 placeholder="Ej. 108266"
-                className="font-mono"
+                className="font-mono text-xs"
               />
             </div>
           </div>
@@ -169,7 +248,7 @@ export function NewStoreModal({ open, onOpenChange, onStoreCreated, toast }) {
             <div className="space-y-1.5">
               <Label className="text-xs">Estado</Label>
               <Select value={estado} onValueChange={setEstado}>
-                <SelectTrigger size="sm" className="bg-card">
+                <SelectTrigger size="sm" className="bg-card text-xs">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -189,7 +268,7 @@ export function NewStoreModal({ open, onOpenChange, onStoreCreated, toast }) {
                 value={zona}
                 onChange={(e) => setZona(e.target.value)}
                 placeholder="Ej. TUXTLA CENTRO"
-                className="uppercase"
+                className="uppercase text-xs"
               />
             </div>
           </div>
@@ -197,7 +276,7 @@ export function NewStoreModal({ open, onOpenChange, onStoreCreated, toast }) {
           <div className="space-y-1.5">
             <Label className="text-xs">Ingeniero Asignado (Opcional)</Label>
             <Select value={ingeniero} onValueChange={setIngeniero}>
-              <SelectTrigger size="sm" className="bg-card">
+              <SelectTrigger size="sm" className="bg-card text-xs">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -251,7 +330,7 @@ export function NewStoreModal({ open, onOpenChange, onStoreCreated, toast }) {
             </Button>
             <Button type="submit" disabled={guardando}>
               <PlusCircle weight="duotone" />
-              <span>{guardando ? 'Guardando en el catálogo…' : 'Crear y Publicar Tienda'}</span>
+              <span>{guardando ? 'Guardando en el catálogo…' : 'Crear y Publicar'}</span>
             </Button>
           </DialogFooter>
         </form>
@@ -259,4 +338,3 @@ export function NewStoreModal({ open, onOpenChange, onStoreCreated, toast }) {
     </Dialog>
   );
 }
-

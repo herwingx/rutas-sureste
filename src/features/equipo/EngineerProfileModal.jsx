@@ -110,7 +110,9 @@ export function EngineerProfileModal({
       (t) =>
         (t.region && t.region.toUpperCase().trim() === normReg) ||
         t.nombre.includes('RESGUARDO') ||
-        t.nombre.includes('CEDIS')
+        t.nombre.includes('CEDIS') ||
+        t.nombre.includes('CROSS') ||
+        t.nombre.includes('DOCK')
     );
     return deRegion.length > 0 ? deRegion : tiendas;
   }, [tiendas, region]);
@@ -125,8 +127,13 @@ export function EngineerProfileModal({
       const tieneBaseActual = candidatas.some((t) => t.nombre === baseNombre);
       if (!tieneBaseActual) {
         const resguardo =
-          candidatas.find((t) => t.nombre.includes('RESGUARDO') || t.nombre.includes('CEDIS')) ||
-          candidatas[0];
+          candidatas.find(
+            (t) =>
+              t.nombre.includes('RESGUARDO') ||
+              t.nombre.includes('CEDIS') ||
+              t.nombre.includes('CROSS') ||
+              t.nombre.includes('DOCK')
+          ) || candidatas[0];
         if (resguardo) setBaseNombre(resguardo.nombre);
       }
     }

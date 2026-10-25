@@ -843,6 +843,11 @@ export default function App() {
             lat: actual.lat,
             lng: actual.lng,
             verificada: true,
+            ...(actual.eco !== undefined ? { eco: actual.eco } : {}),
+            ...(actual.ceco !== undefined ? { ceco: actual.ceco } : {}),
+            ...(actual.zona !== undefined ? { zona: actual.zona } : {}),
+            ...(actual.region !== undefined ? { region: actual.region } : {}),
+            ...(actual.ingeniero !== undefined ? { ingeniero: actual.ingeniero } : {}),
           });
           toast(`${nombreNuevo || actual.nombre} actualizada`);
         }
@@ -1198,6 +1203,8 @@ export default function App() {
                   onShowMap={() => setMobileTab('mapa')}
                   isAdmin={isAdmin}
                   userSession={userSession}
+                  onStoreUpdated={(nuevaLista) => setTiendasRaw(nuevaLista)}
+                  toast={toast}
                 />
               </TabsContent>
 

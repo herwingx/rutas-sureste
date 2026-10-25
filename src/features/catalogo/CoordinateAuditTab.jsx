@@ -27,6 +27,7 @@ import {
   LockKey,
   LockKeyOpen,
   MapTrifold,
+  PencilSimple,
 } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -50,6 +51,7 @@ import {
   TypographyMono,
 } from '@/components/ui/typography';
 import { ESTADOS } from '@/lib/brand';
+import { EditStoreModal } from './EditStoreModal';
 import {
   cn,
   norm,
@@ -82,12 +84,16 @@ export function CoordinateAuditTab({
   onExportJson,
   onShowMap,
   isAdmin = false,
+  userSession,
+  onStoreUpdated,
+  toast,
 }) {
   const [filtroTexto, setFiltroTexto] = useState('');
   const [estadoFiltro, setEstadoFiltro] = useState('todas');
   const [zonaFiltro, setZonaFiltro] = useState('todas');
   const [ingenieroFiltro, setIngenieroFiltro] = useState('todos');
   const [coordInput, setCoordInput] = useState('');
+  const [editModalOpen, setEditModalOpen] = useState(false);
 
   const ingenierosLista = useMemo(() => {
     const conteo = new Map();
@@ -209,31 +215,57 @@ export function CoordinateAuditTab({
               </Select>
             </div>
 
-            {/* Metadatos de ingeniería (ECO, CECO, Zona, Ingeniero) */}
-            {(tiendaActualCat?.eco || tiendaActualCat?.zona || tiendaActualCat?.ingeniero) && (
+            {/* Metadatos de ingeniería y botón de edición completa */}
+            <div className="flex flex-wrap items-center justify-between gap-1.5 pt-0.5">
               <div className="flex flex-wrap items-center gap-1.5">
-                {tiendaActualCat.eco && tiendaActualCat.eco !== '0' && (
+                {tiendaActualCat?.nombre?.includes('CEDIS') && (
+                  <Badge className="bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/30 text-[10px] px-1.5 py-0.5 font-bold">
+                    CEDIS
+                  </Badge>
+                )}
+                {(tiendaActualCat?.nombre?.includes('CROSS') || tiendaActualCat?.nombre?.includes('DOCK')) && (
+                  <Badge className="bg-purple-500/15 text-purple-700 dark:text-purple-400 border-purple-500/30 text-[10px] px-1.5 py-0.5 font-bold">
+                    CROSS DOCK
+                  </Badge>
+                )}
+                {tiendaActualCat?.nombre?.includes('RESGUARDO') && (
+                  <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 text-[10px] px-1.5 py-0.5 font-bold">
+                    BASE
+                  </Badge>
+                )}
+                {tiendaActualCat?.eco && tiendaActualCat.eco !== '0' && (
                   <Badge variant="outline" className="font-mono text-[10px] px-1.5 py-0.5">
                     ECO {tiendaActualCat.eco}
                   </Badge>
                 )}
-                {tiendaActualCat.ceco && tiendaActualCat.ceco !== '0' && (
+                {tiendaActualCat?.ceco && tiendaActualCat.ceco !== '0' && (
                   <Badge variant="outline" className="font-mono text-[10px] px-1.5 py-0.5">
                     CECO {tiendaActualCat.ceco}
                   </Badge>
                 )}
-                {tiendaActualCat.zona && (
+                {tiendaActualCat?.zona && (
                   <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">
                     {tiendaActualCat.zona}
                   </Badge>
                 )}
-                {tiendaActualCat.ingeniero && (
+                {tiendaActualCat?.ingeniero && (
                   <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 text-muted-foreground">
                     {tiendaActualCat.ingeniero.split(' ')[0]}
                   </Badge>
                 )}
               </div>
-            )}
+
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                onClick={() => setEditModalOpen(true)}
+                className="gap-1 text-xs font-medium shrink-0"
+              >
+                <PencilSimple weight="duotone" className="h-3.5 w-3.5 text-primary" />
+                <span>Editar ficha</span>
+              </Button>
+            </div>
 
             {bloqueada ? (
               /* VISTA PROTEGIDA CUANDO LA SUCURSAL YA ESTÁ VERIFICADA */
@@ -595,14 +627,21 @@ export function CoordinateAuditTab({
                 <div className="flex items-center gap-1.5 shrink-0">
                   {t.nombre.includes('CEDIS') && (
                     <Badge
-                      className="bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/30 text-[9px] px-1 py-0 h-4 font-bold"
+                      className="bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/30 text-[9px] px-1.5 py-0 h-4 font-bold"
                     >
                       CEDIS
                     </Badge>
                   )}
+                  {(t.nombre.includes('CROSS') || t.nombre.includes('DOCK')) && (
+                    <Badge
+                      className="bg-purple-500/15 text-purple-700 dark:text-purple-400 border-purple-500/30 text-[9px] px-1.5 py-0 h-4 font-bold"
+                    >
+                      CROSS DOCK
+                    </Badge>
+                  )}
                   {t.nombre.includes('RESGUARDO') && (
                     <Badge
-                      className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 text-[9px] px-1 py-0 h-4 font-bold"
+                      className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 text-[9px] px-1.5 py-0 h-4 font-bold"
                     >
                       BASE
                     </Badge>
@@ -622,6 +661,25 @@ export function CoordinateAuditTab({
           })
         )}
       </Card>
+
+      {editModalOpen && tiendaActualCat && (
+        <EditStoreModal
+          open={editModalOpen}
+          onOpenChange={setEditModalOpen}
+          tienda={tiendaActualCat}
+          isAdmin={isAdmin}
+          onStoreUpdated={(nuevaLista, tiendaModificada) => {
+            onStoreUpdated?.(nuevaLista);
+            if (tiendaModificada?.nombre) {
+              onSelectStore?.(tiendaModificada.nombre);
+            }
+          }}
+          onStoreDeleted={() => {
+            onDeleteSelected?.();
+          }}
+          toast={toast}
+        />
+      )}
     </div>
   );
 }

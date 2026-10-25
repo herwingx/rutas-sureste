@@ -573,10 +573,14 @@ export function MapCanvas({
                   t.nombre?.toUpperCase().includes('CEDIS') ||
                   t.nombre?.toUpperCase().includes('ALMACEN')
                 );
+                const esCrossDock = Boolean(
+                  t.nombre?.toUpperCase().includes('CROSS') ||
+                  t.nombre?.toUpperCase().includes('DOCK')
+                );
                 const esResguardo = Boolean(
                   t.nombre?.toUpperCase().includes('RESGUARDO')
                 );
-                const esHubLogistico = esCedis || esResguardo || esBase;
+                const esHubLogistico = esCedis || esCrossDock || esResguardo || esBase;
 
                 const pos =
                   esSel && sel.lat != null
@@ -590,7 +594,7 @@ export function MapCanvas({
                     position={pos}
                     title={t.nombre}
                     draggable={esSel && !selBloqueada}
-                    zIndex={esSel ? 1000 : nums ? 500 : esBase ? 450 : esCedis ? 440 : esResguardo ? 430 : 25}
+                    zIndex={esSel ? 1000 : nums ? 500 : esBase ? 450 : esCedis ? 440 : esCrossDock ? 435 : esResguardo ? 430 : 25}
                     onClick={() => {
                       if (tab === 'corregir') {
                         if (!sel?.nueva) onSelectStore(t.nombre);
@@ -619,16 +623,18 @@ export function MapCanvas({
                               ? 'h-6 min-w-6 px-1.5 bg-blue-600 text-[11px] ring-2 ring-blue-500/30'
                               : esCedis
                                 ? 'h-7 w-7 bg-orange-600 ring-4 ring-orange-500/40 shadow-orange-500/40'
-                                : esBase || esResguardo
-                                  ? 'h-7 w-7 bg-amber-600 ring-4 ring-amber-500/40 shadow-amber-500/40'
-                                  : 'h-3.5 w-3.5 bg-slate-700 dark:bg-slate-300 hover:bg-blue-600 group-hover:scale-125'
+                                : esCrossDock
+                                  ? 'h-7 w-7 bg-purple-600 ring-4 ring-purple-500/40 shadow-purple-500/40'
+                                  : esBase || esResguardo
+                                    ? 'h-7 w-7 bg-amber-600 ring-4 ring-amber-500/40 shadow-amber-500/40'
+                                    : 'h-3.5 w-3.5 bg-slate-700 dark:bg-slate-300 hover:bg-blue-600 group-hover:scale-125'
                         )}
                       >
                         {nums ? (
                           nums.join(',')
                         ) : esSel ? (
                           <Crosshair weight="bold" className="h-3.5 w-3.5" />
-                        ) : esCedis || esResguardo || esBase ? (
+                        ) : esCedis || esCrossDock || esResguardo || esBase ? (
                           <Warehouse weight="fill" className="h-4 w-4 text-white" />
                         ) : null}
                       </div>
@@ -641,9 +647,11 @@ export function MapCanvas({
                             ? 'bg-blue-600 text-white border-blue-500 font-semibold'
                             : esCedis
                               ? 'bg-card text-foreground border-orange-500/80 ring-1 ring-orange-500/30 font-semibold'
-                              : esBase || esResguardo
-                                ? 'bg-card text-foreground border-amber-500/80 ring-1 ring-amber-500/30 font-semibold'
-                                : 'bg-card text-foreground border-border/80'
+                              : esCrossDock
+                                ? 'bg-card text-foreground border-purple-500/80 ring-1 ring-purple-500/30 font-semibold'
+                                : esBase || esResguardo
+                                  ? 'bg-card text-foreground border-amber-500/80 ring-1 ring-amber-500/30 font-semibold'
+                                  : 'bg-card text-foreground border-border/80'
                         )}
                       >
                         {esCedis && (
@@ -658,7 +666,19 @@ export function MapCanvas({
                             CEDIS
                           </span>
                         )}
-                        {(esResguardo || esBase) && !esCedis && (
+                        {esCrossDock && !esCedis && (
+                          <span
+                            className={cn(
+                              'rounded px-1.5 py-0.2 text-[9px] font-extrabold uppercase tracking-wider shrink-0 shadow-xs',
+                              esSel || nums
+                                ? 'bg-purple-500 text-white ring-1 ring-white/40'
+                                : 'bg-purple-600 text-white'
+                            )}
+                          >
+                            CROSS DOCK
+                          </span>
+                        )}
+                        {(esResguardo || esBase) && !esCedis && !esCrossDock && (
                           <span
                             className={cn(
                               'rounded px-1.5 py-0.2 text-[9px] font-extrabold uppercase tracking-wider shrink-0 shadow-xs',

@@ -966,7 +966,13 @@ export function AdminTeamTab({
                     </SelectTrigger>
                     <SelectContent>
                       {tiendas
-                        .filter((t) => t.nombre.includes('RESGUARDO') || t.nombre.includes('CEDIS'))
+                        .filter(
+                          (t) =>
+                            t.nombre.includes('RESGUARDO') ||
+                            t.nombre.includes('CEDIS') ||
+                            t.nombre.includes('CROSS') ||
+                            t.nombre.includes('DOCK')
+                        )
                         .map((t) => (
                           <SelectItem key={t.nombre} value={t.nombre}>
                             {t.nombre}
