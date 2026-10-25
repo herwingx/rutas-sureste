@@ -12,7 +12,7 @@
  *   compatible con pegado directo en Excel / Google Sheets y resumen para WhatsApp.
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   MagnifyingGlass,
   CopySimple,

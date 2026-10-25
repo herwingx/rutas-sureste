@@ -28,6 +28,8 @@ import {
   ShieldCheck,
   CrownSimple,
   SignOut,
+  MapTrifold,
+  ArrowLeft,
 } from '@phosphor-icons/react';
 import { BrandLogo } from '@/components/ui/brand-logo';
 import { Button } from '@/components/ui/button';
@@ -129,6 +131,7 @@ export default function App() {
   const [userSession, setUserSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [tab, setTab] = useState('ruta');
+  const [mobileTab, setMobileTab] = useState('panel'); // 'panel' | 'mapa'
   const [bitacoraOpen, setBitacoraOpen] = useState(false);
   const [modoModalBitacora, setModoModalBitacora] = useState('ambas');
   const [modoOperativo, setModoOperativo] = useState(() => {
@@ -1056,7 +1059,12 @@ export default function App() {
     <TooltipProvider delayDuration={200}>
       <div className="grid h-screen w-screen grid-cols-1 lg:grid-cols-[460px_1fr] bg-background text-foreground overflow-hidden">
         {/* ================= PANEL LATERAL ================= */}
-        <aside className="flex h-full flex-col border-r border-border bg-card min-h-0">
+        <aside
+          className={cn(
+            'h-full flex-col border-r border-border bg-card min-h-0',
+            mobileTab === 'mapa' ? 'hidden lg:flex' : 'flex'
+          )}
+        >
           {/* Cabecera */}
           <header className="flex items-center justify-between gap-2 border-b border-border px-4 py-2.5">
             <div className="flex items-center gap-2.5 min-w-0">
@@ -1072,6 +1080,16 @@ export default function App() {
             </div>
 
             <div className="flex items-center gap-1">
+              {/* Botón flotante para ver Mapa en móvil */}
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={() => setMobileTab('mapa')}
+                className="lg:hidden flex items-center gap-1 text-[11px] font-semibold h-7 px-2 border-primary/30 text-primary bg-primary/5 hover:bg-primary/10 mr-1"
+              >
+                <MapTrifold weight="duotone" className="h-3.5 w-3.5" />
+                <span>Mapa</span>
+              </Button>
               {userSession ? (
                 <div className="flex items-center gap-1">
                   <ActionTooltip
@@ -1354,7 +1372,24 @@ export default function App() {
         </aside>
 
         {/* ================= MAPA ================= */}
-        <main className="relative h-full w-full min-h-95">
+        <main
+          className={cn(
+            'relative h-full w-full min-h-95',
+            mobileTab === 'panel' ? 'hidden lg:block' : 'block'
+          )}
+        >
+          {/* Botón flotante para volver al Panel en móvil */}
+          {mobileTab === 'mapa' && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => setMobileTab('panel')}
+              className="lg:hidden absolute top-3 left-3 z-30 shadow-lg bg-card/95 text-foreground border border-border backdrop-blur-sm hover:bg-muted text-xs h-8 px-2.5 gap-1.5"
+            >
+              <ArrowLeft weight="bold" className="h-3.5 w-3.5" />
+              <span>Volver a Rutas</span>
+            </Button>
+          )}
           <MapCanvas
             mapsKey={mapsKey}
             tiendas={tiendas}
