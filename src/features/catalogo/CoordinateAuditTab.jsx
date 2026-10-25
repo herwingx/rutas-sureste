@@ -96,14 +96,24 @@ export function CoordinateAuditTab({
   const [coordInput, setCoordInput] = useState('');
   const [editModalOpen, setEditModalOpen] = useState(false);
 
-  // Resuelve el ingeniero asignado a una tienda dinámicamente según la región
+  // Resuelve el ingeniero asignado a una tienda (prioriza asignación directa sobre la tienda)
   const resolverIngeniero = (t) => {
     if (!t) return null;
     const rT = norm(t.region || t.estado || '');
     const zT = norm(t.zona || '');
 
     if (ingenieros?.length) {
-      // 1. Coincidencia por región
+      // 1. Coincidencia directa por nombre asignado en el registro de la tienda
+      if (t.ingeniero) {
+        const tIngNorm = norm(t.ingeniero);
+        const porNombre = ingenieros.find((i) => {
+          const iNomNorm = norm(i.nombre || '');
+          return iNomNorm === tIngNorm || iNomNorm.includes(tIngNorm) || tIngNorm.includes(iNomNorm);
+        });
+        if (porNombre) return porNombre;
+      }
+
+      // 2. Coincidencia por región operativa (solo si no tenía ingeniero explícito)
       const porRegion = ingenieros.find((i) => {
         const rI = norm(i.region || '');
         if (!rI) return false;
@@ -115,16 +125,6 @@ export function CoordinateAuditTab({
         );
       });
       if (porRegion) return porRegion;
-
-      // 2. Coincidencia por nombre previo si venía en el registro
-      if (t.ingeniero) {
-        const tIngNorm = norm(t.ingeniero);
-        const porNombre = ingenieros.find((i) => {
-          const iNomNorm = norm(i.nombre || '');
-          return iNomNorm === tIngNorm || iNomNorm.includes(tIngNorm) || tIngNorm.includes(iNomNorm);
-        });
-        if (porNombre) return porNombre;
-      }
     }
 
     if (t.ingeniero) {
