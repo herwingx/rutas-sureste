@@ -240,7 +240,7 @@ export function AuthModal({ open, onOpenChange, onAuthSuccess, toast }) {
           >
             <span>
               {cargando
-                ? 'Conectando con Supabase…'
+                ? 'Iniciando sesión segura…'
                 : modo === 'login'
                 ? 'Iniciar Sesión'
                 : 'Crear Cuenta Corporativa'}

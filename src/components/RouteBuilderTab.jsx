@@ -374,21 +374,8 @@ export function RouteBuilderTab({
           </Badge>
         </div>
 
-        {/* Selector de modo estilo segmented pill */}
+        {/* Selector de modo: Siempre primero Comprobación y después Anticipo */}
         <div className="grid grid-cols-2 p-0.5 rounded-lg bg-muted/60 border border-border/50">
-          <button
-            type="button"
-            onClick={() => onSetModoOperativo?.('anticipo')}
-            className={cn(
-              'flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md text-xs transition-all cursor-pointer',
-              modoOperativo === 'anticipo'
-                ? 'bg-amber-600 text-white font-semibold shadow-xs'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
-            )}
-          >
-            <Receipt weight="duotone" className="h-3.5 w-3.5" />
-            <span>📋 Anticipo</span>
-          </button>
           <button
             type="button"
             onClick={() => onSetModoOperativo?.('comprobacion')}
@@ -400,15 +387,28 @@ export function RouteBuilderTab({
             )}
           >
             <GasPump weight="duotone" className="h-3.5 w-3.5" />
-            <span>⛽ Comprobación</span>
+            <span>⛽ 1. Comprobación</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onSetModoOperativo?.('anticipo')}
+            className={cn(
+              'flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-md text-xs transition-all cursor-pointer',
+              modoOperativo === 'anticipo'
+                ? 'bg-amber-600 text-white font-semibold shadow-xs'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+            )}
+          >
+            <Receipt weight="duotone" className="h-3.5 w-3.5" />
+            <span>📋 2. Anticipo</span>
           </button>
         </div>
 
         <div className="flex items-center justify-between text-[11px] text-muted-foreground px-0.5">
           <span className="truncate pr-2">
-            {modoOperativo === 'anticipo'
-              ? 'Planeación previa de visitas para presupuesto'
-              : 'Bitácora real con odómetro y tickets para justificar gastos'}
+            {modoOperativo === 'comprobacion'
+              ? 'Paso 1: Bitácora real de la semana concluida (odómetro y tickets)'
+              : 'Paso 2: Proyección de la semana entrante para solicitud de viáticos'}
           </span>
           <span className="font-mono font-semibold shrink-0 text-foreground">
             {kmAcumuladoSemana} km acum.

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { API_KEY, CACHE_DIR } from './config.js';
+import { API_KEY, CACHE_DIR, SUPABASE_URL, SUPABASE_KEY, SUPABASE_SCHEMA } from './config.js';
 import { haversineKm } from './coords.js';
 
 const CACHE_FILE = path.join(CACHE_DIR, 'distancias.json');
@@ -15,6 +15,51 @@ try {
   cache = {};
 }
 
+function supabaseHeaders(extra = {}) {
+  return {
+    apikey: SUPABASE_KEY,
+    Authorization: `Bearer ${SUPABASE_KEY}`,
+    'Content-Type': 'application/json',
+    'Accept-Profile': SUPABASE_SCHEMA,
+    'Content-Profile': SUPABASE_SCHEMA,
+    ...extra,
+  };
+}
+
+async function consultarCacheCentral(key) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/cache_distancias?clave=eq.${encodeURIComponent(key)}&select=*`,
+      { headers: supabaseHeaders() }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    return Array.isArray(data) && data.length ? data[0] : null;
+  } catch {
+    return null;
+  }
+}
+
+async function guardarEnCacheCentral(key, r) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return;
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/cache_distancias?on_conflict=clave`, {
+      method: 'POST',
+      headers: supabaseHeaders({ Prefer: 'resolution=merge-duplicates,return=minimal' }),
+      body: JSON.stringify({
+        clave: key,
+        metros: r.metros || 0,
+        segundos: r.segundos || 0,
+        polyline: r.polyline || null,
+        fuente: r.fuente || 'routes',
+      }),
+    });
+  } catch (err) {
+    console.warn('[Cache Central Sync]:', err.message);
+  }
+}
+
 // Mapa de promesas en vuelo para evitar peticiones duplicadas simultáneas al mismo tramo
 const enVuelo = new Map();
 let guardadoPendiente = null;
@@ -22,14 +67,18 @@ let guardadoPendiente = null;
 function persistirCache() {
   clearTimeout(guardadoPendiente);
   guardadoPendiente = setTimeout(() => {
-    const ahora = Date.now();
-    for (const k of Object.keys(cache)) {
-      if (ahora - cache[k].ts > CACHE_TTL_MS) delete cache[k];
+    try {
+      const ahora = Date.now();
+      for (const k of Object.keys(cache)) {
+        if (ahora - cache[k].ts > CACHE_TTL_MS) delete cache[k];
+      }
+      fs.mkdirSync(CACHE_DIR, { recursive: true });
+      const tmp = CACHE_FILE + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify(cache));
+      fs.renameSync(tmp, CACHE_FILE);
+    } catch {
+      // Ignorar en entornos de solo lectura (como Vercel Serverless) ya que Supabase respalda todo
     }
-    fs.mkdirSync(CACHE_DIR, { recursive: true });
-    const tmp = CACHE_FILE + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(cache));
-    fs.renameSync(tmp, CACHE_FILE);
   }, 250);
 }
 
@@ -117,6 +166,13 @@ export async function tramo(a, b) {
     return { ...hit, km: Math.ceil(hit.metros / 1000), cache: true };
   }
 
+  // 1. Consultar en la base de datos central compartida por todos los ingenieros
+  const centralHit = await consultarCacheCentral(key);
+  if (centralHit) {
+    cache[key] = { ...centralHit, ts: Date.now() };
+    return { ...centralHit, km: Math.ceil(centralHit.metros / 1000), cache: true };
+  }
+
   // Si este mismo tramo ya se está consultando en este instante, reutilizar la promesa en vuelo
   if (enVuelo.has(key)) {
     return enVuelo.get(key);
@@ -127,6 +183,7 @@ export async function tramo(a, b) {
       const r = await tramoRoutes(a, b);
       cache[key] = { ...r, ts: Date.now() };
       persistirCache();
+      guardarEnCacheCentral(key, r).catch(() => {});
       return { ...r, km: Math.ceil(r.metros / 1000), cache: false };
     } catch (e) {
       const r = estimado(a, b);
@@ -143,6 +200,35 @@ export async function tramo(a, b) {
 export async function calcularRuta(puntos, concurrencia = 6) {
   const pares = [];
   for (let i = 0; i < puntos.length - 1; i++) pares.push([puntos[i], puntos[i + 1]]);
+
+  // Pre-carga por lote desde la base de datos central para todos los tramos faltantes en memoria
+  const clavesBuscar = [];
+  for (const [a, b] of pares) {
+    if (k6(a) === k6(b)) continue;
+    const k = claveTramo(a, b);
+    if (!cache[k] || Date.now() - cache[k].ts >= CACHE_TTL_MS) {
+      clavesBuscar.push(k);
+    }
+  }
+
+  if (clavesBuscar.length > 0 && SUPABASE_URL && SUPABASE_KEY) {
+    try {
+      const inList = clavesBuscar.map((k) => `"${k}"`).join(',');
+      const res = await fetch(
+        `${SUPABASE_URL}/rest/v1/cache_distancias?clave=in.(${encodeURIComponent(inList)})&select=*`,
+        { headers: supabaseHeaders() }
+      );
+      if (res.ok) {
+        const rows = await res.json();
+        if (Array.isArray(rows)) {
+          for (const row of rows) {
+            cache[row.clave] = { ...row, ts: Date.now() };
+          }
+        }
+      }
+    } catch {}
+  }
+
   const out = new Array(pares.length);
   let idx = 0;
   await Promise.all(

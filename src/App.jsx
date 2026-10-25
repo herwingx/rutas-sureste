@@ -1343,13 +1343,11 @@ export default function App() {
                     motor?.motor === 'routes' ? 'bg-emerald-500' : 'bg-amber-500'
                   )}
                 />
-                <span>{motor?.motor === 'routes' ? 'Routes API' : 'Distance Matrix'}</span>
+                <span>Red Logística</span>
               </div>
-              {supabaseConnected && (
-                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
-                  · Supabase Sync
-                </span>
-              )}
+              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                · En línea
+              </span>
             </div>
             <span className="tabular-nums">{motor?.tramosEnCache || 0} tramos en caché</span>
           </footer>

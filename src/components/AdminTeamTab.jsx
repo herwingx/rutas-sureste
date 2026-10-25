@@ -614,7 +614,7 @@ export function AdminTeamTab({
           {bitacorasGlobales.length === 0 ? (
             <Card className="p-8 text-center text-muted-foreground">
               <TypographyMuted>
-                No hay bitácoras guardadas en Supabase todavía. Genera la primera desde el botón superior.
+                No hay bitácoras archivadas en el servidor todavía. Genera la primera desde el botón superior.
               </TypographyMuted>
             </Card>
           ) : (
@@ -698,7 +698,7 @@ export function AdminTeamTab({
             <DialogHeader>
               <DialogTitle>Ficha Técnica y Vehicular</DialogTitle>
               <DialogDescription>
-                Modifica los datos del ingeniero. Estos cambios se sincronizarán en tiempo real con Supabase y se usarán en las bitácoras semanales.
+                Modifica los datos del ingeniero. Estos cambios se sincronizarán en tiempo real con el servidor y se usarán en las bitácoras semanales.
               </DialogDescription>
             </DialogHeader>
 
@@ -865,7 +865,7 @@ export function AdminTeamTab({
                 disabled={guardando}
                 className="bg-primary hover:bg-primary/90"
               >
-                {guardando ? 'Guardando en Supabase…' : 'Guardar Ficha'}
+                {guardando ? 'Guardando en el servidor…' : 'Guardar Ficha'}
               </Button>
             </DialogFooter>
           </DialogContent>

@@ -327,7 +327,7 @@ export function BitacoraGeneratorModal({
       });
       onSaveIngeniero(listaActualizada, formIng);
       setEditandoPerfil(false);
-      toast('Perfil de ingeniero sincronizado con Supabase');
+      toast('Perfil del ingeniero guardado correctamente');
     } catch (e) {
       toast(e.message, 'err');
     } finally {
@@ -337,7 +337,7 @@ export function BitacoraGeneratorModal({
 
   const guardarEnSupabase = async () => {
     if (!perfilCompleto) {
-      toast('Completa tu ficha vehicular antes de guardar la bitácora en la nube', 'err');
+      toast('Completa tu ficha vehicular antes de archivar la bitácora', 'err');
       onOpenProfile?.();
       return;
     }
@@ -367,9 +367,9 @@ export function BitacoraGeneratorModal({
       await api('POST', '/api/bitacoras', payload);
       const lista = await api('GET', '/api/bitacoras');
       setBitacorasGuardadas(lista);
-      toast(`Bitácora Semana ${semana} (${anio}) guardada en Supabase`);
+      toast(`Bitácora Semana ${semana} (${anio}) archivada en el servidor`);
     } catch (e) {
-      toast('Error guardando en Supabase: ' + e.message, 'err');
+      toast('Error guardando bitácora: ' + e.message, 'err');
     } finally {
       setGuardandoSupabase(false);
     }
@@ -445,7 +445,7 @@ export function BitacoraGeneratorModal({
                   </Badge>
                 </DialogTitle>
                 <DialogDescription>
-                  Genera el formato corporativo con pestañas de Comprobación y Anticipo, fórmulas y almacenamiento en Supabase.
+                  Genera el formato corporativo con pestañas de Comprobación y Anticipo, fórmulas y respaldo centralizado.
                 </DialogDescription>
               </div>
             </div>
@@ -498,9 +498,9 @@ export function BitacoraGeneratorModal({
                 </div>
                 <div className="flex items-center gap-1">
                   {[
-                    { id: 'ambas', label: 'Ambas (COMPROBACION + ANTICIPO)' },
-                    { id: 'comprobacion', label: 'Solo Comprobación' },
-                    { id: 'anticipo', label: 'Solo Anticipo' },
+                    { id: 'comprobacion', label: '1. Comprobación' },
+                    { id: 'anticipo', label: '2. Anticipo' },
+                    { id: 'ambas', label: 'Ambas (COMPROBACIÓN + ANTICIPO)' },
                   ].map((m) => (
                     <Button
                       key={m.id}
@@ -508,7 +508,7 @@ export function BitacoraGeneratorModal({
                       variant={modoHojas === m.id ? 'default' : 'outline'}
                       size="xs"
                       onClick={() => setModoHojas(m.id)}
-                      className="text-[11px] h-6 px-2"
+                      className="text-[11px] h-6 px-2 font-medium"
                     >
                       {m.label}
                     </Button>
@@ -663,7 +663,7 @@ export function BitacoraGeneratorModal({
                   <div className="flex justify-end">
                     <Button size="xs" onClick={guardarPerfil} disabled={guardandoPerfil}>
                       <FloppyDiskBack weight="duotone" />
-                      {guardandoPerfil ? 'Guardando…' : 'Guardar en Supabase'}
+                      {guardandoPerfil ? 'Guardando…' : 'Guardar Ficha'}
                     </Button>
                   </div>
                 </div>
@@ -895,7 +895,7 @@ export function BitacoraGeneratorModal({
                 disabled={guardandoSupabase || diasConsolidados.length === 0}
               >
                 <FloppyDiskBack weight="duotone" />
-                {guardandoSupabase ? 'Guardando…' : 'Guardar en Supabase'}
+                {guardandoSupabase ? 'Guardando…' : 'Archivar en Servidor'}
               </Button>
             </Card>
           </TabsContent>
@@ -905,8 +905,8 @@ export function BitacoraGeneratorModal({
             {bitacorasGuardadas.length === 0 ? (
               <Card className="p-8 text-center bg-muted/15 border-dashed">
                 <TypographyMuted className="text-xs">
-                  No hay bitácoras semanales guardadas todavía en Supabase.
-                  Al generar o presionar "Guardar en Supabase" se archivarán aquí para descargarlas cuando quieras.
+                  No hay bitácoras semanales archivadas todavía.
+                  Al generar o presionar "Archivar en Servidor" se guardarán aquí para descargarlas cuando quieras.
                 </TypographyMuted>
               </Card>
             ) : (

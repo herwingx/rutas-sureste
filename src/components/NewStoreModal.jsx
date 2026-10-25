@@ -125,7 +125,7 @@ export function NewStoreModal({ open, onOpenChange, onStoreCreated, toast }) {
             <div>
               <DialogTitle className="text-base">Registrar Nueva Tienda en el Catálogo</DialogTitle>
               <DialogDescription className="text-xs">
-                La tienda se guardará en Supabase y estará disponible de inmediato para todos los ingenieros.
+                La tienda se guardará en el catálogo central y estará disponible de inmediato para todos los ingenieros.
               </DialogDescription>
             </div>
           </div>
@@ -254,7 +254,7 @@ export function NewStoreModal({ open, onOpenChange, onStoreCreated, toast }) {
             </Button>
             <Button type="submit" disabled={guardando}>
               <PlusCircle weight="duotone" />
-              <span>{guardando ? 'Guardando en Supabase…' : 'Crear y Publicar Tienda'}</span>
+              <span>{guardando ? 'Guardando en el catálogo…' : 'Crear y Publicar Tienda'}</span>
             </Button>
           </DialogFooter>
         </form>
