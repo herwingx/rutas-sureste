@@ -39,13 +39,15 @@ function loadEnv() {
 const env = loadEnv();
 const SUPABASE_URL = env.SUPABASE_URL;
 const SUPABASE_KEY = env.SUPABASE_KEY || env.SUPABASE_SERVICE_ROLE_KEY || env.SUPABASE_ANON_KEY;
+const SUPABASE_SCHEMA = env.SUPABASE_SCHEMA || 'rutas_sureste';
 
 function checkConfig() {
   if (!SUPABASE_URL || !SUPABASE_KEY) {
     console.error('\n❌ Faltan credenciales de Supabase en tu archivo .env:');
     console.error('Agrega las siguientes variables a .env:');
     console.error('  SUPABASE_URL=https://<tu-proyecto>.supabase.co');
-    console.error('  SUPABASE_KEY=<tu-service-role-o-anon-key>\n');
+    console.error('  SUPABASE_KEY=<tu-service-role-o-anon-key>');
+    console.error('  SUPABASE_SCHEMA=rutas_sureste\n');
     process.exit(1);
   }
 }
@@ -54,7 +56,7 @@ async function pushToSupabase() {
   checkConfig();
   console.log('📦 Leyendo data/tiendas.json...');
   const tiendas = JSON.parse(fs.readFileSync(JSON_FILE, 'utf8'));
-  console.log(`Subiendo ${tiendas.length} tiendas a Supabase (${SUPABASE_URL})...`);
+  console.log(`Subiendo ${tiendas.length} tiendas a Supabase (${SUPABASE_URL}, schema: ${SUPABASE_SCHEMA})...`);
 
   const payload = tiendas.map((t) => {
     const [latStr, lngStr] = String(t.coords || '').split(',');
@@ -89,6 +91,8 @@ async function pushToSupabase() {
         'Content-Type': 'application/json',
         apikey: SUPABASE_KEY,
         Authorization: `Bearer ${SUPABASE_KEY}`,
+        'Accept-Profile': SUPABASE_SCHEMA,
+        'Content-Profile': SUPABASE_SCHEMA,
         Prefer: 'resolution=merge-duplicates,return=minimal',
       },
       body: JSON.stringify(batch),
@@ -106,12 +110,13 @@ async function pushToSupabase() {
 
 async function pullFromSupabase() {
   checkConfig();
-  console.log(`📥 Descargando tiendas desde Supabase (${SUPABASE_URL})...`);
+  console.log(`📥 Descargando tiendas desde Supabase (${SUPABASE_URL}, schema: ${SUPABASE_SCHEMA})...`);
 
   const res = await fetch(`${SUPABASE_URL}/rest/v1/tiendas?select=*&order=nombre.asc`, {
     headers: {
       apikey: SUPABASE_KEY,
       Authorization: `Bearer ${SUPABASE_KEY}`,
+      'Accept-Profile': SUPABASE_SCHEMA,
     },
   });
 
@@ -134,8 +139,16 @@ async function pullFromSupabase() {
     empresa: d.empresa || 'SURESTE',
     zona: d.zona || '',
     ingeniero: d.ingeniero || '',
-    ...(d.verificada ? { verificada: true, fechaVerificacion: d.fecha_verificacion } : {}),
+    ...(d.verificada ? { verificada: true } : {}),
+    ...(d.verificada && d.fecha_verificacion ? { fechaVerificacion: d.fecha_verificacion } : {}),
   }));
+
+  // Ordenar: primero base de resguardo, luego cedis y luego alfabético
+  const resguardos = locales.filter((t) => t.nombre.includes('RESGUARDO'));
+  const cedis = locales.filter((t) => t.nombre.includes('CEDIS') && !t.nombre.includes('RESGUARDO'));
+  const resto = locales.filter((t) => !t.nombre.includes('RESGUARDO') && !t.nombre.includes('CEDIS'));
+  resto.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
+  const finalTiendas = [...resguardos, ...cedis, ...resto];
 
   // Respaldo de seguridad previo
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -145,10 +158,10 @@ async function pullFromSupabase() {
   }
 
   const tmp = JSON_FILE + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(locales, null, 4), 'utf8');
+  fs.writeFileSync(tmp, JSON.stringify(finalTiendas, null, 4), 'utf8');
   fs.renameSync(tmp, JSON_FILE);
 
-  console.log(`\n✅ data/tiendas.json actualizado con ${locales.length} tiendas desde Supabase.`);
+  console.log(`\n✅ data/tiendas.json actualizado con ${finalTiendas.length} tiendas desde Supabase.`);
   console.log(`Respaldo previo en: ${backupPath}\n`);
 }
 
