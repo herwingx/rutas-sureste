@@ -32,19 +32,19 @@ const BORDER_BOTTOM_ONLY = {
 const FILL_HEADER_LIGHT = {
   type: 'pattern',
   pattern: 'solid',
-  fgColor: { argb: 'FFD9E1F2' },
+  fgColor: { argb: 'FFDCE6F1' },
 };
 
 const FILL_SECTION_BLUE = {
   type: 'pattern',
   pattern: 'solid',
-  fgColor: { argb: 'FFB4C6E7' },
+  fgColor: { argb: 'FFB8CCE4' },
 };
 
 const FILL_PEACH = {
   type: 'pattern',
   pattern: 'solid',
-  fgColor: { argb: 'FFFCE4D6' },
+  fgColor: { argb: 'FFFDE9D9' },
 };
 
 const FILL_TICKET = {
@@ -134,21 +134,23 @@ function construirHojaBitacora(ws, {
     fitToHeight: 1,
   };
 
-  // Columnas exactas A..M
+  // Columnas exactas fieles a la plantilla original de Tiendas Neto (A..O)
   ws.columns = [
-    { key: 'A', width: 2.5 },
-    { key: 'B', width: 15.5 },
-    { key: 'C', width: 25.5 },
-    { key: 'D', width: 25.5 },
-    { key: 'E', width: 14.5 },
-    { key: 'F', width: 17.5 },
-    { key: 'G', width: 17.5 },
-    { key: 'H', width: 2.5 },
-    { key: 'I', width: 22.0 },
-    { key: 'J', width: 28.0 },
-    { key: 'K', width: 2.5 },
-    { key: 'L', width: 15.5 },
-    { key: 'M', width: 15.5 },
+    { key: 'A', width: 4.25 },
+    { key: 'B', width: 14.62 },
+    { key: 'C', width: 39.12 },
+    { key: 'D', width: 39.0 },
+    { key: 'E', width: 13.25 },
+    { key: 'F', width: 26.0 },
+    { key: 'G', width: 24.5 },
+    { key: 'H', width: 10.0 },
+    { key: 'I', width: 17.25 },
+    { key: 'J', width: 22.25 },
+    { key: 'K', width: 10.0 },
+    { key: 'L', width: 10.0 },
+    { key: 'M', width: 11.25 },
+    { key: 'N', width: 15.38 },
+    { key: 'O', width: 5.12 },
   ];
 
   if (logoImageId !== null) {
@@ -310,24 +312,24 @@ function construirHojaBitacora(ws, {
   // Tabla derecha superior: DOMICILIO y SUCURSALES NUEVAS (I3:J16)
   ws.mergeCells('I3:J3');
   ws.getCell('I3').value = 'DOMICILIO';
-  ws.getCell('I3').font = { name: FONT_NAME, size: 9, bold: true, color: { argb: 'FF0000FF' } };
+  ws.getCell('I3').font = { name: FONT_NAME, size: 9, bold: true, color: { argb: 'FF0000CC' } };
   ws.getCell('I3').fill = FILL_SECTION_BLUE;
   ws.getCell('I3').alignment = { horizontal: 'center', vertical: 'middle' };
   ws.getCell('I3').border = BORDER_THIN;
   ws.getCell('J3').border = BORDER_THIN;
 
   ws.getCell('I4').value = 'DIRECCION:';
-  ws.getCell('I4').font = { name: FONT_NAME, size: 8, bold: true, color: { argb: 'FF0000FF' } };
-  ws.getCell('I4').fill = FILL_HEADER_LIGHT;
+  ws.getCell('I4').font = { name: FONT_NAME, size: 8, bold: true, color: { argb: 'FF0000CC' } };
+  ws.getCell('I4').fill = FILL_SECTION_BLUE;
   ws.getCell('I4').border = BORDER_THIN;
   ws.getCell('J4').value = ingeniero.domicilio_direccion || '';
   ws.getCell('J4').font = { name: FONT_NAME, size: 8 };
-  ws.getCell('J4').fill = FILL_HEADER_LIGHT;
+  ws.getCell('J4').fill = FILL_SECTION_BLUE;
   ws.getCell('J4').border = BORDER_THIN;
 
   ws.getCell('I5').value = 'UBICACIÓN';
-  ws.getCell('I5').font = { name: FONT_NAME, size: 8, bold: true, color: { argb: 'FF0000FF' } };
-  ws.getCell('I5').fill = FILL_HEADER_LIGHT;
+  ws.getCell('I5').font = { name: FONT_NAME, size: 8, bold: true, color: { argb: 'FF0000CC' } };
+  ws.getCell('I5').fill = FILL_SECTION_BLUE;
   ws.getCell('I5').border = BORDER_THIN;
   if (ingeniero.domicilio_link) {
     ws.getCell('J5').value = {
@@ -341,25 +343,25 @@ function construirHojaBitacora(ws, {
       underline: true,
     };
   }
-  ws.getCell('J5').fill = FILL_HEADER_LIGHT;
+  ws.getCell('J5').fill = FILL_SECTION_BLUE;
   ws.getCell('J5').border = BORDER_THIN;
 
   ws.mergeCells('I6:J6');
   ws.getCell('I6').value = 'SUCURSALES NUEVAS/PUNTOS';
-  ws.getCell('I6').font = { name: FONT_NAME, size: 9, bold: true, color: { argb: 'FF0000FF' } };
+  ws.getCell('I6').font = { name: FONT_NAME, size: 9, bold: true, color: { argb: 'FF0000CC' } };
   ws.getCell('I6').fill = FILL_SECTION_BLUE;
   ws.getCell('I6').alignment = { horizontal: 'center', vertical: 'middle' };
   ws.getCell('I6').border = BORDER_THIN;
   ws.getCell('J6').border = BORDER_THIN;
 
   ws.getCell('I7').value = 'TIENDA';
-  ws.getCell('I7').font = { name: FONT_NAME, size: 8, bold: true, color: { argb: 'FF0000FF' } };
+  ws.getCell('I7').font = { name: FONT_NAME, size: 8, bold: true, color: { argb: 'FF0000CC' } };
   ws.getCell('I7').fill = FILL_PEACH;
   ws.getCell('I7').alignment = { horizontal: 'center', vertical: 'middle' };
   ws.getCell('I7').border = BORDER_THIN;
 
   ws.getCell('J7').value = 'UBICACIÓN (LINK)';
-  ws.getCell('J7').font = { name: FONT_NAME, size: 8, bold: true, color: { argb: 'FF0000FF' } };
+  ws.getCell('J7').font = { name: FONT_NAME, size: 8, bold: true, color: { argb: 'FF0000CC' } };
   ws.getCell('J7').fill = FILL_PEACH;
   ws.getCell('J7').alignment = { horizontal: 'center', vertical: 'middle' };
   ws.getCell('J7').border = BORDER_THIN;
@@ -496,98 +498,103 @@ function construirHojaBitacora(ws, {
   ws.getCell('E13').value = { formula: 'C13+E73', result: kmIniNum + totalKmAcumulado };
   ws.getCell('G13').value = { formula: 'E13-C13', result: totalKmAcumulado };
 
-  // 3 Marcos para Fotos
-  ws.mergeCells('I18:J18');
+  // 3 Marcos para Fotos oficiales fieles a la plantilla
+  // 1. Odómetro (I18:K18 header, I19:K31 área de foto)
+  ws.mergeCells('I18:K18');
   ws.getCell('I18').value = 'FOTOGRAFIA DEL ODOMETRO';
-  ws.getCell('I18').font = { name: FONT_NAME, size: 9, bold: true, color: { argb: 'FF0000FF' } };
+  ws.getCell('I18').font = { name: FONT_NAME, size: 12, bold: true, color: { argb: 'FF0000CC' } };
   ws.getCell('I18').fill = FILL_SECTION_BLUE;
   ws.getCell('I18').alignment = { horizontal: 'center', vertical: 'middle' };
-  ws.getCell('I18').border = BORDER_THIN;
-  ws.getCell('J18').border = BORDER_THIN;
+  ['I18', 'J18', 'K18'].forEach((ref) => {
+    ws.getCell(ref).border = BORDER_THIN;
+  });
 
-  ws.mergeCells('I19:J30');
-  for (let r = 19; r <= 30; r++) {
-    for (let c = 9; c <= 10; c++) {
+  ws.mergeCells('I19:K31');
+  for (let r = 19; r <= 31; r++) {
+    for (let c = 9; c <= 11; c++) {
       const cell = ws.getCell(r, c);
       cell.fill = FILL_PEACH;
       cell.border = {
         top: r === 19 ? { style: 'thin', color: { argb: 'FF000000' } } : undefined,
-        bottom: r === 30 ? { style: 'thin', color: { argb: 'FF000000' } } : undefined,
+        bottom: r === 31 ? { style: 'thin', color: { argb: 'FF000000' } } : undefined,
         left: c === 9 ? { style: 'thin', color: { argb: 'FF000000' } } : undefined,
-        right: c === 10 ? { style: 'thin', color: { argb: 'FF000000' } } : undefined,
+        right: c === 11 ? { style: 'thin', color: { argb: 'FF000000' } } : undefined,
       };
     }
   }
 
-  ws.mergeCells('I32:J32');
-  ws.getCell('I32').value = 'FOTOGRAFIA DEL RENDIMIENTO';
-  ws.getCell('I32').font = { name: FONT_NAME, size: 9, bold: true, color: { argb: 'FF0000FF' } };
-  ws.getCell('I32').fill = FILL_SECTION_BLUE;
-  ws.getCell('I32').alignment = { horizontal: 'center', vertical: 'middle' };
-  ws.getCell('I32').border = BORDER_THIN;
-  ws.getCell('J32').border = BORDER_THIN;
+  // 2. Rendimiento (I33:K33 header, I34:K46 área de foto)
+  ws.mergeCells('I33:K33');
+  ws.getCell('I33').value = 'FOTOGRAFIA DEL RENDIMIENTO';
+  ws.getCell('I33').font = { name: FONT_NAME, size: 12, bold: true, color: { argb: 'FF0000CC' } };
+  ws.getCell('I33').fill = FILL_SECTION_BLUE;
+  ws.getCell('I33').alignment = { horizontal: 'center', vertical: 'middle' };
+  ['I33', 'J33', 'K33'].forEach((ref) => {
+    ws.getCell(ref).border = BORDER_THIN;
+  });
 
-  ws.mergeCells('I33:J44');
-  for (let r = 33; r <= 44; r++) {
-    for (let c = 9; c <= 10; c++) {
+  ws.mergeCells('I34:K46');
+  for (let r = 34; r <= 46; r++) {
+    for (let c = 9; c <= 11; c++) {
       const cell = ws.getCell(r, c);
       cell.fill = FILL_PEACH;
       cell.border = {
-        top: r === 33 ? { style: 'thin', color: { argb: 'FF000000' } } : undefined,
-        bottom: r === 44 ? { style: 'thin', color: { argb: 'FF000000' } } : undefined,
+        top: r === 34 ? { style: 'thin', color: { argb: 'FF000000' } } : undefined,
+        bottom: r === 46 ? { style: 'thin', color: { argb: 'FF000000' } } : undefined,
         left: c === 9 ? { style: 'thin', color: { argb: 'FF000000' } } : undefined,
-        right: c === 10 ? { style: 'thin', color: { argb: 'FF000000' } } : undefined,
+        right: c === 11 ? { style: 'thin', color: { argb: 'FF000000' } } : undefined,
       };
     }
   }
 
-  ws.mergeCells('L18:M18');
-  ws.getCell('L18').value = 'FOTOGRAFIA DEL TICKET';
-  ws.getCell('L18').font = { name: FONT_NAME, size: 9, bold: true, color: { argb: 'FF0000FF' } };
-  ws.getCell('L18').fill = FILL_SECTION_BLUE;
-  ws.getCell('L18').alignment = { horizontal: 'center', vertical: 'middle' };
-  ws.getCell('L18').border = BORDER_THIN;
-  ws.getCell('M18').border = BORDER_THIN;
+  // 3. Ticket de Gasolina (M18:O18 header, M19:O42 área de foto)
+  ws.mergeCells('M18:O18');
+  ws.getCell('M18').value = 'FOTOGRAFIA DEL TICKET';
+  ws.getCell('M18').font = { name: FONT_NAME, size: 12, bold: true, color: { argb: 'FF0000CC' } };
+  ws.getCell('M18').fill = FILL_SECTION_BLUE;
+  ws.getCell('M18').alignment = { horizontal: 'center', vertical: 'middle' };
+  ['M18', 'N18', 'O18'].forEach((ref) => {
+    ws.getCell(ref).border = BORDER_THIN;
+  });
 
-  ws.mergeCells('L19:M48');
-  for (let r = 19; r <= 48; r++) {
-    for (let c = 12; c <= 13; c++) {
+  ws.mergeCells('M19:O42');
+  for (let r = 19; r <= 42; r++) {
+    for (let c = 13; c <= 15; c++) {
       const cell = ws.getCell(r, c);
-      cell.fill = FILL_TICKET;
+      cell.fill = FILL_PEACH;
       cell.border = {
         top: r === 19 ? { style: 'thin', color: { argb: 'FF000000' } } : undefined,
-        bottom: r === 48 ? { style: 'thin', color: { argb: 'FF000000' } } : undefined,
-        left: c === 12 ? { style: 'thin', color: { argb: 'FF000000' } } : undefined,
-        right: c === 13 ? { style: 'thin', color: { argb: 'FF000000' } } : undefined,
+        bottom: r === 42 ? { style: 'thin', color: { argb: 'FF000000' } } : undefined,
+        left: c === 13 ? { style: 'thin', color: { argb: 'FF000000' } } : undefined,
+        right: c === 15 ? { style: 'thin', color: { argb: 'FF000000' } } : undefined,
       };
     }
   }
 
   // Fila 73: Total
-  ws.getRow(73).height = 17;
+  ws.getRow(73).height = 15.75;
   ws.mergeCells('B73:D73');
   ws.getCell('B73').value = 'Total ';
-  ws.getCell('B73').font = { name: FONT_NAME, size: 10, bold: true };
-  ws.getCell('B73').alignment = { horizontal: 'center', vertical: 'middle' };
-  ws.getCell('B73').fill = FILL_HEADER_LIGHT;
+  ws.getCell('B73').font = { name: FONT_NAME, size: 12, bold: true };
+  ws.getCell('B73').alignment = { horizontal: 'center', vertical: 'bottom' };
   for (let c = 2; c <= 7; c++) {
     ws.getCell(73, c).border = BORDER_THIN;
-    ws.getCell(73, c).fill = FILL_HEADER_LIGHT;
+    ws.getCell(73, c).fill = FILL_SECTION_BLUE;
   }
 
   ws.getCell('E73').value = { formula: 'SUM(E17:E72)', result: totalKmAcumulado };
-  ws.getCell('E73').font = { name: FONT_NAME, size: 10, bold: true };
-  ws.getCell('E73').alignment = { horizontal: 'center', vertical: 'middle' };
+  ws.getCell('E73').font = { name: FONT_NAME, size: 12, bold: true };
+  ws.getCell('E73').alignment = { horizontal: 'center', vertical: 'bottom' };
   ws.getCell('E73').numFmt = '#,##0';
 
   ws.getCell('F73').value = { formula: 'SUM(F17:F72)', result: totalLtsAcumulado };
-  ws.getCell('F73').font = { name: FONT_NAME, size: 10, bold: true };
+  ws.getCell('F73').font = { name: FONT_NAME, size: 12, bold: true };
   ws.getCell('F73').alignment = { horizontal: 'center', vertical: 'middle' };
-  ws.getCell('F73').numFmt = '0.00';
+  ws.getCell('F73').numFmt = '0.0';
 
   ws.getCell('G73').value = { formula: 'SUM(G17:G72)', result: totalImpAcumulado };
-  ws.getCell('G73').font = { name: FONT_NAME, size: 10, bold: true };
-  ws.getCell('G73').alignment = { horizontal: 'right', vertical: 'middle' };
+  ws.getCell('G73').font = { name: FONT_NAME, size: 12, bold: true };
+  ws.getCell('G73').alignment = { horizontal: 'center', vertical: 'middle' };
   ws.getCell('G73').numFmt = '"$"#,##0.00';
 
   // Fila 74: DISPERSION y Fila 75: COMPLEMENTOS
@@ -596,63 +603,71 @@ function construirHojaBitacora(ws, {
     { row: 75, label: 'COMPLEMENTOS', val: Number(complementos) || 0 },
   ];
   filasResumen.forEach(({ row, label, val }) => {
-    ws.getRow(row).height = 16;
+    ws.getRow(row).height = 15;
     ws.getCell(row, 6).value = label;
-    ws.getCell(row, 6).font = { name: FONT_NAME, size: 9, bold: true };
+    ws.getCell(row, 6).font = { name: FONT_NAME, size: 12, bold: true };
     ws.getCell(row, 6).alignment = { horizontal: 'right', vertical: 'middle' };
+    ws.getCell(row, 6).fill = FILL_PEACH;
     ws.getCell(row, 6).border = BORDER_THIN;
 
     ws.getCell(row, 7).value = val || null;
-    ws.getCell(row, 7).font = { name: FONT_NAME, size: 9, bold: true };
-    ws.getCell(row, 7).alignment = { horizontal: 'right', vertical: 'middle' };
+    ws.getCell(row, 7).font = { name: FONT_NAME, size: 12, bold: true };
+    ws.getCell(row, 7).alignment = { horizontal: 'center', vertical: 'middle' };
+    ws.getCell(row, 7).fill = FILL_PEACH;
     ws.getCell(row, 7).numFmt = '"$"#,##0.00;("$"#,##0.00);"$" -';
     ws.getCell(row, 7).border = BORDER_THIN;
   });
 
   // Fila 76: SALDO A FAVOR (solo en comprobación)
-  ws.getRow(76).height = 16;
+  ws.getRow(76).height = 15;
   if (nombreHoja === 'COMPROBACION') {
     ws.getCell('F76').value = 'SALDO A FAVOR';
-    ws.getCell('F76').font = { name: FONT_NAME, size: 9, bold: true };
+    ws.getCell('F76').font = { name: FONT_NAME, size: 12, bold: true };
     ws.getCell('F76').alignment = { horizontal: 'right', vertical: 'middle' };
+    ws.getCell('F76').fill = FILL_PEACH;
     ws.getCell('F76').border = BORDER_THIN;
 
     const saldoRes = totalImpAcumulado - (Number(dispersion) || 0) - (Number(complementos) || 0);
     ws.getCell('G76').value = { formula: '+G73-G74-G75', result: saldoRes };
-    ws.getCell('G76').font = { name: FONT_NAME, size: 9, bold: true };
-    ws.getCell('G76').alignment = { horizontal: 'right', vertical: 'middle' };
+    ws.getCell('G76').font = { name: FONT_NAME, size: 12, bold: true };
+    ws.getCell('G76').alignment = { horizontal: 'center', vertical: 'middle' };
+    ws.getCell('G76').fill = FILL_PEACH;
     ws.getCell('G76').numFmt = '"$"#,##0.00;("$"#,##0.00);"$" -';
     ws.getCell('G76').border = BORDER_THIN;
   }
 
-  // Bloque Observaciones (B80:G84)
-  ws.getRow(80).height = 16;
-  ws.mergeCells('B80:G80');
-  ws.getCell('B80').value = 'Observaciones';
-  ws.getCell('B80').font = { name: FONT_NAME, size: 10, bold: true };
-  ws.getCell('B80').fill = FILL_SECTION_BLUE;
-  ws.getCell('B80').alignment = { horizontal: 'center', vertical: 'middle' };
-  for (let c = 2; c <= 7; c++) ws.getCell(80, c).border = BORDER_THIN;
+  // Bloque Observaciones: fila 80 en COMPROBACION, fila 79 en ANTICIPO
+  const rowObsHeader = nombreHoja === 'ANTICIPO' ? 79 : 80;
+  const rowObsAviso = rowObsHeader + 1;
+  const rowObsInicio = rowObsAviso + 1;
+  const rowObsFin = rowObsInicio + 5;
 
-  ws.getRow(81).height = 15;
-  ws.mergeCells('B81:G81');
-  ws.getCell('B81').value = '* DATO OBLIGATORIO';
-  ws.getCell('B81').font = { name: FONT_NAME, size: 8.5, bold: true, color: { argb: 'FFFF0000' } };
-  ws.getCell('B81').alignment = { horizontal: 'center', vertical: 'middle' };
-  for (let c = 2; c <= 7; c++) ws.getCell(81, c).border = BORDER_THIN;
+  ws.getRow(rowObsHeader).height = 18;
+  ws.mergeCells(`B${rowObsHeader}:G${rowObsHeader}`);
+  ws.getCell(`B${rowObsHeader}`).value = 'Observaciones';
+  ws.getCell(`B${rowObsHeader}`).font = { name: FONT_NAME, size: 14, bold: true };
+  ws.getCell(`B${rowObsHeader}`).alignment = { horizontal: 'center', vertical: 'bottom' };
+  for (let c = 2; c <= 7; c++) ws.getCell(rowObsHeader, c).border = BORDER_THIN;
 
-  ws.mergeCells('B82:G84');
-  const obsCell = ws.getCell('B82');
+  ws.getRow(rowObsAviso).height = 21;
+  ws.mergeCells(`B${rowObsAviso}:G${rowObsAviso}`);
+  ws.getCell(`B${rowObsAviso}`).value = '* DATO OBLIGATORIO';
+  ws.getCell(`B${rowObsAviso}`).font = { name: FONT_NAME, size: 16, bold: true, color: { argb: 'FFFF0000' } };
+  ws.getCell(`B${rowObsAviso}`).alignment = { horizontal: 'left', vertical: 'bottom' };
+  for (let c = 2; c <= 7; c++) ws.getCell(rowObsAviso, c).border = BORDER_THIN;
+
+  ws.mergeCells(`B${rowObsInicio}:G${rowObsFin}`);
+  const obsCell = ws.getCell(`B${rowObsInicio}`);
   obsCell.value = (
     observaciones ||
     (nombreHoja === 'ANTICIPO'
       ? `ANTICIPO PARA LA SEMANA ${semana} SE REALIZARAN MANTENIMIENTOS PREVENTIVOS Y ATENCIÓN A SUCURSALES EN REGIÓN ${ingeniero.region || 'TUXTLA'}.`
       : `COMPROBACION DE RUTA SEMANA ${semana} POR MANTENIMIENTOS PREVENTIVOS Y ATENCIÓN A SUCURSALES EN REGIÓN ${ingeniero.region || 'TUXTLA'}.`)
   ).toUpperCase();
-  obsCell.font = { name: FONT_NAME, size: 9 };
-  obsCell.alignment = { horizontal: 'left', vertical: 'top', wrapText: true };
-  for (let r = 82; r <= 84; r++) {
-    ws.getRow(r).height = 16;
+  obsCell.font = { name: FONT_NAME, size: 12 };
+  obsCell.alignment = { horizontal: 'center', vertical: 'center', wrapText: true };
+  for (let r = rowObsInicio; r <= rowObsFin; r++) {
+    ws.getRow(r).height = 14.25;
     for (let c = 2; c <= 7; c++) {
       ws.getCell(r, c).border = BORDER_THIN;
     }
@@ -747,14 +762,16 @@ export async function descargarBitacoraNetoExcel({
     modo === 'ambas' ? 'anticipo_y_comprobacion' : modo;
   const filename = `${nombreIngLimpio}_semana_${semana}_${etiquetaModo}.xlsx`;
 
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  if (typeof document !== 'undefined') {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
 
-  return filename;
+  return { filename, buffer };
 }
