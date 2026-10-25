@@ -283,7 +283,7 @@ export async function syncIngenieroUpsert(ing) {
 }
 
 export async function syncHistorialUpsert(item) {
-  if (!supabaseActivo()) return;
+  if (!supabaseActivo()) return null;
   try {
     const payload = {
       uuid: item.id,
@@ -300,35 +300,49 @@ export async function syncHistorialUpsert(item) {
       duracion_segundos: Number(item.segundos || 0),
       ingeniero: item.ingeniero || '',
     };
-    await fetch(`${SUPABASE_URL}/rest/v1/rutas_historial?on_conflict=uuid`, {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rutas_historial?on_conflict=uuid`, {
       method: 'POST',
       headers: supabaseHeaders({
-        Prefer: 'resolution=merge-duplicates,return=minimal',
+        Prefer: 'resolution=merge-duplicates,return=representation',
       }),
       body: JSON.stringify(payload),
     });
+    if (!res.ok) {
+      const txt = await res.text();
+      console.error('[Supabase Sync] Error HTTP en syncHistorialUpsert:', res.status, txt);
+      return null;
+    }
+    return payload;
   } catch (err) {
     console.error('[Supabase Sync] Error en syncHistorialUpsert:', err.message);
+    return null;
   }
 }
 
 export async function syncHistorialDelete(uuid) {
-  if (!supabaseActivo()) return;
+  if (!supabaseActivo()) return null;
   try {
-    await fetch(
+    const res = await fetch(
       `${SUPABASE_URL}/rest/v1/rutas_historial?uuid=eq.${encodeURIComponent(uuid)}`,
       {
         method: 'DELETE',
-        headers: supabaseHeaders({ Prefer: 'return=minimal' }),
+        headers: supabaseHeaders({ Prefer: 'return=representation' }),
       }
     );
+    if (!res.ok) {
+      const txt = await res.text();
+      console.error('[Supabase Sync] Error HTTP en syncHistorialDelete:', res.status, txt);
+      return null;
+    }
+    return true;
   } catch (err) {
     console.error('[Supabase Sync] Error en syncHistorialDelete:', err.message);
+    return null;
   }
 }
 
 export async function syncBitacoraUpsert(b) {
-  if (!supabaseActivo()) return;
+  if (!supabaseActivo()) return null;
   try {
     const payload = {
       ingeniero: b.ingeniero,
@@ -349,35 +363,49 @@ export async function syncBitacoraUpsert(b) {
       total_importe: Number(b.total_importe || 0),
       updated_at: new Date().toISOString(),
     };
-    await fetch(
+    const res = await fetch(
       `${SUPABASE_URL}/rest/v1/bitacoras_semanales?on_conflict=ingeniero,anio,semana`,
       {
         method: 'POST',
         headers: supabaseHeaders({
-          Prefer: 'resolution=merge-duplicates,return=minimal',
+          Prefer: 'resolution=merge-duplicates,return=representation',
         }),
         body: JSON.stringify(payload),
       }
     );
+    if (!res.ok) {
+      const txt = await res.text();
+      console.error('[Supabase Sync] Error HTTP en syncBitacoraUpsert:', res.status, txt);
+      return null;
+    }
+    return payload;
   } catch (err) {
     console.error('[Supabase Sync] Error en syncBitacoraUpsert:', err.message);
+    return null;
   }
 }
 
 export async function syncBitacoraDelete(ingeniero, semana, anio) {
-  if (!supabaseActivo()) return;
+  if (!supabaseActivo()) return null;
   try {
-    await fetch(
+    const res = await fetch(
       `${SUPABASE_URL}/rest/v1/bitacoras_semanales?ingeniero=eq.${encodeURIComponent(
         ingeniero
       )}&semana=eq.${semana}&anio=eq.${anio}`,
       {
         method: 'DELETE',
-        headers: supabaseHeaders({ Prefer: 'return=minimal' }),
+        headers: supabaseHeaders({ Prefer: 'return=representation' }),
       }
     );
+    if (!res.ok) {
+      const txt = await res.text();
+      console.error('[Supabase Sync] Error HTTP en syncBitacoraDelete:', res.status, txt);
+      return null;
+    }
+    return true;
   } catch (err) {
     console.error('[Supabase Sync] Error en syncBitacoraDelete:', err.message);
+    return null;
   }
 }
 

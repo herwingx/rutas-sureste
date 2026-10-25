@@ -366,11 +366,38 @@ export default function App() {
           if (data && data.length) finalIng = data;
         }
 
+        let finalHist = Array.isArray(hList) && hList.length > 0 ? hList : null;
+        if (!finalHist) {
+          const { data: hData } = await supabase
+            .from('rutas_historial')
+            .select('*')
+            .order('fecha', { ascending: false });
+          if (hData && hData.length) {
+            finalHist = hData.map((r) => ({
+              id: r.uuid || String(r.id),
+              fecha: r.fecha,
+              nombre: r.nombre || '',
+              tipo: r.tipo || 'comprobacion',
+              ingeniero: r.ingeniero || '',
+              baseNombre: r.base_nombre || '',
+              paradas: r.paradas || [],
+              tramos: r.tramos || [],
+              baseInicio: r.base_inicio ?? true,
+              baseFin: r.base_fin ?? true,
+              totalKm: Number(r.total_km || 0),
+              litros: Number(r.litros || 0),
+              segundos: Number(r.duracion_segundos || 0),
+              costo: Number(r.costo || 0),
+              guardadoEn: r.created_at,
+            }));
+          }
+        }
+
         setMapsKey(cfg?.mapsKey || import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '');
         setMotor(cfg?.motor || { motor: 'routes' });
         setSupabaseConnected(true);
         if (finalTiendas?.length) setTiendasRaw(finalTiendas);
-        if (hList?.length) setHistorial(hList);
+        if (finalHist?.length) setHistorial(finalHist);
         if (finalIng?.length) setIngenieros(finalIng);
 
         if (!localStorage.getItem('ruteo.ajustes')) {

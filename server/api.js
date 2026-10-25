@@ -377,13 +377,52 @@ const rutas = {
     return extraerCoordenadas(body.texto);
   },
 
-  /** Devuelve el historial de rutas guardadas */
-  'GET /api/historial': () => leerHistorial(),
+  /** Devuelve el historial de rutas guardadas (Supabase central como fuente primaria) */
+  'GET /api/historial': async () => {
+    if (db.supabaseActivo()) {
+      try {
+        const res = await fetch(
+          `${cfg.SUPABASE_URL}/rest/v1/rutas_historial?select=*&order=fecha.desc`,
+          {
+            headers: {
+              apikey: cfg.SUPABASE_KEY,
+              Authorization: `Bearer ${cfg.SUPABASE_KEY}`,
+              'Accept-Profile': cfg.SUPABASE_SCHEMA,
+              'Content-Profile': cfg.SUPABASE_SCHEMA,
+            },
+          }
+        );
+        if (res.ok) {
+          const rows = await res.json();
+          if (Array.isArray(rows)) {
+            return rows.map((r) => ({
+              id: r.uuid || String(r.id),
+              fecha: r.fecha,
+              nombre: r.nombre || '',
+              tipo: r.tipo || 'comprobacion',
+              ingeniero: r.ingeniero || '',
+              baseNombre: r.base_nombre || '',
+              paradas: r.paradas || [],
+              tramos: r.tramos || [],
+              baseInicio: r.base_inicio ?? true,
+              baseFin: r.base_fin ?? true,
+              totalKm: Number(r.total_km || 0),
+              litros: Number(r.litros || 0),
+              segundos: Number(r.duracion_segundos || 0),
+              costo: Number(r.costo || 0),
+              guardadoEn: r.created_at,
+            }));
+          }
+        }
+      } catch (err) {
+        console.warn('[Supabase Historial] Error en consulta central, usando local:', err.message);
+      }
+    }
+    return leerHistorial();
+  },
 
-  /** Devuelve la lista de bitácoras semanales guardadas */
+  /** Devuelve la lista de bitácoras semanales guardadas (Supabase central como fuente primaria) */
   'GET /api/bitacoras': async () => {
-    const bitacoras = db.cargarBitacoras();
-    if (bitacoras && bitacoras.length > 0) return bitacoras;
     if (db.supabaseActivo()) {
       try {
         const res = await fetch(
@@ -399,13 +438,13 @@ const rutas = {
         );
         if (res.ok) {
           const rows = await res.json();
-          if (rows && rows.length > 0) return rows;
+          if (Array.isArray(rows) && rows.length > 0) return rows;
         }
       } catch (err) {
         console.warn('[Fallback Supabase Bitacoras Error]:', err.message);
       }
     }
-    return [];
+    return db.cargarBitacoras() || [];
   },
 
   /** Guarda o actualiza una bitácora semanal (anticipo/comprobación) localmente y en Supabase */
@@ -447,12 +486,12 @@ const rutas = {
 
     bitacoras.sort((a, b) => b.anio - a.anio || b.semana - a.semana);
     db.guardarBitacoras(bitacoras);
-    db.syncBitacoraUpsert(item);
+    await db.syncBitacoraUpsert(item);
     return item;
   },
 
   /** Elimina una bitácora semanal guardada */
-  'DELETE /api/bitacoras': (body) => {
+  'DELETE /api/bitacoras': async (body) => {
     const ingeniero = String(body.ingeniero || '').trim();
     const semana = Number(body.semana);
     const anio = Number(body.anio) || new Date().getFullYear();
@@ -462,12 +501,12 @@ const rutas = {
         (b) => !(b.ingeniero === ingeniero && b.semana === semana && b.anio === anio)
       );
     db.guardarBitacoras(bitacoras);
-    db.syncBitacoraDelete(ingeniero, semana, anio);
+    await db.syncBitacoraDelete(ingeniero, semana, anio);
     return bitacoras;
   },
 
   /** Guarda o actualiza una ruta en el historial ordenando por fecha descendente */
-  'POST /api/historial': (body) => {
+  'POST /api/historial': async (body) => {
     const h = leerHistorial();
     const item = {
       id: body.id || crypto.randomUUID(),
@@ -491,15 +530,15 @@ const rutas = {
     else h.unshift(item);
     h.sort((a, b) => b.fecha.localeCompare(a.fecha));
     guardarHistorial(h);
-    db.syncHistorialUpsert(item);
+    await db.syncHistorialUpsert(item);
     return item;
   },
 
   /** Elimina un registro del historial de rutas */
-  'DELETE /api/historial': (body) => {
+  'DELETE /api/historial': async (body) => {
     const h = leerHistorial().filter((x) => x.id !== body.id);
     guardarHistorial(h);
-    if (body.id) db.syncHistorialDelete(body.id);
+    if (body.id) await db.syncHistorialDelete(body.id);
     return h;
   },
 };
