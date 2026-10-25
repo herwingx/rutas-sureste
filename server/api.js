@@ -54,11 +54,17 @@ function leerBody(req) {
  * @returns {Array<Object>}
  */
 function leerHistorial() {
-  try {
-    return JSON.parse(fs.readFileSync(cfg.HISTORIAL_FILE, 'utf8'));
-  } catch {
-    return [];
+  if (fs.existsSync(cfg.HISTORIAL_FILE)) {
+    try {
+      return JSON.parse(fs.readFileSync(cfg.HISTORIAL_FILE, 'utf8'));
+    } catch {}
   }
+  if (fs.existsSync(cfg.BUNDLED_HISTORIAL_FILE)) {
+    try {
+      return JSON.parse(fs.readFileSync(cfg.BUNDLED_HISTORIAL_FILE, 'utf8'));
+    } catch {}
+  }
+  return [];
 }
 
 /**
@@ -66,8 +72,12 @@ function leerHistorial() {
  * @param {Array<Object>} h
  */
 function guardarHistorial(h) {
-  fs.mkdirSync(cfg.DATA_DIR, { recursive: true });
-  fs.writeFileSync(cfg.HISTORIAL_FILE, JSON.stringify(h, null, 2));
+  try {
+    fs.mkdirSync(cfg.DATA_DIR, { recursive: true });
+    fs.writeFileSync(cfg.HISTORIAL_FILE, JSON.stringify(h, null, 2));
+  } catch (err) {
+    console.warn('[Guardar Historial] Aviso filesystem:', err.message);
+  }
 }
 
 const punto = (p) => ({ lat: Number(p.lat), lng: Number(p.lng) });

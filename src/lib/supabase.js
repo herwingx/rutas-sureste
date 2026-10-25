@@ -33,3 +33,4 @@ export function esCorreoSoyNeto(email) {
   if (!email || typeof email !== 'string') return false;
   return email.trim().toLowerCase().endsWith('@soyneto.com');
 }
+

@@ -267,3 +267,4 @@ export function AuthModal({ open, onOpenChange, onAuthSuccess, toast }) {
     </Dialog>
   );
 }
+

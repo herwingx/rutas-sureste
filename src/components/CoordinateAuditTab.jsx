@@ -80,6 +80,9 @@ export function CoordinateAuditTab({
   onPatchStore,
   onDeleteSelected,
   onExportJson,
+  isAdmin = false,
+  userSession = null,
+  onRequireAuth = null,
 }) {
   const [filtroTexto, setFiltroTexto] = useState('');
   const [estadoFiltro, setEstadoFiltro] = useState('todas');
@@ -234,11 +237,11 @@ export function CoordinateAuditTab({
 
             {bloqueada ? (
               /* VISTA PROTEGIDA CUANDO LA SUCURSAL YA ESTÁ VERIFICADA */
-              <div className="rounded-md border border-emerald-500/35 bg-emerald-500/10 p-2.5 space-y-2">
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3 space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
                     <LockKey weight="fill" className="h-4 w-4 shrink-0" />
-                    <TypographySmall className="font-semibold">
+                    <TypographySmall className="font-semibold text-xs">
                       Ubicación GPS verificada y protegida
                     </TypographySmall>
                   </div>
@@ -246,19 +249,28 @@ export function CoordinateAuditTab({
                     {sel.lat?.toFixed(6)}, {sel.lng?.toFixed(6)}
                   </TypographyMono>
                 </div>
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center justify-between gap-2 pt-0.5">
                   <TypographyMuted className="text-[11px]">
-                    El pin está bloqueado para evitar movimientos accidentales.
+                    {isAdmin
+                      ? 'Como Administrador, puedes desbloquear para forzar una corrección.'
+                      : 'El pin está bloqueado para preservar las rutas oficiales de la zona.'}
                   </TypographyMuted>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="xs"
-                    onClick={() => onUnlockSelected?.(true)}
-                  >
-                    <LockKeyOpen weight="duotone" />
-                    Desbloquear para corregir
-                  </Button>
+                  {isAdmin ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="xs"
+                      onClick={() => onUnlockSelected?.(true)}
+                      className="text-amber-600 dark:text-amber-400 border-amber-500/30 gap-1 font-medium"
+                    >
+                      <LockKeyOpen weight="duotone" className="h-3 w-3" />
+                      Desbloquear (Admin)
+                    </Button>
+                  ) : (
+                    <Badge variant="outline" className="text-[10px] text-emerald-600 border-emerald-500/30">
+                      Coordenada Oficial
+                    </Badge>
+                  )}
                 </div>
               </div>
             ) : (
@@ -414,7 +426,7 @@ export function CoordinateAuditTab({
               </div>
 
               <div className="flex items-center gap-1">
-                {tiendaActualCat?.coordsAnteriores && (
+                {isAdmin && tiendaActualCat?.coordsAnteriores && (
                   <ActionTooltip
                     label={`Restaurar coordenada anterior (${tiendaActualCat.coordsAnteriores})`}
                   >
@@ -431,7 +443,7 @@ export function CoordinateAuditTab({
                     </Button>
                   </ActionTooltip>
                 )}
-                {tiendaActualCat?.verificada && (
+                {isAdmin && tiendaActualCat?.verificada && (
                   <Button
                     variant="ghost"
                     size="xs"
@@ -440,8 +452,8 @@ export function CoordinateAuditTab({
                     Marcar por revisar
                   </Button>
                 )}
-                {!sel.nueva && (
-                  <ActionTooltip label="Eliminar tienda del catálogo">
+                {isAdmin && !sel.nueva && (
+                  <ActionTooltip label="Eliminar tienda del catálogo (Exclusivo Administrador)">
                     <Button
                       variant="ghost"
                       size="icon-xs"

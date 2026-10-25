@@ -25,6 +25,9 @@ import {
   CheckCircle,
   WarningCircle,
   FileXls,
+  ShieldCheck,
+  CrownSimple,
+  SignOut,
 } from '@phosphor-icons/react';
 import { BrandLogo } from '@/components/ui/brand-logo';
 import { Button } from '@/components/ui/button';
@@ -58,6 +61,7 @@ import {
 import { RouteBuilderTab } from '@/components/RouteBuilderTab';
 import { CoordinateAuditTab } from '@/components/CoordinateAuditTab';
 import { HistoryAnalyticsTab } from '@/components/HistoryAnalyticsTab';
+import { AdminTeamTab } from '@/components/AdminTeamTab';
 import { BitacoraGeneratorModal } from '@/components/BitacoraGeneratorModal';
 import { AuthModal } from '@/components/AuthModal';
 import { NewStoreModal } from '@/components/NewStoreModal';
@@ -199,13 +203,24 @@ export default function App() {
     localStorage.setItem('ruteo.ingeniero', ingenieroActivo);
   }, [ingenieroActivo]);
 
+  // Determinar si el usuario logueado es Administrador (Herwing)
+  const isAdmin = useMemo(() => {
+    if (!userSession?.email) return false;
+    const email = userSession.email.toLowerCase().trim();
+    return (
+      email === 'herwing.eduardova@soyneto.com' ||
+      email.includes('herwing') ||
+      userSession?.user_metadata?.rol === 'admin'
+    );
+  }, [userSession]);
+
   // Escuchar sesión de Supabase Auth
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUserSession(session?.user || null);
       if (session?.user?.email) {
         setSupabaseConnected(true);
-        // Si el usuario logueado es Herwing, fijar su ingeniero
+        // Si el usuario logueado es Herwing, fijar su perfil
         if (session.user.email.includes('herwing')) {
           setIngenieroActivo('HERWING EDUARDO VAZQUEZ MACIAS');
         }
@@ -226,23 +241,38 @@ export default function App() {
 
   useEffect(() => {
     Promise.all([
-      api('GET', '/api/config'),
-      api('GET', '/api/tiendas'),
-      api('GET', '/api/historial'),
-      api('GET', '/api/ingenieros').catch(() => []),
+      api('GET', '/api/config').catch(() => ({
+        mapsKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '',
+      })),
+      api('GET', '/api/tiendas').catch(() => null),
+      api('GET', '/api/historial').catch(() => []),
+      api('GET', '/api/ingenieros').catch(() => null),
     ])
-      .then(([cfg, tList, hList, ingList]) => {
-        setMapsKey(cfg.mapsKey || '');
-        setMotor(cfg.motor);
-        setSupabaseConnected(Boolean(cfg.supabase));
-        setTiendasRaw(tList);
-        setHistorial(hList);
-        if (ingList?.length) setIngenieros(ingList);
+      .then(async ([cfg, tList, hList, ingList]) => {
+        let finalTiendas = Array.isArray(tList) && tList.length > 0 ? tList : null;
+        if (!finalTiendas) {
+          const { data } = await supabase.from('tiendas').select('*');
+          if (data && data.length) finalTiendas = data;
+        }
+
+        let finalIng = Array.isArray(ingList) && ingList.length > 0 ? ingList : null;
+        if (!finalIng) {
+          const { data } = await supabase.from('ingenieros').select('*');
+          if (data && data.length) finalIng = data;
+        }
+
+        setMapsKey(cfg?.mapsKey || import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '');
+        setMotor(cfg?.motor || { motor: 'routes' });
+        setSupabaseConnected(true);
+        if (finalTiendas?.length) setTiendasRaw(finalTiendas);
+        if (hList?.length) setHistorial(hList);
+        if (finalIng?.length) setIngenieros(finalIng);
+
         if (!localStorage.getItem('ruteo.ajustes')) {
           setAjustes((a) => ({
             ...a,
-            kmPorLitro: cfg.kmPorLitro || 12.5,
-            precioLitro: cfg.precioLitro || 23.99,
+            kmPorLitro: cfg?.kmPorLitro || 12.5,
+            precioLitro: cfg?.precioLitro || 23.99,
           }));
         }
       })
@@ -474,6 +504,11 @@ export default function App() {
 
   const guardarDia = useCallback(async () => {
     if (!ruta.paradas.length) return toast('La ruta está vacía');
+    if (!userSession) {
+      toast('Inicia sesión con tu cuenta corporativa @soyneto.com para guardar rutas en el historial', 'err');
+      setAuthModalOpen(true);
+      return;
+    }
     try {
       const item = await api('POST', '/api/historial', {
         id: ruta.id,
@@ -768,34 +803,59 @@ export default function App() {
               </div>
             </div>
 
-            <div className="flex items-center gap-0.5">
+            <div className="flex items-center gap-1">
               {userSession ? (
-                <ActionTooltip label={`Conectado como ${userSession.email}`}>
-                  <Button
-                    variant="ghost"
-                    size="xs"
-                    onClick={async () => {
-                      await supabase.auth.signOut();
-                      setUserSession(null);
-                      toast('Sesión cerrada');
-                    }}
-                    className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 gap-1 h-7 px-2"
-                  >
-                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                    <span className="truncate max-w-24">
-                      {userSession.email.split('@')[0]}
-                    </span>
-                  </Button>
-                </ActionTooltip>
+                isAdmin ? (
+                  <ActionTooltip label={`Administrador Maestro: ${userSession.email}`}>
+                    <div className="flex items-center gap-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 px-2.5 py-1 text-[11px] text-amber-700 dark:text-amber-300 font-semibold shadow-xs">
+                      <CrownSimple weight="fill" className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                      <span className="truncate max-w-28">Herwing (Admin)</span>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await supabase.auth.signOut();
+                          setUserSession(null);
+                          toast('Sesión cerrada');
+                        }}
+                        className="text-muted-foreground hover:text-foreground ml-1"
+                        title="Cerrar sesión"
+                      >
+                        <SignOut weight="bold" className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </ActionTooltip>
+                ) : (
+                  <ActionTooltip label={`Conectado como ${userSession.email}`}>
+                    <div className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1 text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
+                      <span className="truncate max-w-24">
+                        {userSession.email.split('@')[0]}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await supabase.auth.signOut();
+                          setUserSession(null);
+                          toast('Sesión cerrada');
+                        }}
+                        className="text-muted-foreground hover:text-foreground ml-1"
+                        title="Cerrar sesión"
+                      >
+                        <SignOut weight="bold" className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </ActionTooltip>
+                )
               ) : (
                 <ActionTooltip label="Iniciar sesión con @soyneto.com">
                   <Button
                     variant="outline"
                     size="xs"
                     onClick={() => setAuthModalOpen(true)}
-                    className="text-[11px] font-medium h-7 px-2 border-primary/40 text-primary"
+                    className="rounded-full text-[11px] font-medium h-7 px-2.5 border-primary/30 text-primary bg-primary/5 hover:bg-primary/10 gap-1.5"
                   >
-                    Login Neto
+                    <span className="h-2 w-2 rounded-full bg-primary/60 animate-pulse" />
+                    <span>Neto ID</span>
                   </Button>
                 </ActionTooltip>
               )}
@@ -804,7 +864,7 @@ export default function App() {
                 <Button
                   variant="ghost"
                   size="icon-sm"
-                  className="text-emerald-600 dark:text-emerald-400"
+                  className="text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10"
                   onClick={() => setBitacoraOpen(true)}
                 >
                   <FileXls weight="duotone" className="h-4 w-4" />
@@ -835,25 +895,34 @@ export default function App() {
           {/* Navegación principal */}
           <Tabs value={tab} onValueChange={setTab} className="flex flex-1 flex-col min-h-0">
             <div className="px-4 pt-2.5">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="ruta">
+              <TabsList className={cn('grid w-full', isAdmin ? 'grid-cols-4' : 'grid-cols-3')}>
+                <TabsTrigger value="ruta" className="gap-1 text-xs">
                   <Path weight={tab === 'ruta' ? 'duotone' : 'regular'} className="h-3.5 w-3.5" />
                   <span>Ruta</span>
                 </TabsTrigger>
-                <TabsTrigger value="corregir">
+                <TabsTrigger value="corregir" className="gap-1 text-xs">
                   <Storefront
                     weight={tab === 'corregir' ? 'duotone' : 'regular'}
                     className="h-3.5 w-3.5"
                   />
                   <span>Catálogo</span>
                 </TabsTrigger>
-                <TabsTrigger value="historial">
+                <TabsTrigger value="historial" className="gap-1 text-xs">
                   <ClockCounterClockwise
                     weight={tab === 'historial' ? 'duotone' : 'regular'}
                     className="h-3.5 w-3.5"
                   />
                   <span>Historial</span>
                 </TabsTrigger>
+                {isAdmin && (
+                  <TabsTrigger value="admin" className="gap-1 text-xs text-amber-600 dark:text-amber-400">
+                    <ShieldCheck
+                      weight={tab === 'admin' ? 'duotone' : 'regular'}
+                      className="h-3.5 w-3.5"
+                    />
+                    <span>Admin</span>
+                  </TabsTrigger>
+                )}
               </TabsList>
             </div>
 
@@ -916,6 +985,8 @@ export default function App() {
                   onPatchStore={patchTiendaSimple}
                   onDeleteSelected={eliminarSeleccionAudit}
                   onExportJson={exportarJson}
+                  isAdmin={isAdmin}
+                  userSession={userSession}
                 />
               </TabsContent>
 
@@ -955,6 +1026,24 @@ export default function App() {
                   }}
                 />
               </TabsContent>
+
+              {isAdmin && (
+                <TabsContent value="admin" className="m-0">
+                  <AdminTeamTab
+                    ingenieros={ingenieros}
+                    onUpdateIngeniero={(actualizado) => {
+                      setIngenieros((prev) =>
+                        prev.map((i) => (i.nombre === actualizado.nombre ? actualizado : i))
+                      );
+                    }}
+                    tiendas={tiendas}
+                    toast={toast}
+                    onOpenBitacoraModal={() => setBitacoraOpen(true)}
+                    porNombre={porNombre}
+                    ajustes={ajustes}
+                  />
+                </TabsContent>
+              )}
             </div>
           </Tabs>
 

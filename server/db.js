@@ -9,8 +9,11 @@ import path from 'node:path';
 import {
   DATA_DIR,
   DB_FILE,
+  BUNDLED_DB_FILE,
   INGENIEROS_FILE,
+  BUNDLED_INGENIEROS_FILE,
   BITACORAS_FILE,
+  BUNDLED_BITACORAS_FILE,
   BACKUP_DIR,
   SUPABASE_URL,
   SUPABASE_KEY,
@@ -41,31 +44,50 @@ export function ordenar(tiendas) {
 }
 
 export function cargar() {
-  if (!fs.existsSync(DB_FILE)) return [];
-  return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+  if (fs.existsSync(DB_FILE)) {
+    try {
+      return JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+    } catch {}
+  }
+  if (fs.existsSync(BUNDLED_DB_FILE)) {
+    try {
+      return JSON.parse(fs.readFileSync(BUNDLED_DB_FILE, 'utf8'));
+    } catch {}
+  }
+  return [];
 }
 
 function respaldar() {
-  if (!fs.existsSync(DB_FILE)) return;
-  fs.mkdirSync(BACKUP_DIR, { recursive: true });
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  fs.copyFileSync(DB_FILE, path.join(BACKUP_DIR, `tiendas-${stamp}.json`));
-  const files = fs
-    .readdirSync(BACKUP_DIR)
-    .filter((f) => f.startsWith('tiendas-'))
-    .sort();
-  files
-    .slice(0, Math.max(0, files.length - MAX_BACKUPS))
-    .forEach((f) => fs.unlinkSync(path.join(BACKUP_DIR, f)));
+  try {
+    if (!fs.existsSync(DB_FILE)) return;
+    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    fs.copyFileSync(DB_FILE, path.join(BACKUP_DIR, `tiendas-${stamp}.json`));
+    const files = fs
+      .readdirSync(BACKUP_DIR)
+      .filter((f) => f.startsWith('tiendas-'))
+      .sort();
+    files
+      .slice(0, Math.max(0, files.length - MAX_BACKUPS))
+      .forEach((f) => {
+        try { fs.unlinkSync(path.join(BACKUP_DIR, f)); } catch {}
+      });
+  } catch (err) {
+    console.warn('[Respaldar] Aviso filesystem:', err.message);
+  }
 }
 
 export function guardar(tiendas, { backup = true } = {}) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  if (backup) respaldar();
   const ordenadas = ordenar(tiendas);
-  const tmp = DB_FILE + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(ordenadas, null, 4));
-  fs.renameSync(tmp, DB_FILE);
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    if (backup) respaldar();
+    const tmp = DB_FILE + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(ordenadas, null, 4));
+    fs.renameSync(tmp, DB_FILE);
+  } catch (err) {
+    console.warn('[Guardar Tiendas] Aviso filesystem:', err.message);
+  }
   return ordenadas;
 }
 
@@ -81,19 +103,28 @@ export function normalizarNombre(nombre) {
 // ============================================================================
 
 export function cargarIngenieros() {
-  if (!fs.existsSync(INGENIEROS_FILE)) return [];
-  try {
-    return JSON.parse(fs.readFileSync(INGENIEROS_FILE, 'utf8'));
-  } catch {
-    return [];
+  if (fs.existsSync(INGENIEROS_FILE)) {
+    try {
+      return JSON.parse(fs.readFileSync(INGENIEROS_FILE, 'utf8'));
+    } catch {}
   }
+  if (fs.existsSync(BUNDLED_INGENIEROS_FILE)) {
+    try {
+      return JSON.parse(fs.readFileSync(BUNDLED_INGENIEROS_FILE, 'utf8'));
+    } catch {}
+  }
+  return [];
 }
 
 export function guardarIngenieros(ingenieros) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  const tmp = INGENIEROS_FILE + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(ingenieros, null, 2));
-  fs.renameSync(tmp, INGENIEROS_FILE);
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    const tmp = INGENIEROS_FILE + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(ingenieros, null, 2));
+    fs.renameSync(tmp, INGENIEROS_FILE);
+  } catch (err) {
+    console.warn('[Guardar Ingenieros] Aviso filesystem:', err.message);
+  }
   return ingenieros;
 }
 
@@ -102,19 +133,28 @@ export function guardarIngenieros(ingenieros) {
 // ============================================================================
 
 export function cargarBitacoras() {
-  if (!fs.existsSync(BITACORAS_FILE)) return [];
-  try {
-    return JSON.parse(fs.readFileSync(BITACORAS_FILE, 'utf8'));
-  } catch {
-    return [];
+  if (fs.existsSync(BITACORAS_FILE)) {
+    try {
+      return JSON.parse(fs.readFileSync(BITACORAS_FILE, 'utf8'));
+    } catch {}
   }
+  if (fs.existsSync(BUNDLED_BITACORAS_FILE)) {
+    try {
+      return JSON.parse(fs.readFileSync(BUNDLED_BITACORAS_FILE, 'utf8'));
+    } catch {}
+  }
+  return [];
 }
 
 export function guardarBitacoras(bitacoras) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  const tmp = BITACORAS_FILE + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(bitacoras, null, 2));
-  fs.renameSync(tmp, BITACORAS_FILE);
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    const tmp = BITACORAS_FILE + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(bitacoras, null, 2));
+    fs.renameSync(tmp, BITACORAS_FILE);
+  } catch (err) {
+    console.warn('[Guardar Bitácoras] Aviso filesystem:', err.message);
+  }
   return bitacoras;
 }
 

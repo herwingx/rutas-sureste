@@ -262,3 +262,4 @@ export function NewStoreModal({ open, onOpenChange, onStoreCreated, toast }) {
     </Dialog>
   );
 }
+

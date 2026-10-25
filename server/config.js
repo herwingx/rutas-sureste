@@ -11,8 +11,13 @@ import path from 'node:path';
 /** Directorio raíz del repositorio */
 export const ROOT = path.resolve(import.meta.dirname, '..');
 
+const isVercel = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+
+/** Directorio empaquetado original en el repositorio */
+export const BUNDLED_DATA_DIR = path.join(ROOT, 'data');
+
 /** Directorio donde viven todos los archivos JSON de persistencia y caché */
-export const DATA_DIR = path.join(ROOT, 'data');
+export const DATA_DIR = isVercel ? '/tmp/data' : path.join(ROOT, 'data');
 
 // Carga nativa de variables de entorno (.env) sin dependencias externas (dotenv)
 const envPath = path.join(ROOT, '.env');
@@ -29,17 +34,18 @@ export const PORT = Number(process.env.PORT || 3000);
 /** Host de escucha por defecto (loopback local) */
 export const HOST = process.env.HOST || '127.0.0.1';
 
-/** Archivo maestro del catálogo de tiendas */
+/** Archivos maestros del catálogo de tiendas y perfiles */
 export const DB_FILE = path.join(DATA_DIR, 'tiendas.json');
+export const BUNDLED_DB_FILE = path.join(BUNDLED_DATA_DIR, 'tiendas.json');
 
-/** Archivo maestro de perfiles de ingenieros de soporte técnico */
 export const INGENIEROS_FILE = path.join(DATA_DIR, 'ingenieros.json');
+export const BUNDLED_INGENIEROS_FILE = path.join(BUNDLED_DATA_DIR, 'ingenieros.json');
 
-/** Archivo de registro histórico de bitácoras semanales generadas */
 export const BITACORAS_FILE = path.join(DATA_DIR, 'bitacoras-semanales.json');
+export const BUNDLED_BITACORAS_FILE = path.join(BUNDLED_DATA_DIR, 'bitacoras-semanales.json');
 
-/** Archivo de registro histórico de rutas diarias */
 export const HISTORIAL_FILE = path.join(DATA_DIR, 'historial-rutas.json');
+export const BUNDLED_HISTORIAL_FILE = path.join(BUNDLED_DATA_DIR, 'historial-rutas.json');
 
 /** Credenciales opcionales para sincronización en tiempo real con Supabase */
 export const SUPABASE_URL = process.env.SUPABASE_URL || '';
