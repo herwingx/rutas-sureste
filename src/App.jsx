@@ -1068,18 +1068,18 @@ export default function App() {
         {/* ================= PANEL (cabecera + vistas) ================= */}
         <aside
           className={cn(
-            'min-h-0 min-w-0 flex-1 flex-col border-border bg-card lg:flex lg:border-r',
+            'min-h-0 min-w-0 flex-1 flex-col border-border bg-background lg:flex lg:border-r',
             mobileTab === 'mapa' ? 'hidden' : 'flex'
           )}
         >
-          <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-2.5 pt-safe">
-            <div className="flex min-w-0 items-center gap-2.5">
+          <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4 py-3.5 pt-safe shadow-2xs">
+            <div className="flex min-w-0 items-center gap-3">
               <BrandLogo className="h-9 w-9" />
               <div className="min-w-0">
-                <h1 className="truncate text-sm font-semibold leading-tight tracking-tight">
+                <h1 className="truncate text-sm font-bold leading-tight tracking-tight text-foreground">
                   {BRAND.nombre}
                 </h1>
-                <p className="truncate text-[11px] leading-tight text-muted-foreground">
+                <p className="truncate text-[11px] leading-tight text-muted-foreground mt-0.5">
                   {ajustes.base || 'Sin base asignada'}
                 </p>
               </div>
@@ -1107,22 +1107,22 @@ export default function App() {
 
           <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
             {/* Navegación superior: solo escritorio (en móvil se usa la barra inferior) */}
-            <div className="hidden shrink-0 px-4 pt-2.5 lg:block">
+            <div className="hidden shrink-0 px-4 pt-3.5 pb-1 lg:block">
               <TabsList className={cn('grid w-full', isAdmin ? 'grid-cols-4' : 'grid-cols-3')}>
                 {navVisible({ isAdmin, mobile: false }).map(({ id, label, icon: Icon }) => (
                   <TabsTrigger
                     key={id}
                     value={id}
-                    className={cn('gap-1.5 text-xs', id === 'admin' && 'text-amber-600 dark:text-amber-400')}
+                    className="gap-1.5 text-xs"
                   >
-                    <Icon weight={tab === id ? 'duotone' : 'regular'} className="h-3.5 w-3.5" aria-hidden="true" />
+                    <Icon weight={tab === id ? 'fill' : 'duotone'} className="h-3.5 w-3.5" aria-hidden="true" />
                     <span>{label}</span>
                   </TabsTrigger>
                 ))}
               </TabsList>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 py-3">
+            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 py-4">
               <TabsContent value="ruta" className="m-0">
                 <RouteBuilderTab
                   searchInputRef={searchInputRef}

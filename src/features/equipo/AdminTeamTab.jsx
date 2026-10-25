@@ -22,8 +22,11 @@ import {
   DownloadSimple,
   Storefront,
   LockKey,
+  CheckCircle,
+  Crosshair,
+  CarProfile,
 } from '@phosphor-icons/react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -58,8 +61,9 @@ export function AdminTeamTab({
   onUpdateIngeniero,
   tiendas,
   toast,
+  onOpenBitacoraModal,
 }) {
-  const [subTab, setSubTab] = useState('bitacoras'); // 'bitacoras' | 'equipo' | 'cobertura'
+  const [subTab, setSubTab] = useState('equipo'); // 'equipo' | 'bitacoras' | 'cobertura'
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [ingenieroAEditar, setIngenieroAEditar] = useState(null);
   const [guardando, setGuardando] = useState(false);
@@ -141,8 +145,10 @@ export function AdminTeamTab({
       verificadas,
       pendientes,
       porcentajeVerif: total ? Math.round((verificadas / total) * 100) : 0,
+      totalIngenieros: ingenieros.length,
+      totalBitacoras: bitacorasGlobales.length,
     };
-  }, [tiendas]);
+  }, [tiendas, ingenieros.length, bitacorasGlobales.length]);
 
   const coberturaPorIngeniero = useMemo(() => {
     const mapa = new Map();
@@ -278,37 +284,93 @@ export function AdminTeamTab({
   };
 
   return (
-    <div className="flex flex-col gap-3 pb-4 min-w-0">
+    <div className="flex flex-col gap-4 pb-6 min-w-0">
       {/* ================= CABECERA Y PRIVILEGIOS DE ADMINISTRADOR ================= */}
-      <Card className="p-3 space-y-2.5">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
-              <ShieldCheck weight="duotone" className="h-4.5 w-4.5" />
+      <Card className="p-4 space-y-3.5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary border border-primary/20">
+              <ShieldCheck weight="duotone" className="h-5 w-5" />
             </div>
             <div className="min-w-0">
-              <TypographyH4 className="text-xs font-semibold truncate">
-                Supervisión Regional · Sistemas Sureste
-              </TypographyH4>
-              <TypographyMuted className="text-[11px] leading-snug">
-                Cada ingeniero gestiona su propio perfil. Como Admin auditas bitácoras, controlas el acceso y desbloqueas pines GPS protegidos.
+              <div className="flex items-center gap-2">
+                <TypographyH4 className="text-sm font-bold tracking-tight truncate">
+                  Supervisión Regional · Sureste
+                </TypographyH4>
+                <Badge className="bg-primary/15 text-primary border-primary/30 hover:bg-primary/20 font-semibold text-[10px] px-2 py-0 h-4.5">
+                  Admin
+                </Badge>
+              </div>
+              <TypographyMuted className="text-xs leading-relaxed mt-1">
+                Cada ingeniero gestiona su propio perfil. Desde aquí controlas el registro de cuentas nuevas, auditas bitácoras y supervisas el catálogo regional.
               </TypographyMuted>
             </div>
           </div>
         </div>
 
+        {/* Grid de Indicadores Ejecutivos */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="rounded-xl border border-border bg-muted/40 p-2.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground block">
+              Verificadas
+            </span>
+            <div className="flex items-baseline gap-1 mt-1">
+              <span className="text-base font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+                {stats.verificadas}
+              </span>
+              <span className="text-[11px] text-muted-foreground">/ {stats.totalTiendas}</span>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border bg-muted/40 p-2.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground block">
+              Por revisar
+            </span>
+            <div className="flex items-baseline gap-1 mt-1">
+              <span className="text-base font-bold tabular-nums text-amber-600 dark:text-amber-400">
+                {stats.pendientes}
+              </span>
+              <span className="text-[11px] text-muted-foreground">pines GPS</span>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border bg-muted/40 p-2.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground block">
+              Equipo
+            </span>
+            <div className="flex items-baseline gap-1 mt-1">
+              <span className="text-base font-bold tabular-nums text-foreground">
+                {stats.totalIngenieros}
+              </span>
+              <span className="text-[11px] text-muted-foreground">activos</span>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border bg-muted/40 p-2.5">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground block">
+              Bitácoras
+            </span>
+            <div className="flex items-baseline gap-1 mt-1">
+              <span className="text-base font-bold tabular-nums text-primary">
+                {stats.totalBitacoras}
+              </span>
+              <span className="text-[11px] text-muted-foreground">en nube</span>
+            </div>
+          </div>
+        </div>
+
         {/* Control de registro de nuevas cuentas */}
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/25 px-3 py-2">
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/35 px-3.5 py-2.5">
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <LockKey weight="duotone" className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              <span className="text-xs font-medium text-foreground truncate">
+            <div className="flex items-center gap-2">
+              <LockKey weight="duotone" className="h-4 w-4 text-primary shrink-0" />
+              <span className="text-xs font-semibold text-foreground truncate">
                 Registro de cuentas nuevas (@soyneto.com)
               </span>
             </div>
-            <span className="text-[10px] text-muted-foreground block truncate">
+            <span className="text-[11px] text-muted-foreground block truncate mt-0.5">
               {permitirRegistros
-                ? 'Habilitado para que el equipo cree su cuenta'
+                ? 'Abierto para que los ingenieros creen su cuenta'
                 : 'Cerrado a nuevos registros'}
             </span>
           </div>
@@ -320,52 +382,111 @@ export function AdminTeamTab({
         </div>
       </Card>
 
-      {/* ================= NAVEGACIÓN INTERNA COMPACTA ================= */}
-      <div className="grid grid-cols-3 p-0.5 rounded-lg bg-muted/60 border border-border/50">
-        <button
-          type="button"
-          onClick={() => setSubTab('bitacoras')}
-          className={cn(
-            'flex items-center justify-center gap-1 py-1.5 px-2 text-xs rounded-md transition-all cursor-pointer min-w-0',
-            subTab === 'bitacoras'
-              ? 'bg-background text-foreground shadow-xs font-semibold'
-              : 'text-muted-foreground hover:text-foreground'
-          )}
-        >
-          <FileXls weight="duotone" className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate">Bitácoras ({bitacorasGlobales.length})</span>
-        </button>
+      {/* ================= NAVEGACIÓN INTERNA ================= */}
+      <div className="grid grid-cols-3 p-1 rounded-xl bg-card border border-border shadow-2xs">
         <button
           type="button"
           onClick={() => setSubTab('equipo')}
           className={cn(
-            'flex items-center justify-center gap-1 py-1.5 px-2 text-xs rounded-md transition-all cursor-pointer min-w-0',
+            'flex items-center justify-center gap-1.5 py-2 px-2 text-xs rounded-lg transition-all cursor-pointer min-w-0',
             subTab === 'equipo'
-              ? 'bg-background text-foreground shadow-xs font-semibold'
+              ? 'bg-primary text-primary-foreground shadow-xs font-semibold'
               : 'text-muted-foreground hover:text-foreground'
           )}
         >
-          <UsersThree weight="duotone" className="h-3.5 w-3.5 shrink-0" />
+          <UsersThree weight="duotone" className="h-4 w-4 shrink-0" />
           <span className="truncate">Equipo ({ingenieros.length})</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setSubTab('bitacoras')}
+          className={cn(
+            'flex items-center justify-center gap-1.5 py-2 px-2 text-xs rounded-lg transition-all cursor-pointer min-w-0',
+            subTab === 'bitacoras'
+              ? 'bg-primary text-primary-foreground shadow-xs font-semibold'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <FileXls weight="duotone" className="h-4 w-4 shrink-0" />
+          <span className="truncate">Bitácoras ({bitacorasGlobales.length})</span>
         </button>
         <button
           type="button"
           onClick={() => setSubTab('cobertura')}
           className={cn(
-            'flex items-center justify-center gap-1 py-1.5 px-2 text-xs rounded-md transition-all cursor-pointer min-w-0',
+            'flex items-center justify-center gap-1.5 py-2 px-2 text-xs rounded-lg transition-all cursor-pointer min-w-0',
             subTab === 'cobertura'
-              ? 'bg-background text-foreground shadow-xs font-semibold'
+              ? 'bg-primary text-primary-foreground shadow-xs font-semibold'
               : 'text-muted-foreground hover:text-foreground'
           )}
         >
-          <Storefront weight="duotone" className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate">GPS ({stats.porcentajeVerif}%)</span>
+          <Storefront weight="duotone" className="h-4 w-4 shrink-0" />
+          <span className="truncate">Avance GPS ({stats.porcentajeVerif}%)</span>
         </button>
       </div>
 
-      {/* ================= VISTA 1: BITÁCORAS EN NUBE ================= */}
-      {subTab === 'bitacoras' && (
+      {/* ================= VISTA 1: DIRECTORIO DEL EQUIPO ================= */}
+      {subTab === 'equipo' && (
         <div className="space-y-2.5 min-w-0">
+          {ingenieros.map((ing) => {
+            const esAdmin = ing.rol === 'admin' || ing.nombre.includes('HERWING');
+            const totalTiendasIng = tiendas.filter((t) => t.ingeniero === ing.nombre).length;
+
+            return (
+              <Card key={ing.nombre} className="p-3.5 space-y-2.5 hover:border-primary/40 transition-colors">
+                <div className="flex items-start justify-between gap-2 min-w-0">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <TypographySmall className="font-semibold text-xs truncate">
+                        {ing.nombre}
+                      </TypographySmall>
+                      {esAdmin && (
+                        <Badge className="bg-primary/15 text-primary border-primary/30 font-semibold text-[10px] px-1.5 py-0 h-4">
+                          Admin
+                        </Badge>
+                      )}
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                        {ing.region || 'SURESTE'}
+                      </Badge>
+                    </div>
+                    <TypographyMuted className="text-[11px] truncate block mt-0.5">
+                      {ing.email || 'Pendiente de vincular correo'} · Emp. {ing.no_empleado || 'S/N'}
+                    </TypographyMuted>
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="xs"
+                    onClick={() => handleEditarClick(ing)}
+                    className="shrink-0"
+                  >
+                    <PencilSimple weight="bold" className="h-3 w-3" />
+                    <span>Editar</span>
+                  </Button>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/50 border border-border/60 px-3 py-2 text-xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <CarProfile weight="duotone" className="h-4 w-4 text-primary shrink-0" />
+                    <span className="truncate">
+                      <strong className="text-foreground">{ing.automovil || 'Vehículo'}</strong> ·{' '}
+                      <span className="font-mono text-muted-foreground">{ing.placas || 'Sin placas'}</span> ·{' '}
+                      <span className="font-mono text-muted-foreground">{ing.rendimiento || 12.5} km/L</span>
+                    </span>
+                  </div>
+                  <Badge variant="outline" className="font-mono text-[10px] bg-card">
+                    {totalTiendasIng} sucursales
+                  </Badge>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ================= VISTA 2: BITÁCORAS EN NUBE ================= */}
+      {subTab === 'bitacoras' && (
+        <div className="space-y-3 min-w-0">
           <div className="flex items-center justify-between gap-2 min-w-0">
             <Select
               value={filtroIngenieroBitacora}
@@ -389,7 +510,7 @@ export function AdminTeamTab({
               size="sm"
               onClick={cargarBitacorasGlobales}
               disabled={cargandoBitacoras}
-              className="shrink-0"
+              className="shrink-0 bg-card"
             >
               <ClockCounterClockwise
                 weight="duotone"
@@ -400,31 +521,49 @@ export function AdminTeamTab({
           </div>
 
           {bitacorasGlobales.length === 0 ? (
-            <Card className="p-6 text-center text-muted-foreground">
-              <TypographyMuted className="text-xs">
-                Aún no hay bitácoras semanales guardadas en la nube.
-              </TypographyMuted>
+            <Card className="p-6 text-center space-y-3">
+              <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                <FileXls weight="duotone" className="h-6 w-6" />
+              </div>
+              <div className="space-y-1 max-w-xs mx-auto">
+                <TypographySmall className="font-semibold block">
+                  Sin bitácoras archivadas en la nube
+                </TypographySmall>
+                <TypographyMuted className="text-xs leading-relaxed">
+                  Cuando tú o cualquier ingeniero generen su archivo Excel semanal desde la pestaña Ruta, aparecerá aquí listo para auditar y descargar.
+                </TypographyMuted>
+              </div>
+              {onOpenBitacoraModal && (
+                <Button
+                  size="sm"
+                  onClick={() => onOpenBitacoraModal('comprobacion')}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                >
+                  <FileXls weight="bold" className="h-4 w-4" />
+                  <span>Generar bitácora semanal (.xlsx)</span>
+                </Button>
+              )}
             </Card>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {bitacorasGlobales
                 .filter(
                   (b) =>
                     filtroIngenieroBitacora === 'todos' || b.ingeniero === filtroIngenieroBitacora
                 )
                 .map((b) => (
-                  <Card key={`${b.ingeniero}-${b.anio}-${b.semana}`} className="p-3">
+                  <Card key={`${b.ingeniero}-${b.anio}-${b.semana}`} className="p-3.5">
                     <div className="flex items-center justify-between gap-2 min-w-0">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <span className="font-semibold text-xs">
-                            Sem. {b.semana} ({b.anio || 2026})
+                            Semana {b.semana} ({b.anio || 2026})
                           </span>
                           <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                             {b.tipo === 'ambas' ? 'Completa' : b.tipo}
                           </Badge>
                         </div>
-                        <p className="text-xs font-medium text-foreground truncate mt-0.5">
+                        <p className="text-xs font-medium text-foreground truncate mt-1">
                           {b.ingeniero}
                         </p>
                         <TypographyMuted className="text-[11px]">
@@ -433,12 +572,12 @@ export function AdminTeamTab({
                       </div>
 
                       <Button
-                        size="xs"
+                        size="sm"
                         className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1 text-xs shrink-0"
                         onClick={() => handleDescargarBitacora(b)}
                       >
                         <DownloadSimple weight="bold" className="h-3.5 w-3.5" />
-                        <span>Excel</span>
+                        <span>Excel (.xlsx)</span>
                       </Button>
                     </div>
                   </Card>
@@ -448,80 +587,24 @@ export function AdminTeamTab({
         </div>
       )}
 
-      {/* ================= VISTA 2: DIRECTORIO DEL EQUIPO ================= */}
-      {subTab === 'equipo' && (
-        <div className="space-y-2 min-w-0">
-          {ingenieros.map((ing) => {
-            const esAdmin = ing.rol === 'admin' || ing.nombre.includes('HERWING');
-            const totalTiendasIng = tiendas.filter((t) => t.ingeniero === ing.nombre).length;
-
-            return (
-              <Card key={ing.nombre} className="p-3">
-                <div className="flex items-start justify-between gap-2 min-w-0">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <TypographySmall className="font-semibold text-xs truncate">
-                        {ing.nombre}
-                      </TypographySmall>
-                      {esAdmin && (
-                        <Badge className="bg-amber-500 text-black font-semibold text-[9px] px-1.5 py-0 h-4">
-                          Admin
-                        </Badge>
-                      )}
-                      <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                        {ing.region || 'SURESTE'}
-                      </Badge>
-                    </div>
-                    <TypographyMuted className="text-[11px] truncate block mt-0.5">
-                      {ing.email || 'Sin correo vinculado'} · Emp. {ing.no_empleado || 'S/N'}
-                    </TypographyMuted>
-                  </div>
-
-                  <Button
-                    variant="outline"
-                    size="xs"
-                    onClick={() => handleEditarClick(ing)}
-                    className="shrink-0"
-                  >
-                    <PencilSimple weight="bold" className="h-3 w-3" />
-                    <span>Editar</span>
-                  </Button>
-                </div>
-
-                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/40 px-2.5 py-1.5 text-[11px]">
-                  <span className="text-muted-foreground">
-                    <strong className="text-foreground">{ing.automovil || 'Vehículo'}</strong> ·{' '}
-                    <span className="font-mono">{ing.placas || 'Sin placas'}</span> ·{' '}
-                    <span className="font-mono">{ing.rendimiento || 12.5} km/L</span>
-                  </span>
-                  <span className="text-muted-foreground">
-                    <strong className="text-foreground">{totalTiendasIng}</strong> tiendas
-                  </span>
-                </div>
-              </Card>
-            );
-          })}
-        </div>
-      )}
-
       {/* ================= VISTA 3: COBERTURA GPS POR INGENIERO ================= */}
       {subTab === 'cobertura' && (
-        <div className="space-y-2 min-w-0">
+        <div className="space-y-2.5 min-w-0">
           {coberturaPorIngeniero.map((c) => {
             const pct = c.total ? Math.round((c.verificadas / c.total) * 100) : 0;
             return (
-              <Card key={c.ingeniero.nombre} className="p-3 space-y-2">
+              <Card key={c.ingeniero.nombre} className="p-3.5 space-y-2.5">
                 <div className="flex items-center justify-between gap-2 min-w-0">
                   <div className="min-w-0">
                     <TypographySmall className="font-semibold text-xs truncate block">
                       {c.ingeniero.nombre}
                     </TypographySmall>
                     <TypographyMuted className="text-[11px]">
-                      {c.ingeniero.region || 'SURESTE'} · {c.total} sucursales
+                      {c.ingeniero.region || 'SURESTE'} · {c.total} sucursales asignadas
                     </TypographyMuted>
                   </div>
                   <div className="text-right shrink-0">
-                    <span className="text-xs font-mono font-semibold text-emerald-600 dark:text-emerald-400">
+                    <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
                       {c.verificadas}/{c.total} ({pct}%)
                     </span>
                     {c.pendientes > 0 && (
@@ -531,7 +614,7 @@ export function AdminTeamTab({
                     )}
                   </div>
                 </div>
-                <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
                   <div
                     className="h-full bg-emerald-500 transition-all"
                     style={{ width: `${pct}%` }}

@@ -429,64 +429,64 @@ export function RouteBuilderTab({
   const offsetBase = ruta.baseInicio && baseTienda ? 1 : 0;
 
   return (
-    <div className="flex flex-col gap-3 min-w-0">
+    <div className="flex flex-col gap-3.5 min-w-0">
       {/* ================= BARRA DE MODO OPERATIVO (COMPROBACIÓN vs ANTICIPO) ================= */}
-      <div className="rounded-xl border border-border/80 bg-muted/20 p-2.5 space-y-2 min-w-0">
+      <Card className="p-3.5 space-y-2.5 min-w-0">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[10px] font-bold tracking-wider uppercase text-muted-foreground">
+          <span className="text-[11px] font-bold tracking-wider uppercase text-muted-foreground">
             Control Semanal
           </span>
           <div className="flex items-center gap-2">
-            <span className="font-mono text-[11px] font-semibold text-foreground">
+            <span className="font-mono text-xs font-semibold text-foreground">
               {kmAcumuladoSemana} km acum.
             </span>
-            <Badge variant="outline" className="text-[10px] font-medium bg-background/60 border-border/70">
+            <Badge variant="secondary" className="text-[10px] font-semibold">
               Sem. {semanaInfo.semana} ({semanaInfo.anio})
             </Badge>
           </div>
         </div>
 
         {/* Selector de modo: 1. Comprobación | 2. Anticipo */}
-        <div className="grid grid-cols-2 p-0.5 rounded-lg bg-muted/60 border border-border/50">
+        <div className="grid grid-cols-2 p-1 rounded-xl bg-muted border border-border/60">
           <button
             type="button"
             onClick={() => onSetModoOperativo?.('comprobacion')}
             className={cn(
-              'flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-md text-xs transition-all cursor-pointer min-w-0',
+              'flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg text-xs transition-all cursor-pointer min-w-0',
               modoOperativo === 'comprobacion'
-                ? 'bg-blue-600 text-white font-semibold shadow-xs'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
+                : 'text-muted-foreground hover:text-foreground'
             )}
           >
-            <GasPump weight="duotone" className="h-3.5 w-3.5 shrink-0" />
+            <GasPump weight="duotone" className="h-4 w-4 shrink-0" />
             <span className="truncate">1. Comprobación</span>
           </button>
           <button
             type="button"
             onClick={() => onSetModoOperativo?.('anticipo')}
             className={cn(
-              'flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-md text-xs transition-all cursor-pointer min-w-0',
+              'flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg text-xs transition-all cursor-pointer min-w-0',
               modoOperativo === 'anticipo'
                 ? 'bg-amber-600 text-white font-semibold shadow-xs'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                : 'text-muted-foreground hover:text-foreground'
             )}
           >
-            <Receipt weight="duotone" className="h-3.5 w-3.5 shrink-0" />
+            <Receipt weight="duotone" className="h-4 w-4 shrink-0" />
             <span className="truncate">2. Anticipo</span>
           </button>
         </div>
 
         {/* Controles de periodo cuando estamos en modo Anticipo */}
         {modoOperativo === 'anticipo' && (
-          <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1 border-t border-border/40">
-            <div className="inline-flex items-center bg-muted/60 p-0.5 rounded-md border border-border/50">
+          <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1.5 border-t border-border/60">
+            <div className="inline-flex items-center bg-muted p-0.5 rounded-lg border border-border/60">
               <button
                 type="button"
                 onClick={() => handleCambiarVarianteAnticipo('ciclo_neto')}
                 className={cn(
-                  'px-2 py-1 rounded text-[11px] font-medium transition-all cursor-pointer',
+                  'px-2.5 py-1 rounded-md text-[11px] font-medium transition-all cursor-pointer',
                   varianteAnticipo === 'ciclo_neto'
-                    ? 'bg-background text-foreground font-semibold shadow-xs'
+                    ? 'bg-card text-foreground font-semibold shadow-xs'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
               >
@@ -496,9 +496,9 @@ export function RouteBuilderTab({
                 type="button"
                 onClick={() => handleCambiarVarianteAnticipo('semana_natural')}
                 className={cn(
-                  'px-2 py-1 rounded text-[11px] font-medium transition-all cursor-pointer',
+                  'px-2.5 py-1 rounded-md text-[11px] font-medium transition-all cursor-pointer',
                   varianteAnticipo === 'semana_natural'
-                    ? 'bg-background text-foreground font-semibold shadow-xs'
+                    ? 'bg-card text-foreground font-semibold shadow-xs'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
               >
@@ -511,10 +511,10 @@ export function RouteBuilderTab({
                 type="button"
                 onClick={handleToggleLunesOlvido}
                 className={cn(
-                  'flex items-center gap-1 px-2 py-1 rounded-md text-[11px] border transition-all cursor-pointer shrink-0',
+                  'flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] border transition-all cursor-pointer shrink-0',
                   incluirLunesOlvido
                     ? 'border-amber-500/60 bg-amber-500/15 text-amber-700 dark:text-amber-300 font-semibold'
-                    : 'border-border/70 bg-background/50 text-muted-foreground hover:text-foreground'
+                    : 'border-border bg-muted/40 text-muted-foreground hover:text-foreground'
                 )}
               >
                 <span>{incluirLunesOlvido ? '✓ Lunes actual incluido' : '+ Incluir lunes actual'}</span>
@@ -524,20 +524,20 @@ export function RouteBuilderTab({
         )}
 
         {/* Tira interactiva de días de la semana */}
-        <div className="pt-1 border-t border-border/40">
-          <div className="flex items-center justify-between pb-1 text-[10px] text-muted-foreground">
+        <div className="pt-1.5 border-t border-border/60">
+          <div className="flex items-center justify-between pb-1.5 text-[11px] text-muted-foreground">
             <span>
               {modoOperativo === 'comprobacion'
                 ? 'Bitácora de comprobación'
                 : 'Programación de anticipo'}
             </span>
-            <span className="font-mono font-medium">
+            <span className="font-mono font-semibold text-foreground">
               {diasListosSemana.length}/{diasSemana.length} días
             </span>
           </div>
           <div
             className={cn(
-              'grid gap-1',
+              'grid gap-1.5',
               diasSemana.length === 7 ? 'grid-cols-7' : 'grid-cols-6'
             )}
           >
@@ -556,24 +556,24 @@ export function RouteBuilderTab({
                     }
                   }}
                   className={cn(
-                    'flex flex-col items-center justify-center py-1.5 px-0.5 rounded-lg border text-center transition-all cursor-pointer relative min-w-0',
+                    'flex flex-col items-center justify-center py-2 px-1 rounded-xl border text-center transition-all cursor-pointer relative min-w-0',
                     esActivo
-                      ? 'border-primary bg-primary/10 text-primary font-bold ring-1 ring-primary/40 shadow-xs'
+                      ? 'border-primary bg-primary/15 text-primary font-bold ring-1 ring-primary/40 shadow-xs'
                       : guardado
                       ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20'
                       : d.esProximoLunes
                       ? 'border-amber-500/50 bg-amber-500/10 text-amber-800 dark:text-amber-300 hover:bg-amber-500/20'
-                      : 'border-border/60 bg-card/60 text-muted-foreground hover:bg-muted hover:text-foreground'
+                      : 'border-border bg-muted/35 text-muted-foreground hover:bg-muted hover:text-foreground'
                   )}
                   title={`${d.diaNombre} ${d.diaMes} ${d.esProximoLunes ? '(Lunes siguiente)' : ''} · ${guardado ? `${guardado.totalKm} km guardados` : 'Sin ruta'}`}
                 >
                   <span className="text-[9px] uppercase font-bold tracking-tight truncate max-w-full">
                     {d.esProximoLunes ? 'LUN+1' : d.diaNombre}
                   </span>
-                  <span className="text-xs font-semibold tabular-nums leading-none mt-0.5">
+                  <span className="text-xs font-semibold tabular-nums leading-none mt-1">
                     {d.diaMes}
                   </span>
-                  <span className="text-[8px] mt-1 leading-none font-mono truncate max-w-full">
+                  <span className="text-[8.5px] mt-1 leading-none font-mono truncate max-w-full">
                     {guardado ? `${Math.round(guardado.totalKm)}k` : esActivo ? 'Activo' : '—'}
                   </span>
                 </button>
@@ -581,7 +581,7 @@ export function RouteBuilderTab({
             })}
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Banner de conveniencia si hay un Anticipo guardado para hoy y estamos en Comprobación */}
       {anticipoDisponibleParaImportar && (

@@ -4,49 +4,51 @@
 
 :root {
   color-scheme: light;
-  --background: hsl(210 25% 98.5%);
-  --foreground: hsl(224 71.4% 4.1%);
+  /* Lienzo gris-azulado suave (Slate 100) para que las tarjetas blancas destaquen con profundidad */
+  --background: hsl(214 32% 95.5%);
+  --foreground: hsl(222 47% 11%);
   --card: hsl(0 0% 100%);
-  --card-foreground: hsl(224 71.4% 4.1%);
+  --card-foreground: hsl(222 47% 11%);
   --popover: hsl(0 0% 100%);
-  --popover-foreground: hsl(224 71.4% 4.1%);
-  --primary: hsl(221.2 83.2% 53.3%);
-  --primary-foreground: hsl(210 40% 98%);
-  --secondary: hsl(210 40% 95.5%);
-  --secondary-foreground: hsl(222.2 47.4% 11.2%);
-  --muted: hsl(210 35% 94.5%);
-  --muted-foreground: hsl(215.4 16.3% 43%);
-  --accent: hsl(210 40% 93.5%);
-  --accent-foreground: hsl(222.2 47.4% 11.2%);
-  --destructive: hsl(0 84.2% 60.2%);
-  --destructive-foreground: hsl(210 40% 98%);
-  --border: hsl(214.3 31.8% 89%);
-  --input: hsl(214.3 31.8% 87%);
-  --ring: hsl(221.2 83.2% 53.3%);
-  --radius: 0.625rem;
+  --popover-foreground: hsl(222 47% 11%);
+  --primary: hsl(221 83% 53%);
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(214 32% 91%);
+  --secondary-foreground: hsl(222 47% 11%);
+  --muted: hsl(214 28% 92%);
+  --muted-foreground: hsl(215 19% 40%);
+  --accent: hsl(214 32% 90%);
+  --accent-foreground: hsl(222 47% 11%);
+  --destructive: hsl(0 84% 60%);
+  --destructive-foreground: hsl(0 0% 100%);
+  --border: hsl(214 26% 85%);
+  --input: hsl(214 26% 83%);
+  --ring: hsl(221 83% 53%);
+  --radius: 0.75rem;
 }
 
 .dark {
   color-scheme: dark;
-  --background: hsl(224 71% 4%);
-  --foreground: hsl(213 31% 92%);
-  --card: hsl(224 64% 6.5%);
-  --card-foreground: hsl(213 31% 92%);
-  --popover: hsl(224 64% 7%);
-  --popover-foreground: hsl(213 31% 92%);
-  --primary: hsl(217.2 91.2% 59.8%);
-  --primary-foreground: hsl(222.2 47.4% 11.2%);
-  --secondary: hsl(222.2 47.4% 12.5%);
+  /* Lienzo profundo (Slate 950) + tarjetas elevadas (Slate 900) con borde definido */
+  --background: hsl(222 47% 7.5%);
+  --foreground: hsl(210 40% 98%);
+  --card: hsl(222 42% 12%);
+  --card-foreground: hsl(210 40% 98%);
+  --popover: hsl(222 44% 13%);
+  --popover-foreground: hsl(210 40% 98%);
+  --primary: hsl(217 91% 60%);
+  --primary-foreground: hsl(0 0% 100%);
+  --secondary: hsl(221 39% 17.5%);
   --secondary-foreground: hsl(210 40% 98%);
-  --muted: hsl(223 47% 11%);
-  --muted-foreground: hsl(215.4 16.3% 64%);
-  --accent: hsl(216 34% 15.5%);
+  --muted: hsl(222 38% 16%);
+  --muted-foreground: hsl(215 20% 68%);
+  --accent: hsl(220 36% 20%);
   --accent-foreground: hsl(210 40% 98%);
-  --destructive: hsl(0 72% 51%);
-  --destructive-foreground: hsl(210 40% 98%);
-  --border: hsl(216 34% 16%);
-  --input: hsl(216 34% 17%);
-  --ring: hsl(224.3 76.3% 54%);
+  --destructive: hsl(0 72% 54%);
+  --destructive-foreground: hsl(0 0% 100%);
+  --border: hsl(220 32% 21%);
+  --input: hsl(220 32% 22%);
+  --ring: hsl(217 91% 60%);
 }
 
 @theme inline {
@@ -85,16 +87,14 @@
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
     -webkit-tap-highlight-color: transparent;
-    /* Red de seguridad: ningún componente puede generar scroll horizontal global */
     overflow-x: clip;
   }
   body {
-    @apply bg-background text-foreground font-sans;
+    @apply bg-background text-foreground font-sans antialiased;
     font-feature-settings: "rlig" 1, "calt" 1, "cv02" 1, "cv03" 1, "cv04" 1, "cv11" 1;
     overflow-x: clip;
     overscroll-behavior-y: none;
   }
-  /* Evita el retardo de doble toque y el zoom accidental sobre controles */
   button,
   [role="button"],
   [role="tab"],
@@ -114,7 +114,7 @@
   padding-top: env(safe-area-inset-top);
 }
 
-/* Oculta la barra de desplazamiento manteniendo el scroll (carruseles, filtros) */
+/* Oculta la barra de desplazamiento manteniendo el scroll */
 @utility scrollbar-none {
   scrollbar-width: none;
   &::-webkit-scrollbar {
@@ -136,4 +136,3 @@
 ::-webkit-scrollbar-thumb:hover {
   background: var(--muted-foreground);
 }
-
