@@ -149,9 +149,9 @@ export function CoordinateAuditTab({
   const rumbo = sel?.orig && sel?.lat != null ? rumboCardinal(sel.orig, sel) : '';
 
   return (
-    <div className="flex flex-col gap-3 min-w-0">
+    <div className="flex h-full min-h-0 flex-col gap-2.5 min-w-0">
       {/* ================= BARRA SUPERIOR DE CATÁLOGO ================= */}
-      <div className="flex flex-wrap items-center justify-between gap-1.5 min-w-0">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-1.5 min-w-0">
         <div className="flex flex-wrap items-center gap-1.5 min-w-0">
           <Button size="sm" onClick={() => onOpenNewStoreModal?.()}>
             <PlusCircle weight="duotone" />
@@ -174,7 +174,7 @@ export function CoordinateAuditTab({
 
       {/* ================= EDITOR DE TIENDA SELECCIONADA ================= */}
       {sel && (
-        <Card className="border-foreground/30 bg-muted/20 shadow-xs min-w-0">
+        <Card className="shrink-0 border-primary/40 bg-card shadow-xs min-w-0">
           <CardContent className="p-3 space-y-2.5 min-w-0">
             <div className="flex items-center gap-1.5 min-w-0">
               <Input
@@ -483,7 +483,7 @@ export function CoordinateAuditTab({
       )}
 
       {/* ================= FILTROS DEL CATÁLOGO ================= */}
-      <div className="space-y-2">
+      <div className="shrink-0 space-y-2">
         {/* Selector rápido por Ingeniero */}
         <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
           <Button
@@ -562,8 +562,8 @@ export function CoordinateAuditTab({
         </div>
       </div>
 
-      {/* ================= LISTA DE TIENDAS ================= */}
-      <Card className="divide-y divide-border overflow-hidden max-h-96 overflow-y-auto overscroll-contain">
+      {/* ================= LISTA DE TIENDAS (SCROLL ÚNICO) ================= */}
+      <Card className="flex-1 min-h-0 divide-y divide-border overflow-y-auto overscroll-contain">
         {listaFiltrada.length === 0 ? (
           <div className="py-8 text-center">
             <TypographyMuted>Sin tiendas en este filtro.</TypographyMuted>

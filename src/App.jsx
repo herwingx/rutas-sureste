@@ -1122,8 +1122,11 @@ export default function App() {
               </TabsList>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain px-4 py-4">
-              <TabsContent value="ruta" className="m-0">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-3.5 py-3">
+              <TabsContent
+                value="ruta"
+                className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden"
+              >
                 <RouteBuilderTab
                   searchInputRef={searchInputRef}
                   tiendas={tiendas}
@@ -1161,7 +1164,10 @@ export default function App() {
                 />
               </TabsContent>
 
-              <TabsContent value="corregir" className="m-0">
+              <TabsContent
+                value="corregir"
+                className="m-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden"
+              >
                 <CoordinateAuditTab
                   tiendas={tiendas}
                   porNombre={porNombre}
@@ -1195,7 +1201,10 @@ export default function App() {
                 />
               </TabsContent>
 
-              <TabsContent value="historial" className="m-0">
+              <TabsContent
+                value="historial"
+                className="m-0 min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain data-[state=inactive]:hidden"
+              >
                 <HistoryAnalyticsTab
                   historial={historial}
                   onOpenBitacora={abrirBitacoraConModo}
@@ -1233,7 +1242,10 @@ export default function App() {
               </TabsContent>
 
               {isAdmin && (
-                <TabsContent value="admin" className="m-0">
+                <TabsContent
+                  value="admin"
+                  className="m-0 min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain data-[state=inactive]:hidden"
+                >
                   <AdminTeamTab
                     ingenieros={ingenieros}
                     onUpdateIngeniero={(actualizado) => {

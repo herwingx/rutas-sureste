@@ -1,15 +1,16 @@
 /**
- * @fileoverview Módulo Constructor de Rutas y Matriz de Costos (`RouteBuilderTab.jsx`).
+ * @fileoverview Módulo Constructor de Rutas y Control Semanal (`RouteBuilderTab.jsx`).
  *
- * Funcionalidades principales:
- * - Buscador predictivo de tiendas con filtros rápidos por corredor logístico y estado.
- * - Selector de fecha de operación (`DatePicker` de shadcn/ui con localización `es` y presets).
- * - Lista de paradas interactiva con soporte Drag & Drop nativo, reordenamiento manual,
- *   inversión de sentido y adición de paradas personalizadas (por coordenadas o clic en mapa).
- * - Optimización automática de secuencia (2-Opt TSP vía `/api/optimizar`) e indicadores KPI
- *   en tiempo real (Kilómetros, Combustible + Casetas, Litros y Tiempo estimado).
- * - Tabla desglosada tramo por tramo (`A -> B`) y exportación directa en formato TSV
- *   compatible con pegado directo en Excel / Google Sheets y resumen para WhatsApp.
+ * Diseño de 3 zonas sin doble scroll (Single-Viewport Flex Layout):
+ * 1. ZONA SUPERIOR FIJA (`shrink-0`):
+ *    - Selector de modo (1. Comprobación | 2. Anticipo) + selector de fecha compacto integrado.
+ *    - Tira interactiva de días de la semana.
+ *    - Buscador predictivo + barra compacta de herramientas (Salida/Regreso base, Optimizar, Invertir, Copiar, Limpiar).
+ * 2. ZONA CENTRAL CON SCROLL ÚNICO (`flex-1 min-h-0 overflow-y-auto`):
+ *    - Lista de sucursales del recorrido con soporte Drag & Drop. Es el único elemento que hace scroll.
+ * 3. DOCK INFERIOR FIJO (`shrink-0`):
+ *    - Cinta unificada de 4 métricas (Distancia, Combustible, Tiempo, Litros).
+ *    - Acciones primarias de guardado diario y generación de Bitácora Oficial Neto (.xlsx).
  */
 
 import { useState, useEffect, useMemo } from 'react';
@@ -19,19 +20,15 @@ import {
   FloppyDiskBack,
   ArrowUUpLeft,
   ArrowsDownUp,
-  Plus,
   Trash,
   DotsSixVertical,
   Path,
   GasPump,
   Receipt,
-  Timer,
-  Drop,
   ClipboardText,
   ShareNetwork,
   CaretUp,
   CaretDown,
-  Table as TableIcon,
   Crosshair,
   Warehouse,
   FlagCheckered,
@@ -48,17 +45,8 @@ import { Input } from '@/components/ui/input';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { Kbd } from '@/components/ui/kbd';
-import { Card, CardHeader, CardTitle } from '@/components/ui/card';
-import {
-  Table,
-  TableHeader,
-  TableBody,
-  TableRow,
-  TableHead,
-  TableCell,
-} from '@/components/ui/table';
+import { Card } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -69,11 +57,9 @@ import {
 } from '@/components/ui/dialog';
 import { ActionTooltip } from '@/components/ui/tooltip';
 import {
-  TypographyH4,
   TypographySmall,
   TypographyMuted,
   TypographyMono,
-  TypographyLarge,
 } from '@/components/ui/typography';
 import {
   cn,
@@ -124,11 +110,9 @@ export function RouteBuilderTab({
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [batchModalOpen, setBatchModalOpen] = useState(false);
   const [batchText, setBatchText] = useState('');
-  const [showTablePreview, setShowTablePreview] = useState(false);
   const [dragIdx, setDragIdx] = useState(null);
   const [dropTarget, setDropTarget] = useState(null);
 
-  // Variante del ciclo de anticipo: 'ciclo_neto' (Mar -> Lun próx) o 'semana_natural' (Lun -> Sáb)
   const [varianteAnticipo, setVarianteAnticipo] = useState(() => {
     try {
       return localStorage.getItem('neto_variante_anticipo') || 'ciclo_neto';
@@ -137,7 +121,6 @@ export function RouteBuilderTab({
     }
   });
 
-  // Flag flexible: por si al ingeniero se le olvidó pedir el lunes en el anticipo previo y lo incluye en este
   const [incluirLunesOlvido, setIncluirLunesOlvido] = useState(() => {
     try {
       return localStorage.getItem('neto_incluir_lunes_olvido') === 'true';
@@ -146,12 +129,10 @@ export function RouteBuilderTab({
     }
   });
 
-  // Base para anclar la semana activa sin que salte de semana al seleccionar el lunes próximo
   const [fechaSemanaBase, setFechaSemanaBase] = useState(
     () => ruta.fecha || new Date().toISOString().slice(0, 10)
   );
 
-  // Cálculo del ciclo operativo Neto (Comprobación vs Anticipo)
   const cicloInfo = useMemo(() => {
     return obtenerCicloOperativoNeto(fechaSemanaBase, {
       modo: modoOperativo,
@@ -160,7 +141,6 @@ export function RouteBuilderTab({
     });
   }, [fechaSemanaBase, modoOperativo, varianteAnticipo, incluirLunesOlvido]);
 
-  // Si la fecha seleccionada en DatePicker está fuera del ciclo, actualizamos la semana base
   useEffect(() => {
     if (!ruta.fecha) return;
     const dentroDeCiclo =
@@ -172,7 +152,6 @@ export function RouteBuilderTab({
     }
   }, [ruta.fecha, cicloInfo]);
 
-  // Información de Semana y Días de la semana para flujo ágil
   const semanaInfo = useMemo(() => calcularSemanaISO(fechaSemanaBase), [fechaSemanaBase]);
   const diasSemana = cicloInfo.dias;
 
@@ -193,7 +172,6 @@ export function RouteBuilderTab({
     });
   };
 
-  // Mapa de días guardados en el historial para este ingeniero en el modo operativo activo
   const mapaDiasHistorial = useMemo(() => {
     const mapa = {};
     (historial || []).forEach((h) => {
@@ -208,7 +186,6 @@ export function RouteBuilderTab({
     return mapa;
   }, [historial, ingenieroActivo, modoOperativo]);
 
-  // Mapa de anticipos guardados (para poder importar a comprobación)
   const mapaAnticipos = useMemo(() => {
     const mapa = {};
     (historial || []).forEach((h) => {
@@ -222,11 +199,11 @@ export function RouteBuilderTab({
     return mapa;
   }, [historial, ingenieroActivo]);
 
-  const nombreDiaActual = useMemo(() => {
+  const nombreDiaCorto = useMemo(() => {
     const d = new Date(ruta.fecha + 'T12:00:00');
-    const nombres = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const nombres = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
     const esProx = ruta.fecha === cicloInfo.fechaProximoLunes;
-    if (esProx) return 'Lunes (Próx. semana)';
+    if (esProx) return 'Lun+1';
     return nombres[d.getDay()] || 'Día';
   }, [ruta.fecha, cicloInfo.fechaProximoLunes]);
 
@@ -237,8 +214,6 @@ export function RouteBuilderTab({
   }, [ruta.fecha]);
 
   const siguienteDiaInfo = useMemo(() => {
-    // Si estamos en modo anticipo con ciclo neto:
-    // El orden de días es: Martes -> Miércoles -> Jueves -> Viernes -> Sábado -> Lunes (+1)
     if (modoOperativo === 'anticipo' && varianteAnticipo === 'ciclo_neto') {
       const idx = cicloInfo.dias.findIndex((d) => d.fecha === ruta.fecha);
       if (idx >= 0 && idx < cicloInfo.dias.length - 1) {
@@ -246,7 +221,7 @@ export function RouteBuilderTab({
         return {
           iso: sig.fecha,
           label: `${sig.diaNombre} ${sig.diaMes}`,
-          nombre: sig.esProximoLunes ? 'Lun próx.' : sig.diaNombre,
+          nombre: sig.esProximoLunes ? 'Lun+1' : sig.diaNombre,
           esUltimo: false,
         };
       } else if (idx === cicloInfo.dias.length - 1) {
@@ -261,7 +236,7 @@ export function RouteBuilderTab({
 
     const d = new Date(ruta.fecha + 'T12:00:00');
     d.setDate(d.getDate() + 1);
-    if (d.getDay() === 0) d.setDate(d.getDate() + 1); // saltar domingo
+    if (d.getDay() === 0) d.setDate(d.getDate() + 1);
     const nombres = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -424,115 +399,99 @@ export function RouteBuilderTab({
   const offsetBase = ruta.baseInicio && baseTienda ? 1 : 0;
 
   return (
-    <div className="flex flex-col gap-3.5 min-w-0">
-      {/* ================= BARRA DE MODO OPERATIVO (COMPROBACIÓN vs ANTICIPO) ================= */}
-      <Card className="p-3.5 space-y-2.5 min-w-0">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-[11px] font-bold tracking-wider uppercase text-muted-foreground">
-            Control Semanal
-          </span>
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-xs font-semibold text-foreground">
-              {kmAcumuladoSemana} km acum.
-            </span>
-            <Badge variant="secondary" className="text-[10px] font-semibold">
-              Sem. {semanaInfo.semana} ({semanaInfo.anio})
-            </Badge>
-          </div>
-        </div>
-
-        {/* Selector de modo: 1. Comprobación | 2. Anticipo */}
-        <div className="grid grid-cols-2 p-1 rounded-xl bg-muted border border-border/60">
-          <button
-            type="button"
-            onClick={() => onSetModoOperativo?.('comprobacion')}
-            className={cn(
-              'flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg text-xs transition-all cursor-pointer min-w-0',
-              modoOperativo === 'comprobacion'
-                ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
-                : 'text-muted-foreground hover:text-foreground'
-            )}
-          >
-            <GasPump weight="duotone" className="h-4 w-4 shrink-0" />
-            <span className="truncate">1. Comprobación</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => onSetModoOperativo?.('anticipo')}
-            className={cn(
-              'flex items-center justify-center gap-1.5 py-2 px-2.5 rounded-lg text-xs transition-all cursor-pointer min-w-0',
-              modoOperativo === 'anticipo'
-                ? 'bg-amber-600 text-white font-semibold shadow-xs'
-                : 'text-muted-foreground hover:text-foreground'
-            )}
-          >
-            <Receipt weight="duotone" className="h-4 w-4 shrink-0" />
-            <span className="truncate">2. Anticipo</span>
-          </button>
-        </div>
-
-        {/* Controles de periodo cuando estamos en modo Anticipo */}
-        {modoOperativo === 'anticipo' && (
-          <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1.5 border-t border-border/60">
-            <div className="inline-flex items-center bg-muted p-0.5 rounded-lg border border-border/60">
+    <div className="flex h-full min-h-0 flex-col justify-between gap-2.5 min-w-0">
+      {/* ================= 1. ZONA SUPERIOR FIJA: SEMANA + BUSCADOR + HERRAMIENTAS ================= */}
+      <div className="shrink-0 space-y-2 min-w-0">
+        {/* Tarjeta compacta de Control Semanal */}
+        <Card className="p-2.5 space-y-2 min-w-0">
+          {/* Fila 1: Selector Comprobación / Anticipo + Calendario integrado */}
+          <div className="flex items-center justify-between gap-1.5 min-w-0">
+            <div className="grid grid-cols-2 flex-1 p-0.5 rounded-lg bg-muted border border-border/60 min-w-0">
               <button
                 type="button"
-                onClick={() => handleCambiarVarianteAnticipo('ciclo_neto')}
+                onClick={() => onSetModoOperativo?.('comprobacion')}
                 className={cn(
-                  'px-2.5 py-1 rounded-md text-[11px] font-medium transition-all cursor-pointer',
-                  varianteAnticipo === 'ciclo_neto'
-                    ? 'bg-card text-foreground font-semibold shadow-xs'
+                  'flex items-center justify-center gap-1 py-1.5 px-2 rounded-md text-xs transition-all cursor-pointer min-w-0',
+                  modoOperativo === 'comprobacion'
+                    ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
               >
-                Ciclo Mar–Lun
+                <GasPump weight="duotone" className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">1. Comprobación</span>
               </button>
               <button
                 type="button"
-                onClick={() => handleCambiarVarianteAnticipo('semana_natural')}
+                onClick={() => onSetModoOperativo?.('anticipo')}
                 className={cn(
-                  'px-2.5 py-1 rounded-md text-[11px] font-medium transition-all cursor-pointer',
-                  varianteAnticipo === 'semana_natural'
-                    ? 'bg-card text-foreground font-semibold shadow-xs'
+                  'flex items-center justify-center gap-1 py-1.5 px-2 rounded-md text-xs transition-all cursor-pointer min-w-0',
+                  modoOperativo === 'anticipo'
+                    ? 'bg-amber-600 text-white font-semibold shadow-xs'
                     : 'text-muted-foreground hover:text-foreground'
                 )}
               >
-                Lun–Sáb
+                <Receipt weight="duotone" className="h-3.5 w-3.5 shrink-0" />
+                <span className="truncate">2. Anticipo</span>
               </button>
             </div>
 
-            {varianteAnticipo === 'ciclo_neto' && (
-              <button
-                type="button"
-                onClick={handleToggleLunesOlvido}
-                className={cn(
-                  'flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] border transition-all cursor-pointer shrink-0',
-                  incluirLunesOlvido
-                    ? 'border-amber-500/60 bg-amber-500/15 text-amber-700 dark:text-amber-300 font-semibold'
-                    : 'border-border bg-muted/40 text-muted-foreground hover:text-foreground'
-                )}
-              >
-                <span>{incluirLunesOlvido ? '✓ Lunes actual incluido' : '+ Incluir lunes actual'}</span>
-              </button>
-            )}
+            <DatePicker
+              value={ruta.fecha}
+              onChange={(fecha) => onMutateRuta((r) => ({ ...r, fecha }))}
+            />
           </div>
-        )}
 
-        {/* Tira interactiva de días de la semana */}
-        <div className="pt-1.5 border-t border-border/60">
-          <div className="flex items-center justify-between pb-1.5 text-[11px] text-muted-foreground">
-            <span>
-              {modoOperativo === 'comprobacion'
-                ? 'Bitácora de comprobación'
-                : 'Programación de anticipo'}
-            </span>
-            <span className="font-mono font-semibold text-foreground">
-              {diasListosSemana.length}/{diasSemana.length} días
-            </span>
-          </div>
+          {/* Opciones de periodo exclusivas de Anticipo */}
+          {modoOperativo === 'anticipo' && (
+            <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-border/50 text-[11px]">
+              <div className="inline-flex items-center bg-muted p-0.5 rounded-md border border-border/60">
+                <button
+                  type="button"
+                  onClick={() => handleCambiarVarianteAnticipo('ciclo_neto')}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-medium transition-all cursor-pointer',
+                    varianteAnticipo === 'ciclo_neto'
+                      ? 'bg-card text-foreground font-semibold shadow-2xs'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  Mar–Lun
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCambiarVarianteAnticipo('semana_natural')}
+                  className={cn(
+                    'px-2 py-0.5 rounded text-[10px] font-medium transition-all cursor-pointer',
+                    varianteAnticipo === 'semana_natural'
+                      ? 'bg-card text-foreground font-semibold shadow-2xs'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  Lun–Sáb
+                </button>
+              </div>
+
+              {varianteAnticipo === 'ciclo_neto' && (
+                <button
+                  type="button"
+                  onClick={handleToggleLunesOlvido}
+                  className={cn(
+                    'px-2 py-0.5 rounded-md text-[10px] border transition-all cursor-pointer shrink-0',
+                    incluirLunesOlvido
+                      ? 'border-amber-500/60 bg-amber-500/15 text-amber-700 dark:text-amber-300 font-semibold'
+                      : 'border-border bg-muted/40 text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  {incluirLunesOlvido ? '✓ Lunes actual' : '+ Lunes actual'}
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Tira interactiva de días */}
           <div
             className={cn(
-              'grid gap-1.5',
+              'grid gap-1',
               diasSemana.length === 7 ? 'grid-cols-7' : 'grid-cols-6'
             )}
           >
@@ -543,594 +502,537 @@ export function RouteBuilderTab({
                 <button
                   key={d.fecha}
                   type="button"
-                  onClick={() => {
-                    if (guardado) {
-                      onSelectDay?.(d.fecha, guardado);
-                    } else {
-                      onSelectDay?.(d.fecha, null);
-                    }
-                  }}
+                  onClick={() => onSelectDay?.(d.fecha, guardado || null)}
                   className={cn(
-                    'flex flex-col items-center justify-center py-2 px-1 rounded-xl border text-center transition-all cursor-pointer relative min-w-0',
+                    'flex flex-col items-center justify-center py-1.5 px-0.5 rounded-lg border text-center transition-all cursor-pointer min-w-0',
                     esActivo
-                      ? 'border-primary bg-primary/15 text-primary font-bold ring-1 ring-primary/40 shadow-xs'
+                      ? 'border-primary bg-primary/15 text-primary font-bold ring-1 ring-primary/40'
                       : guardado
                       ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20'
                       : d.esProximoLunes
                       ? 'border-amber-500/50 bg-amber-500/10 text-amber-800 dark:text-amber-300 hover:bg-amber-500/20'
                       : 'border-border bg-muted/35 text-muted-foreground hover:bg-muted hover:text-foreground'
                   )}
-                  title={`${d.diaNombre} ${d.diaMes} ${d.esProximoLunes ? '(Lunes siguiente)' : ''} · ${guardado ? `${guardado.totalKm} km guardados` : 'Sin ruta'}`}
+                  title={`${d.diaNombre} ${d.diaMes} · ${guardado ? `${guardado.totalKm} km guardados` : 'Sin guardar'}`}
                 >
-                  <span className="text-[9px] uppercase font-bold tracking-tight truncate max-w-full">
+                  <span className="text-[9px] uppercase font-bold tracking-tight truncate max-w-full leading-none">
                     {d.esProximoLunes ? 'LUN+1' : d.diaNombre}
                   </span>
                   <span className="text-xs font-semibold tabular-nums leading-none mt-1">
                     {d.diaMes}
                   </span>
-                  <span className="text-[8.5px] mt-1 leading-none font-mono truncate max-w-full">
-                    {guardado ? `${Math.round(guardado.totalKm)}k` : esActivo ? 'Activo' : '—'}
+                  <span className="text-[8px] mt-0.5 leading-none font-mono truncate max-w-full">
+                    {guardado ? `${Math.round(guardado.totalKm)}k` : esActivo ? '•' : '—'}
                   </span>
                 </button>
               );
             })}
           </div>
-        </div>
-      </Card>
+        </Card>
 
-      {/* Banner de conveniencia si hay un Anticipo guardado para hoy y estamos en Comprobación */}
-      {anticipoDisponibleParaImportar && (
-        <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-xs">
-          <div className="flex items-center gap-2 min-w-0">
-            <Lightning weight="fill" className="h-4 w-4 shrink-0 text-amber-500" />
-            <div className="min-w-0">
-              <span className="font-semibold block truncate">Anticipo programado disponible</span>
-              <span className="text-[10px] text-muted-foreground truncate block">
-                {anticipoDisponibleParaImportar.paradas.length} sucursales · {anticipoDisponibleParaImportar.totalKm} km
+        {/* Banner de importación rápida de Anticipo -> Comprobación */}
+        {anticipoDisponibleParaImportar && (
+          <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-xs">
+            <div className="flex items-center gap-2 min-w-0">
+              <Lightning weight="fill" className="h-4 w-4 shrink-0 text-amber-500" />
+              <span className="truncate font-medium">
+                Anticipo disponible ({anticipoDisponibleParaImportar.paradas.length} tiendas · {anticipoDisponibleParaImportar.totalKm} km)
               </span>
             </div>
-          </div>
-          <Button
-            type="button"
-            size="xs"
-            variant="outline"
-            className="border-amber-500/40 bg-background/80 hover:bg-amber-500/20 text-xs shrink-0 font-medium"
-            onClick={() => onCopyAnticipo?.(ruta.fecha)}
-          >
-            Cargar ruta
-          </Button>
-        </div>
-      )}
-
-      {/* ================= FILA FECHA + ETIQUETA + ACCIONES ================= */}
-      <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 min-w-0">
-        <DatePicker
-          value={ruta.fecha}
-          onChange={(fecha) => onMutateRuta((r) => ({ ...r, fecha }))}
-        />
-        <Input
-          type="text"
-          size="sm"
-          value={ruta.nombre}
-          onChange={(e) => onMutateRuta((r) => ({ ...r, nombre: e.target.value }))}
-          placeholder="Nota o corredor (opcional)"
-          className="flex-1 min-w-32"
-        />
-        <div className="flex items-center gap-1 ml-auto sm:ml-0 shrink-0">
-          <ActionTooltip label="Invertir orden de paradas">
             <Button
+              type="button"
+              size="xs"
               variant="outline"
-              size="icon-sm"
-              disabled={ruta.paradas.length < 2}
-              onClick={() =>
-                onMutateRuta((r) => ({
-                  ...r,
-                  paradas: [...r.paradas].reverse(),
-                }))
-              }
+              className="border-amber-500/40 bg-card hover:bg-amber-500/20 text-[11px] h-6 px-2 shrink-0"
+              onClick={() => onCopyAnticipo?.(ruta.fecha)}
             >
-              <ArrowsDownUp weight="bold" />
+              Cargar
             </Button>
-          </ActionTooltip>
-          <ActionTooltip label="Deshacer último cambio" shortcut="Ctrl+Z">
-            <Button variant="outline" size="icon-sm" disabled={!canUndo} onClick={onUndo}>
-              <ArrowUUpLeft weight="bold" />
-            </Button>
-          </ActionTooltip>
-          <ActionTooltip label="Limpiar ruta actual">
-            <Button variant="ghost" size="sm" onClick={onNewRoute} className="px-2">
-              <Plus weight="bold" />
-              <span>Limpiar</span>
-            </Button>
-          </ActionTooltip>
-        </div>
-      </div>
-
-      {/* ================= BUSCADOR PREDICTIVO ================= */}
-      <div className="relative min-w-0">
-        <div className="relative flex items-center min-w-0">
-          <MagnifyingGlass
-            weight="bold"
-            className="pointer-events-none absolute left-3 h-4 w-4 text-muted-foreground"
-          />
-          <Input
-            ref={searchInputRef}
-            size="lg"
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setActiveIdx(0);
-              setDropdownOpen(true);
-            }}
-            onFocus={() => setDropdownOpen(true)}
-            onBlur={() => setTimeout(() => setDropdownOpen(false), 160)}
-            onPaste={(e) => {
-              const txt = e.clipboardData?.getData('text') || '';
-              const lote = extraerLote(txt);
-              if (lote) {
-                e.preventDefault();
-                setQuery('');
-                setDropdownOpen(false);
-                onAddBatchStores(lote);
-              }
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                setActiveIdx((i) => (i + 1) % Math.max(resultados.length, 1));
-              } else if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                setActiveIdx(
-                  (i) => (i - 1 + Math.max(resultados.length, 1)) % Math.max(resultados.length, 1)
-                );
-              } else if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
-                e.preventDefault();
-                if (resultados[activeIdx]) seleccionarResultado(resultados[activeIdx]);
-              } else if (e.key === 'Escape') {
-                setQuery('');
-                setDropdownOpen(false);
-              } else if (e.key === 'Backspace' && !query && ruta.paradas.length > 0) {
-                onMutateRuta((r) => ({ ...r, paradas: r.paradas.slice(0, -1) }));
-              }
-            }}
-            placeholder="Buscar sucursal, ECO, zona o coordenadas…"
-            className="pl-9 pr-20 rounded-lg"
-          />
-          <div className="absolute right-2 flex items-center gap-1">
-            <ActionTooltip label="Pegar lista de tiendas desde Excel o texto">
-              <Button
-                type="button"
-                variant="secondary"
-                size="xs"
-                className="h-6 px-2 text-[11px]"
-                onClick={() => setBatchModalOpen(true)}
-              >
-                <ClipboardText weight="duotone" className="h-3.5 w-3.5" />
-                Lote
-              </Button>
-            </ActionTooltip>
-            <Kbd className="hidden sm:inline-flex">/</Kbd>
-          </div>
-        </div>
-
-        {/* Resultados de búsqueda */}
-        {dropdownOpen && query.trim() && (
-          <Card className="absolute left-0 right-0 top-[calc(100%+4px)] z-30 max-h-80 overflow-auto border-border bg-popover p-1 shadow-lg">
-            {resultados.length === 0 ? (
-              <div className="px-3 py-3.5 text-center">
-                <TypographyMuted>
-                  Sin coincidencias para <strong className="text-foreground">"{query}"</strong>.
-                  Puedes agregarla en <strong className="text-foreground">Catálogo → Nueva tienda</strong>.
-                </TypographyMuted>
-              </div>
-            ) : (
-              resultados.map((r, i) => (
-                <div
-                  key={i}
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    seleccionarResultado(r);
-                  }}
-                  onMouseEnter={() => setActiveIdx(i)}
-                  className={cn(
-                    'flex items-center justify-between gap-2 rounded-md px-2.5 py-2 text-xs cursor-pointer transition-colors',
-                    i === activeIdx ? 'bg-accent text-foreground' : 'hover:bg-accent/60'
-                  )}
-                >
-                  {r.tipo === 'lote' ? (
-                    <div className="flex flex-col gap-0.5 min-w-0">
-                      <TypographySmall className="text-primary">{r.label}</TypographySmall>
-                      <TypographyMuted className="truncate">{r.sub}</TypographyMuted>
-                    </div>
-                  ) : r.tipo === 'desvio' ? (
-                    <TypographySmall className="flex items-center gap-1.5">
-                      <MapPinLine weight="duotone" className="h-3.5 w-3.5 text-muted-foreground" />
-                      {r.label}
-                    </TypographySmall>
-                  ) : (
-                    <>
-                      <div className="flex items-center gap-2 min-w-0">
-                        {r.t.eco && r.t.eco !== '0' && (
-                          <Badge
-                            variant="outline"
-                            className="text-[10px] px-1 py-0 font-mono text-muted-foreground shrink-0"
-                          >
-                            {r.t.eco}
-                          </Badge>
-                        )}
-                        <TypographySmall className="truncate font-medium">
-                          {r.t.nombre}
-                        </TypographySmall>
-                        {r.enRuta && (
-                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                            en ruta
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-[11px] text-muted-foreground hidden sm:inline">
-                          {r.t.zona || r.zona.nombre}
-                        </span>
-                        <TypographyMono className="text-[11px] text-muted-foreground w-14 text-right tabular-nums">
-                          {r.distKm < 1
-                            ? `${Math.round(r.distKm * 1000)} m`
-                            : `${Math.round(r.distKm)} km`}
-                        </TypographyMono>
-                      </div>
-                    </>
-                  )}
-                </div>
-              ))
-            )}
-          </Card>
-        )}
-      </div>
-
-      {/* ================= SECUENCIA DE PARADAS ================= */}
-      <div className="flex flex-col gap-1.5 min-w-0">
-        {/* Salida de Base */}
-        {baseTienda && (
-          <Card className={cn('px-3 py-2 transition-opacity', !ruta.baseInicio && 'opacity-50')}>
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted text-foreground">
-                  <Warehouse weight="duotone" className="h-3.5 w-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <TypographyH4 className="truncate text-xs font-semibold">
-                    {baseTienda.nombre}
-                  </TypographyH4>
-                  <TypographyMuted className="text-[10px]">Punto de salida</TypographyMuted>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Label
-                  htmlFor="switch-base-inicio"
-                  className="text-[11px] font-normal text-muted-foreground cursor-pointer"
-                >
-                  Salida
-                </Label>
-                <Switch
-                  id="switch-base-inicio"
-                  checked={ruta.baseInicio}
-                  onCheckedChange={(v) => onMutateRuta((r) => ({ ...r, baseInicio: v }))}
-                />
-              </div>
-            </div>
-          </Card>
-        )}
-
-        {/* Paradas intermedias con scroll interno fijo para no alargar el sidebar */}
-        {ruta.paradas.length === 0 ? (
-          <Card className="border-dashed bg-muted/15 px-4 py-5 text-center">
-            <div className="flex flex-col items-center justify-center">
-              <Path weight="duotone" className="mb-1.5 h-6 w-6 text-muted-foreground/60" />
-              <TypographySmall className="text-muted-foreground">
-                Sin sucursales en el recorrido del día
-              </TypographySmall>
-              <TypographyMuted className="mt-0.5 text-[11px]">
-                Busca por nombre o ECO arriba, o toca cualquier sucursal en el mapa.
-              </TypographyMuted>
-            </div>
-          </Card>
-        ) : (
-          <div className="rounded-xl border border-border/80 bg-muted/25 p-1.5 space-y-1.5 min-w-0">
-            <div className="flex items-center justify-between px-2 pt-0.5 text-[10px] text-muted-foreground">
-              <span className="font-semibold uppercase tracking-wider">
-                Paradas del recorrido ({ruta.paradas.length})
-              </span>
-              {ruta.paradas.length > 3 && (
-                <span>Desliza para ver todas ({ruta.paradas.length})</span>
-              )}
-            </div>
-            <div className="flex flex-col gap-1.5 max-h-60 overflow-y-auto overscroll-contain pr-0.5">
-              {ruta.paradas.map((p, k) => {
-                const idxTramo = offsetBase + k - 1;
-                const tramo = idxTramo >= 0 ? tramos[idxTramo] : null;
-                const tiendaCat = porNombre.get(p.nombre);
-                const zona = !p.temporal && tiendaCat ? clasificarZona(tiendaCat) : null;
-
-                return (
-                  <Card
-                    key={`${p.nombre}-${k}`}
-                    draggable
-                    onDragStart={(e) => {
-                      setDragIdx(k);
-                      e.dataTransfer.effectAllowed = 'move';
-                    }}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      if (dragIdx === null || dragIdx === k) return;
-                      setDropTarget(k);
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      if (dragIdx === null || dragIdx === k) return;
-                      onMutateRuta((r) => {
-                        const arr = [...r.paradas];
-                        const [item] = arr.splice(dragIdx, 1);
-                        arr.splice(k, 0, item);
-                        return { ...r, paradas: arr };
-                      });
-                      setDragIdx(null);
-                      setDropTarget(null);
-                    }}
-                    onDragEnd={() => {
-                      setDragIdx(null);
-                      setDropTarget(null);
-                    }}
-                    className={cn(
-                      'group relative flex items-center gap-2 px-2.5 py-2 transition-all min-w-0 shrink-0',
-                      dragIdx === k && 'opacity-40',
-                      dropTarget === k
-                        ? 'border-primary ring-1 ring-primary/30'
-                        : 'hover:border-foreground/25'
-                    )}
-                  >
-                    <DotsSixVertical
-                      weight="bold"
-                      className="hidden sm:block h-4 w-4 shrink-0 cursor-grab text-muted-foreground/45 group-hover:text-muted-foreground"
-                    />
-                    <span
-                      className={cn(
-                        'flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold tabular-nums',
-                        p.temporal
-                          ? 'bg-secondary text-secondary-foreground'
-                          : 'bg-foreground text-background'
-                      )}
-                    >
-                      {k + 1}
-                    </span>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <TypographySmall className="truncate font-semibold text-xs">
-                          {p.nombre}
-                        </TypographySmall>
-                        {!p.temporal && tiendaCat?.verificada && (
-                          <ActionTooltip label="Coordenada GPS verificada">
-                            <CheckCircle
-                              weight="fill"
-                              className="h-3.5 w-3.5 text-emerald-500 shrink-0"
-                            />
-                          </ActionTooltip>
-                        )}
-                        {p.temporal && (
-                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
-                            desvío
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground min-w-0">
-                        {zona && <span className="truncate max-w-28">{zona.nombre}</span>}
-                        {zona && (tramo || (calculando && idxTramo >= 0)) && <span>·</span>}
-                        {tramo ? (
-                          <TypographyMono className="text-[11px] text-muted-foreground tabular-nums shrink-0">
-                            +{tramo.km} km ({duracion(tramo.segundos)})
-                          </TypographyMono>
-                        ) : calculando && idxTramo >= 0 ? (
-                          <span className="text-[11px] animate-pulse shrink-0">calculando…</span>
-                        ) : null}
-                      </div>
-                    </div>
-
-                    {/* Acciones por parada */}
-                    <div className="flex items-center gap-0.5 shrink-0 opacity-100 lg:opacity-75 lg:group-hover:opacity-100 transition-opacity">
-                      {!p.temporal && tiendaCat && !tiendaCat.verificada && (
-                        <ActionTooltip label="Verificar coordenada GPS en Catálogo">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="xs"
-                            className="h-6 px-1.5 text-[10px] border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
-                            onClick={() => onJumpToAudit(p.nombre)}
-                          >
-                            <Crosshair weight="duotone" className="h-3 w-3" />
-                            <span>GPS</span>
-                          </Button>
-                        </ActionTooltip>
-                      )}
-                      <ActionTooltip label="Subir">
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          disabled={k === 0}
-                          onClick={() =>
-                            onMutateRuta((r) => {
-                              const arr = [...r.paradas];
-                              [arr[k - 1], arr[k]] = [arr[k], arr[k - 1]];
-                              return { ...r, paradas: arr };
-                            })
-                          }
-                        >
-                          <CaretUp weight="bold" />
-                        </Button>
-                      </ActionTooltip>
-                      <ActionTooltip label="Bajar">
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          disabled={k === ruta.paradas.length - 1}
-                          onClick={() =>
-                            onMutateRuta((r) => {
-                              const arr = [...r.paradas];
-                              [arr[k + 1], arr[k]] = [arr[k], arr[k + 1]];
-                              return { ...r, paradas: arr };
-                            })
-                          }
-                        >
-                          <CaretDown weight="bold" />
-                        </Button>
-                      </ActionTooltip>
-                      <ActionTooltip label="Quitar">
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          className="text-muted-foreground hover:text-destructive"
-                          onClick={() =>
-                            onMutateRuta((r) => ({
-                              ...r,
-                              paradas: r.paradas.filter((_, idx) => idx !== k),
-                            }))
-                          }
-                        >
-                          <Trash />
-                        </Button>
-                      </ActionTooltip>
-                    </div>
-                  </Card>
-                );
-              })}
-            </div>
           </div>
         )}
 
-        {/* Regreso a Base */}
-        {baseTienda && (
-          <Card className={cn('px-3 py-2 transition-opacity', !ruta.baseFin && 'opacity-50')}>
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted text-foreground">
-                  <FlagCheckered weight="duotone" className="h-3.5 w-3.5" />
-                </div>
-                <div className="min-w-0">
-                  <TypographyH4 className="truncate text-xs font-semibold">
-                    {baseTienda.nombre}
-                  </TypographyH4>
-                  <TypographyMuted className="text-[10px] truncate block">
-                    Regreso
-                    {ruta.baseFin && ruta.paradas.length > 0 && tramos.at(-1)
-                      ? ` · +${tramos.at(-1).km} km (${duracion(tramos.at(-1).segundos)})`
-                      : ''}
+        {/* Buscador Predictivo */}
+        <div className="relative min-w-0">
+          <div className="relative flex items-center min-w-0">
+            <MagnifyingGlass
+              weight="bold"
+              className="pointer-events-none absolute left-3 h-4 w-4 text-muted-foreground"
+            />
+            <Input
+              ref={searchInputRef}
+              size="default"
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setActiveIdx(0);
+                setDropdownOpen(true);
+              }}
+              onFocus={() => setDropdownOpen(true)}
+              onBlur={() => setTimeout(() => setDropdownOpen(false), 160)}
+              onPaste={(e) => {
+                const txt = e.clipboardData?.getData('text') || '';
+                const lote = extraerLote(txt);
+                if (lote) {
+                  e.preventDefault();
+                  setQuery('');
+                  setDropdownOpen(false);
+                  onAddBatchStores(lote);
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  setActiveIdx((i) => (i + 1) % Math.max(resultados.length, 1));
+                } else if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  setActiveIdx(
+                    (i) => (i - 1 + Math.max(resultados.length, 1)) % Math.max(resultados.length, 1)
+                  );
+                } else if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey) {
+                  e.preventDefault();
+                  if (resultados[activeIdx]) seleccionarResultado(resultados[activeIdx]);
+                } else if (e.key === 'Escape') {
+                  setQuery('');
+                  setDropdownOpen(false);
+                } else if (e.key === 'Backspace' && !query && ruta.paradas.length > 0) {
+                  onMutateRuta((r) => ({ ...r, paradas: r.paradas.slice(0, -1) }));
+                }
+              }}
+              placeholder="Buscar sucursal, ECO o pegar coordenadas…"
+              className="pl-9 pr-20 rounded-xl bg-card"
+            />
+            <div className="absolute right-2 flex items-center gap-1">
+              <ActionTooltip label="Pegar lista de tiendas desde Excel o texto">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="xs"
+                  className="h-6 px-2 text-[11px]"
+                  onClick={() => setBatchModalOpen(true)}
+                >
+                  <ClipboardText weight="duotone" className="h-3.5 w-3.5" />
+                  Lote
+                </Button>
+              </ActionTooltip>
+              <Kbd className="hidden sm:inline-flex">/</Kbd>
+            </div>
+          </div>
+
+          {/* Dropdown de resultados */}
+          {dropdownOpen && query.trim() && (
+            <Card className="absolute left-0 right-0 top-[calc(100%+4px)] z-30 max-h-72 overflow-auto border-border bg-popover p-1 shadow-xl">
+              {resultados.length === 0 ? (
+                <div className="px-3 py-3 text-center">
+                  <TypographyMuted>
+                    Sin coincidencias para <strong className="text-foreground">"{query}"</strong>.
                   </TypographyMuted>
                 </div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <Label
-                  htmlFor="switch-base-fin"
-                  className="text-[11px] font-normal text-muted-foreground cursor-pointer"
+              ) : (
+                resultados.map((r, i) => (
+                  <div
+                    key={i}
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      seleccionarResultado(r);
+                    }}
+                    onMouseEnter={() => setActiveIdx(i)}
+                    className={cn(
+                      'flex items-center justify-between gap-2 rounded-md px-2.5 py-2 text-xs cursor-pointer transition-colors',
+                      i === activeIdx ? 'bg-accent text-foreground' : 'hover:bg-accent/60'
+                    )}
+                  >
+                    {r.tipo === 'lote' ? (
+                      <div className="flex flex-col gap-0.5 min-w-0">
+                        <TypographySmall className="text-primary">{r.label}</TypographySmall>
+                        <TypographyMuted className="truncate">{r.sub}</TypographyMuted>
+                      </div>
+                    ) : r.tipo === 'desvio' ? (
+                      <TypographySmall className="flex items-center gap-1.5">
+                        <MapPinLine weight="duotone" className="h-3.5 w-3.5 text-muted-foreground" />
+                        {r.label}
+                      </TypographySmall>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-2 min-w-0">
+                          {r.t.eco && r.t.eco !== '0' && (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] px-1 py-0 font-mono text-muted-foreground shrink-0"
+                            >
+                              {r.t.eco}
+                            </Badge>
+                          )}
+                          <TypographySmall className="truncate font-medium">
+                            {r.t.nombre}
+                          </TypographySmall>
+                          {r.enRuta && (
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                              en ruta
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[11px] text-muted-foreground hidden sm:inline">
+                            {r.t.zona || r.zona.nombre}
+                          </span>
+                          <TypographyMono className="text-[11px] text-muted-foreground w-14 text-right tabular-nums">
+                            {r.distKm < 1
+                              ? `${Math.round(r.distKm * 1000)} m`
+                              : `${Math.round(r.distKm)} km`}
+                          </TypographyMono>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))
+              )}
+            </Card>
+          )}
+        </div>
+
+        {/* Barra compacta de Base (Salida/Regreso) + Herramientas de Ruta */}
+        <div className="flex items-center justify-between gap-1.5 px-0.5 min-w-0">
+          {baseTienda ? (
+            <div className="flex items-center gap-1 min-w-0">
+              <ActionTooltip label={`Incluir salida desde ${baseTienda.nombre}`}>
+                <button
+                  type="button"
+                  onClick={() => onMutateRuta((r) => ({ ...r, baseInicio: !r.baseInicio }))}
+                  className={cn(
+                    'inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[11px] font-medium transition-all cursor-pointer',
+                    ruta.baseInicio
+                      ? 'border-primary/40 bg-primary/10 text-primary'
+                      : 'border-border bg-card/60 text-muted-foreground line-through opacity-70'
+                  )}
                 >
-                  Regreso
-                </Label>
-                <Switch
-                  id="switch-base-fin"
-                  checked={ruta.baseFin}
-                  onCheckedChange={(v) => onMutateRuta((r) => ({ ...r, baseFin: v }))}
-                />
-              </div>
+                  <Warehouse weight="duotone" className="h-3.5 w-3.5 shrink-0" />
+                  <span>Salida</span>
+                </button>
+              </ActionTooltip>
+
+              <ActionTooltip label={`Incluir regreso a ${baseTienda.nombre}`}>
+                <button
+                  type="button"
+                  onClick={() => onMutateRuta((r) => ({ ...r, baseFin: !r.baseFin }))}
+                  className={cn(
+                    'inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[11px] font-medium transition-all cursor-pointer',
+                    ruta.baseFin
+                      ? 'border-primary/40 bg-primary/10 text-primary'
+                      : 'border-border bg-card/60 text-muted-foreground line-through opacity-70'
+                  )}
+                >
+                  <FlagCheckered weight="duotone" className="h-3.5 w-3.5 shrink-0" />
+                  <span>Regreso</span>
+                </button>
+              </ActionTooltip>
             </div>
+          ) : (
+            <div />
+          )}
+
+          {/* Herramientas rápidas de ruta */}
+          <div className="flex items-center gap-0.5 shrink-0">
+            <ActionTooltip label="Optimizar orden (menor kilometraje)" shortcut="Alt+O">
+              <Button
+                variant="outline"
+                size="icon-xs"
+                disabled={ruta.paradas.length < 3}
+                onClick={onOptimize}
+                className="bg-card"
+              >
+                <CompassTool weight="duotone" />
+              </Button>
+            </ActionTooltip>
+            <ActionTooltip label="Invertir orden de paradas">
+              <Button
+                variant="outline"
+                size="icon-xs"
+                disabled={ruta.paradas.length < 2}
+                onClick={() =>
+                  onMutateRuta((r) => ({
+                    ...r,
+                    paradas: [...r.paradas].reverse(),
+                  }))
+                }
+                className="bg-card"
+              >
+                <ArrowsDownUp weight="bold" />
+              </Button>
+            </ActionTooltip>
+            <ActionTooltip label="Deshacer último cambio" shortcut="Ctrl+Z">
+              <Button
+                variant="outline"
+                size="icon-xs"
+                disabled={!canUndo}
+                onClick={onUndo}
+                className="bg-card"
+              >
+                <ArrowUUpLeft weight="bold" />
+              </Button>
+            </ActionTooltip>
+            <ActionTooltip label="Copiar tramos para pegar en celdas de Excel">
+              <Button
+                variant="outline"
+                size="icon-xs"
+                disabled={filasExcel.length === 0}
+                onClick={onCopyExcel}
+                className="bg-card"
+              >
+                <CopySimple weight="duotone" />
+              </Button>
+            </ActionTooltip>
+            <ActionTooltip label="Copiar resumen con enlace a Google Maps">
+              <Button
+                variant="outline"
+                size="icon-xs"
+                disabled={filasExcel.length === 0}
+                onClick={onCopyWhatsApp}
+                className="bg-card"
+              >
+                <ShareNetwork weight="duotone" />
+              </Button>
+            </ActionTooltip>
+            {ruta.paradas.length > 0 && (
+              <ActionTooltip label="Limpiar paradas del día">
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  onClick={onNewRoute}
+                  className="h-6 px-1.5 text-[11px] text-muted-foreground hover:text-destructive"
+                >
+                  Limpiar
+                </Button>
+              </ActionTooltip>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ================= 2. ZONA CENTRAL: LISTA DE PARADAS (SCROLL ÚNICO) ================= */}
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain space-y-1.5 pr-0.5 min-w-0">
+        {ruta.paradas.length === 0 ? (
+          <Card className="h-full min-h-36 flex flex-col items-center justify-center border-dashed bg-card/40 px-4 py-6 text-center">
+            <Path weight="duotone" className="mb-1.5 h-7 w-7 text-muted-foreground/50" />
+            <TypographySmall className="text-muted-foreground font-medium">
+              Sin sucursales en {nombreDiaCorto} {diaMesActual}
+            </TypographySmall>
+            <TypographyMuted className="mt-0.5 text-[11px] max-w-60">
+              Busca por nombre o ECO arriba, o toca cualquier sucursal en el mapa.
+            </TypographyMuted>
           </Card>
+        ) : (
+          ruta.paradas.map((p, k) => {
+            const idxTramo = offsetBase + k - 1;
+            const tramo = idxTramo >= 0 ? tramos[idxTramo] : null;
+            const tiendaCat = porNombre.get(p.nombre);
+            const zona = !p.temporal && tiendaCat ? clasificarZona(tiendaCat) : null;
+
+            return (
+              <Card
+                key={`${p.nombre}-${k}`}
+                draggable
+                onDragStart={(e) => {
+                  setDragIdx(k);
+                  e.dataTransfer.effectAllowed = 'move';
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  if (dragIdx === null || dragIdx === k) return;
+                  setDropTarget(k);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (dragIdx === null || dragIdx === k) return;
+                  onMutateRuta((r) => {
+                    const arr = [...r.paradas];
+                    const [item] = arr.splice(dragIdx, 1);
+                    arr.splice(k, 0, item);
+                    return { ...r, paradas: arr };
+                  });
+                  setDragIdx(null);
+                  setDropTarget(null);
+                }}
+                onDragEnd={() => {
+                  setDragIdx(null);
+                  setDropTarget(null);
+                }}
+                className={cn(
+                  'group relative flex items-center gap-2 px-2.5 py-2 transition-all min-w-0',
+                  dragIdx === k && 'opacity-40',
+                  dropTarget === k
+                    ? 'border-primary ring-1 ring-primary/30'
+                    : 'hover:border-primary/40'
+                )}
+              >
+                <DotsSixVertical
+                  weight="bold"
+                  className="hidden sm:block h-4 w-4 shrink-0 cursor-grab text-muted-foreground/45 group-hover:text-muted-foreground"
+                />
+                <span
+                  className={cn(
+                    'flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold tabular-nums',
+                    p.temporal
+                      ? 'bg-secondary text-secondary-foreground'
+                      : 'bg-primary text-primary-foreground'
+                  )}
+                >
+                  {k + 1}
+                </span>
+
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <TypographySmall className="truncate font-semibold text-xs">
+                      {p.nombre}
+                    </TypographySmall>
+                    {!p.temporal && tiendaCat?.verificada && (
+                      <ActionTooltip label="Coordenada GPS verificada">
+                        <CheckCircle
+                          weight="fill"
+                          className="h-3.5 w-3.5 text-emerald-500 shrink-0"
+                        />
+                      </ActionTooltip>
+                    )}
+                    {p.temporal && (
+                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
+                        desvío
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground min-w-0">
+                    {zona && <span className="truncate max-w-28">{zona.nombre}</span>}
+                    {zona && (tramo || (calculando && idxTramo >= 0)) && <span>·</span>}
+                    {tramo ? (
+                      <TypographyMono className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+                        +{tramo.km} km ({duracion(tramo.segundos)})
+                      </TypographyMono>
+                    ) : calculando && idxTramo >= 0 ? (
+                      <span className="text-[11px] animate-pulse shrink-0">calculando…</span>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-0.5 shrink-0 opacity-100 lg:opacity-75 lg:group-hover:opacity-100 transition-opacity">
+                  {!p.temporal && tiendaCat && !tiendaCat.verificada && (
+                    <ActionTooltip label="Verificar coordenada GPS en Catálogo">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        className="h-6 px-1.5 text-[10px] border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
+                        onClick={() => onJumpToAudit(p.nombre)}
+                      >
+                        <Crosshair weight="duotone" className="h-3 w-3" />
+                        <span>GPS</span>
+                      </Button>
+                    </ActionTooltip>
+                  )}
+                  <ActionTooltip label="Subir">
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      disabled={k === 0}
+                      onClick={() =>
+                        onMutateRuta((r) => {
+                          const arr = [...r.paradas];
+                          [arr[k - 1], arr[k]] = [arr[k], arr[k - 1]];
+                          return { ...r, paradas: arr };
+                        })
+                      }
+                    >
+                      <CaretUp weight="bold" />
+                    </Button>
+                  </ActionTooltip>
+                  <ActionTooltip label="Bajar">
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      disabled={k === ruta.paradas.length - 1}
+                      onClick={() =>
+                        onMutateRuta((r) => {
+                          const arr = [...r.paradas];
+                          [arr[k + 1], arr[k]] = [arr[k], arr[k + 1]];
+                          return { ...r, paradas: arr };
+                        })
+                      }
+                    >
+                      <CaretDown weight="bold" />
+                    </Button>
+                  </ActionTooltip>
+                  <ActionTooltip label="Quitar">
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      className="text-muted-foreground hover:text-destructive"
+                      onClick={() =>
+                        onMutateRuta((r) => ({
+                          ...r,
+                          paradas: r.paradas.filter((_, idx) => idx !== k),
+                        }))
+                      }
+                    >
+                      <Trash />
+                    </Button>
+                  </ActionTooltip>
+                </div>
+              </Card>
+            );
+          })
         )}
       </div>
 
-      {/* ================= RESUMEN DE MÉTRICAS ================= */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-        <Card className="p-2.5">
-          <div className="flex items-center justify-between text-muted-foreground">
-            <span className="text-[10px] font-medium uppercase tracking-wider">Distancia</span>
-            <Path weight="duotone" className="h-3.5 w-3.5" />
-          </div>
-          <TypographyLarge className={cn('mt-1 text-sm', calculando && 'opacity-50')}>
-            {totales.km} <span className="text-[11px] font-normal text-muted-foreground">km</span>
-          </TypographyLarge>
-        </Card>
-        <Card className="p-2.5">
-          <div className="flex items-center justify-between text-muted-foreground">
-            <span className="text-[10px] font-medium uppercase tracking-wider">Combustible</span>
-            <GasPump weight="duotone" className="h-3.5 w-3.5" />
-          </div>
-          <TypographyLarge className={cn('mt-1 text-sm', calculando && 'opacity-50')}>
-            {pesos(totales.costo).replace('.00', '')}
-          </TypographyLarge>
-        </Card>
-        <Card className="p-2.5">
-          <div className="flex items-center justify-between text-muted-foreground">
-            <span className="text-[10px] font-medium uppercase tracking-wider">Tiempo</span>
-            <Timer weight="duotone" className="h-3.5 w-3.5" />
-          </div>
-          <TypographyLarge className={cn('mt-1 text-sm', calculando && 'opacity-50')}>
-            {totales.seg ? duracion(totales.seg) : '0 min'}
-          </TypographyLarge>
-        </Card>
-        <Card className="p-2.5">
-          <div className="flex items-center justify-between text-muted-foreground">
-            <span className="text-[10px] font-medium uppercase tracking-wider">Litros</span>
-            <Drop weight="duotone" className="h-3.5 w-3.5" />
-          </div>
-          <TypographyLarge className="mt-1 text-sm">
-            {totales.litros.toFixed(1)}{' '}
-            <span className="text-[11px] font-normal text-muted-foreground">L</span>
-          </TypographyLarge>
-        </Card>
-      </div>
-
-      {/* ================= BLOQUE 1: ACCIONES DE GUARDADO DEL DÍA ================= */}
-      <div className="rounded-xl border border-border/80 bg-card p-3 shadow-xs space-y-2.5">
-        <div className="flex items-center justify-between text-xs">
-          <div className="flex items-center gap-2">
-            <span
-              className={cn(
-                'h-2.5 w-2.5 rounded-full shrink-0',
-                estaGuardado
-                  ? 'bg-emerald-500'
-                  : ruta.paradas.length > 0
-                  ? 'bg-amber-500 animate-pulse'
-                  : 'bg-muted-foreground/50'
-              )}
-            />
-            <span className="font-semibold text-foreground">
-              {nombreDiaActual} {diaMesActual}
+      {/* ================= 3. DOCK INFERIOR FIJO: MÉTRICAS + GUARDADO + BITÁCORA ================= */}
+      <Card className="shrink-0 p-2.5 space-y-2 min-w-0">
+        {/* Cinta unificada de 4 métricas */}
+        <div className="grid grid-cols-4 divide-x divide-border rounded-lg border border-border/70 bg-muted/40 py-1.5 text-center">
+          <div className="px-1">
+            <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground block">
+              Distancia
             </span>
-            <Badge
-              variant={estaGuardado ? 'secondary' : 'outline'}
-              className={cn(
-                'text-[10px] px-1.5 py-0',
-                estaGuardado &&
-                  'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
-              )}
-            >
-              {estaGuardado
-                ? `✓ Guardado (${modoOperativo === 'anticipo' ? 'Anticipo' : 'Comprobación'})`
-                : ruta.paradas.length > 0
-                ? 'Sin guardar'
-                : 'Ruta vacía'}
-            </Badge>
+            <span className={cn('text-xs font-bold tabular-nums', calculando && 'opacity-50')}>
+              {totales.km} km
+            </span>
           </div>
-          <span className="text-[11px] text-muted-foreground font-mono">
-            {totales.km} km · {pesos(totales.costo).replace('.00', '')}
-          </span>
+          <div className="px-1">
+            <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground block">
+              Gasolina
+            </span>
+            <span className={cn('text-xs font-bold tabular-nums text-emerald-600 dark:text-emerald-400', calculando && 'opacity-50')}>
+              {pesos(totales.costo).replace('.00', '')}
+            </span>
+          </div>
+          <div className="px-1">
+            <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground block">
+              Tiempo
+            </span>
+            <span className={cn('text-xs font-bold tabular-nums', calculando && 'opacity-50')}>
+              {totales.seg ? duracion(totales.seg) : '0m'}
+            </span>
+          </div>
+          <div className="px-1">
+            <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground block">
+              Litros
+            </span>
+            <span className="text-xs font-bold tabular-nums">
+              {totales.litros.toFixed(1)} L
+            </span>
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
+        {/* Botones de guardado del día */}
+        <div className="grid grid-cols-2 gap-1.5">
           <Button
-            variant={estaGuardado ? 'outline' : 'default'}
+            variant={estaGuardado ? 'outline' : 'secondary'}
             size="sm"
             disabled={ruta.paradas.length === 0}
             onClick={() => onSaveDay?.(modoOperativo)}
-            className="font-medium text-xs h-9"
+            className="text-xs h-8 font-medium"
           >
-            <FloppyDiskBack weight="duotone" className="h-4 w-4" />
-            <span>{estaGuardado ? 'Actualizar día' : `Guardar ${nombreDiaActual}`}</span>
+            <FloppyDiskBack weight="duotone" className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">
+              {estaGuardado
+                ? `✓ ${nombreDiaCorto} ${diaMesActual} guardado`
+                : `Guardar ${nombreDiaCorto} ${diaMesActual}`}
+            </span>
           </Button>
 
           <Button
@@ -1138,139 +1040,28 @@ export function RouteBuilderTab({
             size="sm"
             disabled={ruta.paradas.length === 0}
             onClick={() => onSaveAndNext?.(modoOperativo)}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium text-xs h-9"
+            className="text-xs h-8 font-semibold"
           >
             <span className="truncate">Guardar y pasar a {siguienteDiaInfo.nombre}</span>
-            <ArrowRight weight="bold" className="h-3.5 w-3.5 ml-1 shrink-0" />
+            <ArrowRight weight="bold" className="h-3.5 w-3.5 shrink-0" />
           </Button>
         </div>
-      </div>
 
-      {/* ================= BLOQUE 2: CIERRE SEMANAL Y GENERACIÓN DE BITÁCORA ================= */}
-      <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-2">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-1.5">
-              <FileXls weight="duotone" className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-              <span className="text-xs font-semibold text-foreground">
-                Bitácora Semana {semanaInfo.semana} ({semanaInfo.anio})
-              </span>
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              {diasListosSemana.length} de {diasSemana.slice(0, 6).length} días listos ·{' '}
-              <span className="font-semibold text-foreground font-mono">{kmAcumuladoSemana} km</span> acumulados
-            </p>
-          </div>
-          <Badge
-            variant="outline"
-            className="text-[10px] uppercase border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
-          >
-            {modoOperativo === 'anticipo' ? 'Anticipo' : 'Comprobación'}
-          </Badge>
-        </div>
-
+        {/* Botón compacto de Bitácora Semanal */}
         <Button
-          size="default"
-          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-xs text-xs h-9"
+          size="sm"
+          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-8.5 justify-between px-3"
           onClick={() => onOpenBitacora?.(modoOperativo)}
         >
-          <FileXls weight="bold" className="h-4 w-4" />
-          <span>Generar Bitácora Oficial Neto (.xlsx)</span>
+          <span className="flex items-center gap-1.5 truncate">
+            <FileXls weight="bold" className="h-4 w-4 shrink-0" />
+            <span className="truncate">Bitácora Sem. {semanaInfo.semana} (.xlsx)</span>
+          </span>
+          <span className="font-mono text-[11px] bg-black/20 px-1.5 py-0.5 rounded shrink-0">
+            {diasListosSemana.length}/{diasSemana.length} días · {kmAcumuladoSemana} km
+          </span>
         </Button>
-      </div>
-
-      {/* ================= BLOQUE 3: HERRAMIENTAS DE RUTA Y PORTAPAPELES ================= */}
-      <div className="grid grid-cols-2 gap-1.5">
-        <ActionTooltip label="Copiar tramos para pegar directo en celdas de Excel o Sheets">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={filasExcel.length === 0}
-            onClick={onCopyExcel}
-            className="text-xs h-8"
-          >
-            <CopySimple weight="duotone" className="h-3.5 w-3.5" />
-            <span>Copiar tramos Excel</span>
-          </Button>
-        </ActionTooltip>
-
-        <ActionTooltip label="Reordenar paradas con algoritmo 2-Opt para menor kilometraje" shortcut="Alt+O">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={ruta.paradas.length < 3}
-            onClick={onOptimize}
-            className="text-xs h-8"
-          >
-            <CompassTool weight="duotone" className="h-3.5 w-3.5" />
-            <span>Optimizar orden</span>
-          </Button>
-        </ActionTooltip>
-
-        <ActionTooltip label="Copiar resumen estructurado con link a Google Maps">
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={filasExcel.length === 0}
-            onClick={onCopyWhatsApp}
-            className="text-xs h-8 text-muted-foreground hover:text-foreground"
-          >
-            <ShareNetwork weight="duotone" className="h-3.5 w-3.5" />
-            <span>Copiar WhatsApp</span>
-          </Button>
-        </ActionTooltip>
-
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setShowTablePreview((v) => !v)}
-          className="text-xs h-8 text-muted-foreground hover:text-foreground"
-        >
-          <TableIcon weight="duotone" className="h-3.5 w-3.5" />
-          <span>{showTablePreview ? 'Ocultar tabla' : 'Vista previa Excel'}</span>
-        </Button>
-      </div>
-
-      {/* ================= VISTA PREVIA DE TABLA EXCEL ================= */}
-      {showTablePreview && filasExcel.length > 0 && (
-        <Card className="overflow-hidden">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 border-b border-border bg-muted/40 px-3 py-2">
-            <CardTitle className="text-[11px] font-medium text-muted-foreground">
-              Columnas para Excel
-            </CardTitle>
-            <span className="text-[11px] text-muted-foreground tabular-nums">
-              {filasExcel.length} filas
-            </span>
-          </CardHeader>
-          <div className="max-h-48 overflow-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Origen</TableHead>
-                  <TableHead>Destino</TableHead>
-                  <TableHead className="text-right">KM</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filasExcel.map((f, idx) => {
-                  const cols = f.length === 4 ? f.slice(1) : f;
-                  return (
-                    <TableRow key={idx}>
-                      <TableCell className="font-medium truncate max-w-35">
-                        {cols[0]}
-                      </TableCell>
-                      <TableCell className="truncate max-w-35">{cols[1]}</TableCell>
-                      <TableCell className="text-right font-mono font-semibold tabular-nums">
-                        {cols[2]}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
-        </Card>
-      )}
+      </Card>
 
       {/* ================= MODAL DE PEGADO POR LOTE ================= */}
       <Dialog open={batchModalOpen} onOpenChange={setBatchModalOpen}>
