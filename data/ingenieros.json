@@ -8,13 +8,15 @@
     "placas": "PEB-798-C",
     "serie": "LZWPRMGN0TF108615",
     "ceco": "108266",
-    "region": "TUXTLA",
+    "region": "CHIAPAS",
     "rendimiento": 12.5,
     "costo_litro": 23.99,
     "base_nombre": "RESGUARDO TUXTLA",
     "domicilio_direccion": "",
     "domicilio_link": "",
-    "km_inicial_ultimo": 17374
+    "km_inicial_ultimo": 17374,
+    "email": "herwing.eduardova@soyneto.com",
+    "rol": "admin"
   },
   {
     "nombre": "BRAYAN ALEJANDRO CASTRO ALVAREZ",
@@ -25,13 +27,14 @@
     "placas": "",
     "serie": "",
     "ceco": "108266",
-    "region": "TUXTLA",
+    "region": "TABASCO",
     "rendimiento": 12.5,
     "costo_litro": 23.99,
     "base_nombre": "RESGUARDO TUXTLA",
     "domicilio_direccion": "",
     "domicilio_link": "",
-    "km_inicial_ultimo": 0
+    "km_inicial_ultimo": 0,
+    "rol": "ingeniero"
   },
   {
     "nombre": "ROMAN ALEJANDRO ITZA COLLI",
@@ -42,13 +45,14 @@
     "placas": "",
     "serie": "",
     "ceco": "108266",
-    "region": "CAMPECHE",
+    "region": "YUCATAN",
     "rendimiento": 12.5,
     "costo_litro": 23.99,
     "base_nombre": "RESGUARDO TUXTLA",
     "domicilio_direccion": "",
     "domicilio_link": "",
-    "km_inicial_ultimo": 0
+    "km_inicial_ultimo": 0,
+    "rol": "ingeniero"
   },
   {
     "nombre": "VICTOR CASTRO CRUZ",
@@ -59,13 +63,14 @@
     "placas": "",
     "serie": "",
     "ceco": "108266",
-    "region": "TAPACHULA",
+    "region": "CHIAPAS SOCONUSCO",
     "rendimiento": 12.5,
     "costo_litro": 23.99,
     "base_nombre": "RESGUARDO TUXTLA",
     "domicilio_direccion": "",
     "domicilio_link": "",
-    "km_inicial_ultimo": 0
+    "km_inicial_ultimo": 0,
+    "rol": "ingeniero"
   },
   {
     "nombre": "OMAR SANCHEZ MORALES",
@@ -76,12 +81,13 @@
     "placas": "",
     "serie": "",
     "ceco": "108266",
-    "region": "VILLAHERMOSA",
+    "region": "COATZA",
     "rendimiento": 12.5,
     "costo_litro": 23.99,
     "base_nombre": "RESGUARDO TUXTLA",
     "domicilio_direccion": "",
     "domicilio_link": "",
-    "km_inicial_ultimo": 0
+    "km_inicial_ultimo": 0,
+    "rol": "ingeniero"
   }
 ]

@@ -79,6 +79,43 @@ export function AdminTeamTab({
   const [cargandoBitacoras, setCargandoBitacoras] = useState(false);
   const [filtroIngenieroBitacora, setFiltroIngenieroBitacora] = useState('todos');
 
+  // Control de nuevos registros (Exclusivo Admin Herwing)
+  const [permitirRegistros, setPermitirRegistros] = useState(true);
+  const [guardandoConfig, setGuardandoConfig] = useState(false);
+
+  useEffect(() => {
+    supabase
+      .from('configuracion')
+      .select('valor')
+      .eq('clave', 'permitir_registros')
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data && typeof data.valor === 'boolean') {
+          setPermitirRegistros(data.valor);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleToggleRegistros = async (nuevoValor) => {
+    setGuardandoConfig(true);
+    try {
+      setPermitirRegistros(nuevoValor);
+      await supabase
+        .from('configuracion')
+        .upsert({ clave: 'permitir_registros', valor: nuevoValor, updated_at: new Date().toISOString() });
+      toast?.(
+        nuevoValor
+          ? 'Nuevos registros HABILITADOS para @soyneto.com'
+          : 'Nuevos registros DESHABILITADOS por seguridad'
+      );
+    } catch (err) {
+      toast?.('Error actualizando configuración: ' + err.message, 'err');
+    } finally {
+      setGuardandoConfig(false);
+    }
+  };
+
   // Cargar bitácoras globales desde Supabase
   const cargarBitacorasGlobales = async () => {
     setCargandoBitacoras(true);
@@ -349,6 +386,53 @@ export function AdminTeamTab({
               <span className="text-[11px] text-muted-foreground">semanas</span>
             </div>
           </div>
+        </div>
+
+        {/* Control de Nuevos Registros (Exclusivo Administrador) */}
+        <div className="mt-3 rounded-xl border border-border/70 bg-card p-3 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-2.5">
+            <div
+              className={cn(
+                'flex h-8 w-8 items-center justify-center rounded-lg border',
+                permitirRegistros
+                  ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                  : 'bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400'
+              )}
+            >
+              <ShieldCheck weight="duotone" className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-foreground flex items-center gap-2">
+                <span>Acceso y Registro de Nuevos Colaboradores</span>
+                <Badge
+                  variant={permitirRegistros ? 'default' : 'secondary'}
+                  className="text-[10px] h-4 px-1.5 font-mono"
+                >
+                  {permitirRegistros ? 'ABIERTO (@soyneto.com)' : 'CERRADO / BLOQUEADO'}
+                </Badge>
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {permitirRegistros
+                  ? 'Cualquier colaborador con correo @soyneto.com puede registrar su cuenta y ficha.'
+                  : 'Nadie nuevo puede registrarse. El acceso a la app está restringido a cuentas ya creadas.'}
+              </p>
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            size="xs"
+            variant={permitirRegistros ? 'outline' : 'default'}
+            disabled={guardandoConfig}
+            onClick={() => handleToggleRegistros(!permitirRegistros)}
+            className="text-xs h-7 px-3 font-medium"
+          >
+            {guardandoConfig
+              ? 'Guardando…'
+              : permitirRegistros
+              ? 'Deshabilitar Nuevos Registros'
+              : 'Habilitar Nuevos Registros'}
+          </Button>
         </div>
       </div>
 

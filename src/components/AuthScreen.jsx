@@ -1,11 +1,11 @@
 /**
  * @fileoverview Pantalla de Autenticación estilo shadcn `login-02` con layout split screen.
  *
- * Columna Izquierda: Formulario minimalista de Inicio de Sesión y Registro rápido.
+ * Columna Izquierda: Formulario minimalista de Inicio de Sesión y Registro con nombre manual.
  * Columna Derecha: Hero visual corporativo de Soporte Técnico Tiendas Neto en CIA Sureste.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   LockKey,
   EnvelopeSimple,
@@ -14,31 +14,38 @@ import {
   ArrowRight,
   Eye,
   EyeSlash,
+  ShieldCheck,
 } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from '@/components/ui/select';
 import { supabase, esCorreoSoyNeto } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 
-export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) {
+export function AuthScreen({ onAuthSuccess, toast }) {
   const [modo, setModo] = useState('login'); // 'login' | 'registro'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [cargando, setCargando] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-
-  // Registro simplificado
   const [nombre, setNombre] = useState('');
-  const [esIngenieroExistente, setEsIngenieroExistente] = useState(true);
+  const [permitirRegistros, setPermitirRegistros] = useState(true);
+
+  // Consultar en tiempo real si el Administrador permite nuevos registros
+  useEffect(() => {
+    supabase
+      .from('configuracion')
+      .select('valor')
+      .eq('clave', 'permitir_registros')
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data && typeof data.valor === 'boolean') {
+          setPermitirRegistros(data.valor);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const emailValido = esCorreoSoyNeto(email);
 
@@ -98,16 +105,21 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
     }
   };
 
-  // Manejador de Registro Rápido (3 campos sin fricción)
+  // Manejador de Registro con Nombre Manual (Apto para Ingenieros, Coordinador y Nuevo Personal)
   const handleRegistro = async (e) => {
     e?.preventDefault();
     setErrorMsg('');
 
+    if (!permitirRegistros) {
+      setErrorMsg('El registro de nuevos usuarios está deshabilitado por el Administrador.');
+      return;
+    }
+
     const cleanEmail = email.trim().toLowerCase();
     const cleanNombre = nombre.trim().toUpperCase();
 
-    if (!cleanNombre) {
-      setErrorMsg('Selecciona o ingresa tu nombre completo');
+    if (!cleanNombre || cleanNombre.length < 3) {
+      setErrorMsg('Escribe tu nombre completo');
       return;
     }
     if (!cleanEmail) {
@@ -126,13 +138,14 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
     setCargando(true);
     try {
       // 1. Crear usuario en Supabase Auth
+      const esAdmin = cleanEmail.includes('herwing');
       const { data, error } = await supabase.auth.signUp({
         email: cleanEmail,
         password,
         options: {
           data: {
             nombre: cleanNombre,
-            rol: cleanEmail.includes('herwing') ? 'admin' : 'ingeniero',
+            rol: esAdmin ? 'admin' : 'ingeniero',
           },
         },
       });
@@ -143,8 +156,13 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
       const { data: existente } = await supabase
         .from('ingenieros')
         .select('*')
-        .eq('nombre', cleanNombre)
+        .ilike('nombre', cleanNombre)
         .maybeSingle();
+
+      const puestoEstimado =
+        cleanNombre.includes('COORDINADOR') || cleanNombre.includes('CORDINADOR')
+          ? 'COORDINADOR DE SOPORTE TECNICO'
+          : 'INGENIERO DE SOPORTE TECNICO';
 
       if (existente) {
         await supabase
@@ -152,17 +170,17 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
           .update({
             auth_id: data.user?.id || null,
             email: cleanEmail,
-            rol: cleanEmail.includes('herwing') ? 'admin' : existente.rol || 'ingeniero',
+            rol: esAdmin ? 'admin' : existente.rol || 'ingeniero',
             updated_at: new Date().toISOString(),
           })
-          .eq('nombre', cleanNombre);
+          .eq('nombre', existente.nombre);
       } else {
         await supabase.from('ingenieros').insert({
           nombre: cleanNombre,
-          puesto: 'INGENIERO DE SOPORTE TECNICO',
+          puesto: puestoEstimado,
           email: cleanEmail,
           auth_id: data.user?.id || null,
-          rol: cleanEmail.includes('herwing') ? 'admin' : 'ingeniero',
+          rol: esAdmin ? 'admin' : 'ingeniero',
           updated_at: new Date().toISOString(),
         });
       }
@@ -341,114 +359,113 @@ export function AuthScreen({ onAuthSuccess, toast, ingenierosExistentes = [] }) 
               </form>
             )}
 
-            {/* ================= FORMULARIO REGISTRO RÁPIDO ================= */}
+            {/* ================= FORMULARIO REGISTRO ================= */}
             {modo === 'registro' && (
               <form onSubmit={handleRegistro} className="space-y-3.5">
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs">Nombre Completo</Label>
-                    <button
-                      type="button"
-                      onClick={() => setEsIngenieroExistente((v) => !v)}
-                      className="text-[10px] text-primary hover:underline"
-                    >
-                      {esIngenieroExistente ? 'Escribir manual' : 'Elegir del equipo'}
-                    </button>
-                  </div>
-
-                  {esIngenieroExistente ? (
-                    <Select value={nombre} onValueChange={(val) => setNombre(val)}>
-                      <SelectTrigger className="text-xs bg-card h-9">
-                        <SelectValue placeholder="Selecciona tu nombre..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ingenierosExistentes.map((ing) => (
-                          <SelectItem key={ing.nombre} value={ing.nombre}>
-                            {ing.nombre} ({ing.region || 'SURESTE'})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <div className="relative">
-                      <User
-                        weight="duotone"
-                        className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"
-                      />
-                      <Input
-                        value={nombre}
-                        onChange={(e) => setNombre(e.target.value.toUpperCase())}
-                        placeholder="NOMBRE COMPLETO"
-                        className="pl-9 text-xs font-semibold uppercase h-9"
-                        required
-                      />
+                {!permitirRegistros ? (
+                  <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3.5 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2.5">
+                    <WarningCircle weight="fill" className="h-5 w-5 shrink-0 text-amber-500 mt-0.5" />
+                    <div>
+                      <span className="font-semibold block text-sm">Registros Deshabilitados</span>
+                      <p className="text-muted-foreground mt-0.5 leading-normal">
+                        El registro de nuevos usuarios está cerrado temporalmente por el Administrador. Si necesitas una cuenta, contacta a Herwing Eduardo Vázquez Macías.
+                      </p>
                     </div>
-                  )}
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Correo institucional</Label>
-                  <div className="relative">
-                    <EnvelopeSimple
-                      weight="duotone"
-                      className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"
-                    />
-                    <Input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="nombre.apellido@soyneto.com"
-                      className="pl-9 text-xs h-9"
-                      required
-                    />
                   </div>
-                  {email && !emailValido && (
-                    <p className="text-[11px] text-amber-500 flex items-center gap-1">
-                      <WarningCircle weight="bold" />
-                      Debe ser @soyneto.com
+                ) : (
+                  <>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="reg-nombre" className="text-xs">
+                        Nombre Completo
+                      </Label>
+                      <div className="relative">
+                        <User
+                          weight="duotone"
+                          className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"
+                        />
+                        <Input
+                          id="reg-nombre"
+                          value={nombre}
+                          onChange={(e) => setNombre(e.target.value.toUpperCase())}
+                          placeholder="NOMBRE Y APELLIDOS (EJ. HERWING VAZQUEZ MACIAS)"
+                          className="pl-9 text-xs font-semibold uppercase h-9"
+                          required
+                          autoFocus
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="reg-email" className="text-xs">
+                        Correo institucional
+                      </Label>
+                      <div className="relative">
+                        <EnvelopeSimple
+                          weight="duotone"
+                          className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"
+                        />
+                        <Input
+                          id="reg-email"
+                          type="email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          placeholder="nombre.apellido@soyneto.com"
+                          className="pl-9 text-xs h-9"
+                          required
+                        />
+                      </div>
+                      {email && !emailValido && (
+                        <p className="text-[11px] text-amber-500 flex items-center gap-1">
+                          <WarningCircle weight="bold" />
+                          Debe ser @soyneto.com
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <Label htmlFor="reg-password" className="text-xs">
+                        Contraseña
+                      </Label>
+                      <div className="relative">
+                        <LockKey
+                          weight="duotone"
+                          className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"
+                        />
+                        <Input
+                          id="reg-password"
+                          type={showPassword ? 'text' : 'password'}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="Mínimo 6 caracteres"
+                          className="pl-9 pr-9 text-xs h-9"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword((v) => !v)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          {showPassword ? <EyeSlash className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="pt-1">
+                      <Button
+                        type="submit"
+                        disabled={cargando || !emailValido || !permitirRegistros}
+                        className="w-full text-xs font-semibold py-2.5 h-10 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm transition-all"
+                      >
+                        {cargando ? 'Creando cuenta…' : 'Crear Cuenta'}
+                        <ArrowRight weight="bold" className="ml-1.5 h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+
+                    <p className="text-[11px] text-muted-foreground text-center pt-1">
+                      Configurarás tu ficha vehicular y odómetro al ingresar al sistema.
                     </p>
-                  )}
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Contraseña</Label>
-                  <div className="relative">
-                    <LockKey
-                      weight="duotone"
-                      className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground"
-                    />
-                    <Input
-                      type={showPassword ? 'text' : 'password'}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Mínimo 6 caracteres"
-                      className="pl-9 pr-9 text-xs h-9"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword((v) => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    >
-                      {showPassword ? <EyeSlash className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="pt-1">
-                  <Button
-                    type="submit"
-                    disabled={cargando || !emailValido}
-                    className="w-full text-xs font-semibold py-2.5 h-10 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm transition-all"
-                  >
-                    {cargando ? 'Creando cuenta…' : 'Crear Cuenta'}
-                    <ArrowRight weight="bold" className="ml-1.5 h-3.5 w-3.5" />
-                  </Button>
-                </div>
-
-                <p className="text-[11px] text-muted-foreground text-center pt-1">
-                  Configurarás tu ficha vehicular y odómetro al ingresar al sistema.
-                </p>
+                  </>
+                )}
               </form>
             )}
           </div>

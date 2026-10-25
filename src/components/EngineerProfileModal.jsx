@@ -45,6 +45,13 @@ import { supabase } from '@/lib/supabase';
 import { api, cn } from '@/lib/utils';
 
 export const REGIONES_SURESTE = [
+  'CHIAPAS',
+  'CHIAPAS SOCONUSCO',
+  'TABASCO',
+  'COATZA',
+  'YUCATAN',
+  'CAMPECHE',
+  'QUINTANA ROO',
   'TUXTLA',
   'TAPACHULA',
   'COMITAN',
@@ -54,7 +61,6 @@ export const REGIONES_SURESTE = [
   'VILLAFLORES',
   'TONALA',
   'VILLAHERMOSA',
-  'CAMPECHE',
   'MERIDA',
   'CANCUN',
 ];
@@ -415,3 +421,4 @@ export function EngineerProfileModal({
     </Dialog>
   );
 }
+
