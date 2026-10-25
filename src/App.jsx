@@ -1179,6 +1179,7 @@ export default function App() {
                 <CoordinateAuditTab
                   tiendas={tiendas}
                   porNombre={porNombre}
+                  ingenieros={ingenieros}
                   sel={sel}
                   autoSaveOnPaste={autoSaveOnPaste}
                   onToggleAutoSaveOnPaste={setAutoSaveOnPaste}

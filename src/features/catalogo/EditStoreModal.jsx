@@ -43,6 +43,7 @@ export function EditStoreModal({
   open,
   onOpenChange,
   tienda,
+  ingenieros = [],
   onStoreUpdated,
   onStoreDeleted,
   isAdmin = false,
@@ -167,9 +168,13 @@ export function EditStoreModal({
 
   if (!tienda) return null;
 
+  const listaIngenieros = ingenieros?.length
+    ? ingenieros.map((i) => i.nombre)
+    : INGENIEROS;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -275,7 +280,7 @@ export function EditStoreModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5">
             <div className="space-y-1.5">
               <Label className="text-xs">Estado</Label>
               <Select value={estado} onValueChange={setEstado}>
@@ -304,7 +309,7 @@ export function EditStoreModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-2.5">
             <div className="space-y-1.5">
               <Label className="text-xs">Zona / Corredor</Label>
               <Input
@@ -323,7 +328,7 @@ export function EditStoreModal({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {INGENIEROS.map((ing) => (
+                  {listaIngenieros.map((ing) => (
                     <SelectItem key={ing} value={ing}>
                       {ing.split(' ')[0]} {ing.split(' ')[1] || ''}
                     </SelectItem>
@@ -367,7 +372,7 @@ export function EditStoreModal({
             </div>
           </div>
 
-          <DialogFooter className="gap-2 pt-2">
+          <DialogFooter className="flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-2">
             {isAdmin && onStoreDeleted && (
               <Button
                 type="button"

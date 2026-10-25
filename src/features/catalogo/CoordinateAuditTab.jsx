@@ -67,6 +67,7 @@ import {
 export function CoordinateAuditTab({
   tiendas,
   porNombre,
+  ingenieros = [],
   sel,
   autoSaveOnPaste,
   onToggleAutoSaveOnPaste,
@@ -95,7 +96,78 @@ export function CoordinateAuditTab({
   const [coordInput, setCoordInput] = useState('');
   const [editModalOpen, setEditModalOpen] = useState(false);
 
+  // Resuelve el ingeniero asignado a una tienda dinámicamente según la región
+  const resolverIngeniero = (t) => {
+    if (!t) return null;
+    const rT = norm(t.region || t.estado || '');
+    const zT = norm(t.zona || '');
+
+    if (ingenieros?.length) {
+      // 1. Coincidencia por región
+      const porRegion = ingenieros.find((i) => {
+        const rI = norm(i.region || '');
+        if (!rI) return false;
+        return (
+          rI === rT ||
+          (rT && rT.includes(rI)) ||
+          (rI && rI.includes(rT)) ||
+          (zT && zT.includes(rI))
+        );
+      });
+      if (porRegion) return porRegion;
+
+      // 2. Coincidencia por nombre previo si venía en el registro
+      if (t.ingeniero) {
+        const tIngNorm = norm(t.ingeniero);
+        const porNombre = ingenieros.find((i) => {
+          const iNomNorm = norm(i.nombre || '');
+          return iNomNorm === tIngNorm || iNomNorm.includes(tIngNorm) || tIngNorm.includes(iNomNorm);
+        });
+        if (porNombre) return porNombre;
+      }
+    }
+
+    if (t.ingeniero) {
+      return { nombre: t.ingeniero, region: t.region || t.estado };
+    }
+    return null;
+  };
+
+  // Obtiene el nombre estandarizado de la región operativa
+  const obtenerRegionTienda = (t) => {
+    if (!t) return 'SURESTE';
+    if (t.region) return t.region.toUpperCase();
+    if (t.zona) {
+      const zUpper = t.zona.toUpperCase();
+      if (zUpper.includes('SOCONUSCO') || zUpper.includes('TAPACHULA')) return 'CHIAPAS SOCONUSCO';
+      if (zUpper.includes('COATZA') || zUpper.includes('CHOAPAS') || zUpper.includes('MINA') || zUpper.includes('ACAYUCAN')) return 'COATZA OLMECA';
+      if (zUpper.includes('CARDENAS') || zUpper.includes('VILLA') || zUpper.includes('TABASCO') || zUpper.includes('CHONTALPA')) return 'TABASCO';
+      if (zUpper.includes('MERIDA') || zUpper.includes('KANASIN') || zUpper.includes('YUCATAN')) return 'YUCATAN';
+      if (zUpper.includes('TUXTLA') || zUpper.includes('CHIAPAS')) return 'CHIAPAS';
+    }
+    return (t.estado || 'SURESTE').toUpperCase();
+  };
+
+  // Lista de ingenieros con conteo dinámico basado en las regiones asignadas
   const ingenierosLista = useMemo(() => {
+    if (ingenieros?.length) {
+      return ingenieros.map((ing) => {
+        const conteo = tiendas.filter((t) => {
+          const res = resolverIngeniero(t);
+          return res && res.nombre === ing.nombre;
+        }).length;
+        const corto =
+          ing.nombre.split(' ')[0] +
+          (ing.nombre.includes('HERWING') ? ' (Mis tiendas)' : '');
+        return {
+          nombre: ing.nombre,
+          corto,
+          region: ing.region || '',
+          total: conteo,
+        };
+      });
+    }
+
     const conteo = new Map();
     tiendas.forEach((t) => {
       const ing = t.ingeniero || 'SIN ASIGNAR';
@@ -103,15 +175,21 @@ export function CoordinateAuditTab({
     });
     return Array.from(conteo.entries()).map(([nombre, total]) => ({
       nombre,
-      corto: nombre.split(' ')[0] + (nombre.includes('VAZQUEZ') ? ' (Mis tiendas)' : ''),
+      corto: nombre.split(' ')[0],
       total,
     }));
-  }, [tiendas]);
+  }, [tiendas, ingenieros]);
 
   const zonas = useMemo(() => {
-    const base = ingenieroFiltro === 'todos' ? tiendas : tiendas.filter((t) => t.ingeniero === ingenieroFiltro);
+    const base =
+      ingenieroFiltro === 'todos'
+        ? tiendas
+        : tiendas.filter((t) => {
+            const ing = resolverIngeniero(t);
+            return ing && ing.nombre === ingenieroFiltro;
+          });
     return zonasDisponibles(base);
-  }, [tiendas, ingenieroFiltro]);
+  }, [tiendas, ingenieroFiltro, ingenieros]);
 
   useEffect(() => {
     if (sel && sel.lat != null) {
@@ -122,21 +200,30 @@ export function CoordinateAuditTab({
   }, [sel?.nombre, sel?.lat, sel?.lng, sel?.nueva]);
 
   const stats = useMemo(() => {
-    const base = ingenieroFiltro === 'todos' ? tiendas : tiendas.filter((t) => t.ingeniero === ingenieroFiltro);
+    const base =
+      ingenieroFiltro === 'todos'
+        ? tiendas
+        : tiendas.filter((t) => {
+            const ing = resolverIngeniero(t);
+            return ing && ing.nombre === ingenieroFiltro;
+          });
     const total = base.length;
     const verificadas = base.filter((t) => t.verificada).length;
     const corregidas = base.filter((t) => t.coordsAnteriores).length;
     return { total, verificadas, pendientes: total - verificadas, corregidas };
-  }, [tiendas, ingenieroFiltro]);
+  }, [tiendas, ingenieroFiltro, ingenieros]);
 
   const listaFiltrada = useMemo(() => {
     const q = expandirConsulta(filtroTexto);
     return tiendas.filter((t) => {
-      if (ingenieroFiltro !== 'todos' && t.ingeniero !== ingenieroFiltro) return false;
+      if (ingenieroFiltro !== 'todos') {
+        const ing = resolverIngeniero(t);
+        if (!ing || ing.nombre !== ingenieroFiltro) return false;
+      }
       if (
         q &&
         !norm(
-          `${t.nombre} ${t.eco || ''} ${t.ceco || ''} ${t.zona || ''} ${t.estado || ''} ${t.ingeniero || ''}`
+          `${t.nombre} ${t.eco || ''} ${t.ceco || ''} ${t.zona || ''} ${t.estado || ''} ${t.ingeniero || ''} ${t.region || ''}`
         ).includes(q)
       ) {
         return false;
@@ -147,31 +234,39 @@ export function CoordinateAuditTab({
       if (zonaFiltro !== 'todas' && clasificarZona(t).id !== zonaFiltro) return false;
       return true;
     });
-  }, [tiendas, filtroTexto, estadoFiltro, zonaFiltro, ingenieroFiltro]);
+  }, [tiendas, filtroTexto, estadoFiltro, zonaFiltro, ingenieroFiltro, ingenieros]);
 
   const tiendaActualCat = sel && !sel.nueva ? porNombre.get(sel.nombre) : null;
   const bloqueada = Boolean(tiendaActualCat?.verificada && !sel?.desbloqueada);
   const deltaM = sel?.orig && sel?.lat != null ? haversineM(sel.orig, sel) : 0;
   const rumbo = sel?.orig && sel?.lat != null ? rumboCardinal(sel.orig, sel) : '';
 
+  const regionTienda = useMemo(() => {
+    return obtenerRegionTienda(tiendaActualCat || sel);
+  }, [tiendaActualCat, sel]);
+
+  const ingAsignado = useMemo(() => {
+    return resolverIngeniero(tiendaActualCat || sel);
+  }, [tiendaActualCat, sel, ingenieros]);
+
   return (
     <div className="flex h-full min-h-0 flex-col gap-2.5 min-w-0">
       {/* ================= BARRA SUPERIOR DE CATÁLOGO ================= */}
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-1.5 min-w-0">
         <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-          <Button size="sm" onClick={() => onOpenNewStoreModal?.()}>
+          <Button size="sm" onClick={() => onOpenNewStoreModal?.()} className="h-8 text-xs">
             <PlusCircle weight="duotone" />
-            <span>Nueva tienda</span>
+            <span>Nueva<span className="hidden sm:inline"> tienda</span></span>
           </Button>
           {stats.pendientes > 0 && (
-            <Button variant="outline" size="sm" onClick={() => onNextPending('')}>
+            <Button variant="outline" size="sm" onClick={() => onNextPending('')} className="h-8 text-xs">
               <FastForward weight="duotone" />
               <span>Siguiente ({stats.pendientes})</span>
             </Button>
           )}
         </div>
         <ActionTooltip label="Descargar respaldo completo del catálogo (JSON)">
-          <Button variant="outline" size="xs" onClick={onExportJson} className="shrink-0">
+          <Button variant="outline" size="xs" onClick={onExportJson} className="shrink-0 h-8 text-xs">
             <DownloadSimple weight="duotone" />
             <span>JSON ({tiendas.length})</span>
           </Button>
@@ -182,77 +277,63 @@ export function CoordinateAuditTab({
       {sel && (
         <Card className="shrink-0 border-primary/40 bg-card shadow-xs min-w-0">
           <CardContent className="p-3 space-y-2.5 min-w-0">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <Input
-                size="sm"
-                value={sel.nombreEdit ?? sel.nombre}
-                disabled={bloqueada}
-                onChange={(e) => onUpdateSelectedName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !bloqueada) {
-                    e.preventDefault();
-                    onSaveSelected();
-                  }
-                }}
-                placeholder="Nombre de tienda (ej. VILLAHERMOSA CENTRO)"
-                className="font-semibold bg-card flex-1 min-w-0"
-              />
-              <Select
-                value={sel.estado || 'Chiapas'}
-                disabled={bloqueada}
-                onValueChange={(v) => onUpdateSelectedState?.(v)}
-              >
-                <SelectTrigger size="sm" className="w-28 sm:w-32 bg-card shrink-0">
-                  <SelectValue placeholder="Estado" />
-                </SelectTrigger>
-                <SelectContent>
-                  {ESTADOS.map((est) => (
-                    <SelectItem key={est} value={est}>
-                      {est}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {/* Cabecera limpia: Título sin campos redundantes + Badges + Botón único de Editar */}
+            <div className="flex items-start justify-between gap-2 min-w-0">
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <h3 className="text-sm sm:text-base font-bold text-foreground tracking-tight truncate">
+                    {sel.nombre}
+                  </h3>
+                  {tiendaActualCat?.nombre?.includes('CEDIS') && (
+                    <Badge className="bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/30 text-[10px] px-1.5 py-0 font-bold">
+                      CEDIS
+                    </Badge>
+                  )}
+                  {(tiendaActualCat?.nombre?.includes('CROSS') || tiendaActualCat?.nombre?.includes('DOCK')) && (
+                    <Badge className="bg-purple-500/15 text-purple-700 dark:text-purple-400 border-purple-500/30 text-[10px] px-1.5 py-0 font-bold">
+                      CROSS DOCK
+                    </Badge>
+                  )}
+                  {tiendaActualCat?.nombre?.includes('RESGUARDO') && (
+                    <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 text-[10px] px-1.5 py-0 font-bold">
+                      BASE
+                    </Badge>
+                  )}
+                </div>
 
-            {/* Metadatos de ingeniería y botón de edición completa */}
-            <div className="flex flex-wrap items-center justify-between gap-1.5 pt-0.5">
-              <div className="flex flex-wrap items-center gap-1.5">
-                {tiendaActualCat?.nombre?.includes('CEDIS') && (
-                  <Badge className="bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/30 text-[10px] px-1.5 py-0.5 font-bold">
-                    CEDIS
-                  </Badge>
-                )}
-                {(tiendaActualCat?.nombre?.includes('CROSS') || tiendaActualCat?.nombre?.includes('DOCK')) && (
-                  <Badge className="bg-purple-500/15 text-purple-700 dark:text-purple-400 border-purple-500/30 text-[10px] px-1.5 py-0.5 font-bold">
-                    CROSS DOCK
-                  </Badge>
-                )}
-                {tiendaActualCat?.nombre?.includes('RESGUARDO') && (
-                  <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 text-[10px] px-1.5 py-0.5 font-bold">
-                    BASE
-                  </Badge>
-                )}
-                {tiendaActualCat?.eco && tiendaActualCat.eco !== '0' && (
-                  <Badge variant="outline" className="font-mono text-[10px] px-1.5 py-0.5">
-                    ECO {tiendaActualCat.eco}
-                  </Badge>
-                )}
-                {tiendaActualCat?.ceco && tiendaActualCat.ceco !== '0' && (
-                  <Badge variant="outline" className="font-mono text-[10px] px-1.5 py-0.5">
-                    CECO {tiendaActualCat.ceco}
-                  </Badge>
-                )}
-                {tiendaActualCat?.zona && (
-                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5">
-                    {tiendaActualCat.zona}
-                  </Badge>
-                )}
-                {tiendaActualCat?.ingeniero && (
-                  <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 text-muted-foreground">
-                    {tiendaActualCat.ingeniero.split(' ')[0]}
-                  </Badge>
-                )}
+                {/* Badges de Operación: Región geográfica + Ingeniero dinámico + ECO/CECO */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {tiendaActualCat?.eco && tiendaActualCat.eco !== '0' && (
+                    <Badge variant="outline" className="font-mono text-[10px] px-1.5 py-0.5">
+                      ECO {tiendaActualCat.eco}
+                    </Badge>
+                  )}
+                  {tiendaActualCat?.ceco && tiendaActualCat.ceco !== '0' && (
+                    <Badge variant="outline" className="font-mono text-[10px] px-1.5 py-0.5">
+                      CECO {tiendaActualCat.ceco}
+                    </Badge>
+                  )}
+                  {regionTienda && (
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0.5 font-semibold text-primary">
+                      {regionTienda}
+                    </Badge>
+                  )}
+                  {tiendaActualCat?.zona && tiendaActualCat.zona !== regionTienda && (
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0.5 text-muted-foreground">
+                      {tiendaActualCat.zona}
+                    </Badge>
+                  )}
+                  {ingAsignado && (
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] px-1.5 py-0.5 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 flex items-center gap-1"
+                      title={`Ingeniero asignado a la región ${regionTienda}`}
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      <span>{ingAsignado.nombre.split(' ')[0]}</span>
+                    </Badge>
+                  )}
+                </div>
               </div>
 
               <Button
@@ -260,10 +341,12 @@ export function CoordinateAuditTab({
                 variant="outline"
                 size="xs"
                 onClick={() => setEditModalOpen(true)}
-                className="gap-1 text-xs font-medium shrink-0"
+                className="gap-1 text-xs font-medium shrink-0 h-7.5 px-2 hover:bg-muted"
+                title="Editar tipo de instalación, nombre, ECO, CECO o región"
               >
                 <PencilSimple weight="duotone" className="h-3.5 w-3.5 text-primary" />
-                <span>Editar ficha</span>
+                <span className="hidden sm:inline">Editar ficha</span>
+                <span className="sm:hidden">Editar</span>
               </Button>
             </div>
 
@@ -330,13 +413,14 @@ export function CoordinateAuditTab({
                       }
                     }}
                     placeholder="Coordenadas (lat, lng) o enlace de Google Maps…"
-                    className="font-mono bg-card flex-1"
+                    className="font-mono bg-card flex-1 min-w-0 text-xs h-8"
                   />
                   <ActionTooltip label="Pegar del portapapeles" shortcut="Ctrl+V">
                     <Button
                       type="button"
                       variant="secondary"
                       size="sm"
+                      className="shrink-0 h-8 px-2.5 text-xs"
                       onClick={async () => {
                         try {
                           const txt = await navigator.clipboard.readText();
@@ -347,7 +431,7 @@ export function CoordinateAuditTab({
                       }}
                     >
                       <ClipboardText weight="duotone" />
-                      Pegar
+                      <span>Pegar</span>
                     </Button>
                   </ActionTooltip>
                 </div>
@@ -380,20 +464,20 @@ export function CoordinateAuditTab({
               </>
             )}
 
-            {/* Verificación externa */}
+            {/* Verificación externa con adaptación a mobile */}
             {sel.lat != null && (
-              <div className="grid grid-cols-3 gap-1.5">
-                <Button asChild variant="outline" size="xs">
+              <div className="grid grid-cols-3 gap-1 sm:gap-1.5">
+                <Button asChild variant="outline" size="xs" className="h-7.5 px-1.5 text-[11px] truncate">
                   <a
                     href={`https://www.google.com/maps/search/?api=1&query=${sel.lat},${sel.lng}`}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    <ArrowSquareOut weight="bold" />
-                    Google Maps
+                    <ArrowSquareOut weight="bold" className="h-3 w-3 shrink-0" />
+                    <span className="truncate">Google Maps</span>
                   </a>
                 </Button>
-                <Button asChild variant="outline" size="xs">
+                <Button asChild variant="outline" size="xs" className="h-7.5 px-1.5 text-[11px] truncate">
                   <a
                     href={`https://www.google.com/maps/search/${encodeURIComponent(
                       `${sel.nombre || ''} ${sel.estado || 'Chiapas'}`
@@ -401,52 +485,54 @@ export function CoordinateAuditTab({
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    <MagnifyingGlass weight="bold" />
-                    Buscar zona
+                    <MagnifyingGlass weight="bold" className="h-3 w-3 shrink-0" />
+                    <span className="truncate">Buscar zona</span>
                   </a>
                 </Button>
-                <Button asChild variant="outline" size="xs">
+                <Button asChild variant="outline" size="xs" className="h-7.5 px-1.5 text-[11px] truncate">
                   <a
                     href={`https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${sel.lat},${sel.lng}`}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    <Binoculars weight="duotone" />
-                    Street View
+                    <Binoculars weight="duotone" className="h-3 w-3 shrink-0" />
+                    <span className="truncate">Street View</span>
                   </a>
                 </Button>
               </div>
             )}
 
-            {/* Guardar / Siguiente */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              {!bloqueada && (
-                <Button size="sm" className="flex-1 min-w-44" onClick={() => onSaveSelected()}>
-                  <CheckCircle weight="duotone" />
-                  <span>Verificar y bloquear GPS</span>
-                </Button>
-              )}
+            {/* Guardar / Siguiente adaptado a mobile */}
+            <div className="space-y-1.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                {!bloqueada && (
+                  <Button size="sm" className="w-full h-8 text-xs font-semibold" onClick={() => onSaveSelected()}>
+                    <CheckCircle weight="duotone" className="h-4 w-4 shrink-0" />
+                    <span className="truncate">Verificar y bloquear GPS</span>
+                  </Button>
+                )}
+                {!sel.nueva && stats.pendientes > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={cn('w-full h-8 text-xs font-medium', bloqueada && 'sm:col-span-2')}
+                    onClick={() => onNextPending()}
+                  >
+                    <span>Siguiente ({stats.pendientes})</span>
+                    <FastForward weight="duotone" className="h-4 w-4 shrink-0" />
+                  </Button>
+                )}
+              </div>
               {onShowMap && (
                 <Button
                   type="button"
                   variant="secondary"
                   size="sm"
-                  className="lg:hidden"
+                  className="w-full lg:hidden h-8 text-xs font-medium"
                   onClick={onShowMap}
                 >
-                  <MapTrifold weight="duotone" />
-                  <span>Ver pin en mapa</span>
-                </Button>
-              )}
-              {!sel.nueva && stats.pendientes > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className={cn(bloqueada && 'flex-1')}
-                  onClick={() => onNextPending()}
-                >
-                  <span>Siguiente ({stats.pendientes})</span>
-                  <FastForward weight="duotone" />
+                  <MapTrifold weight="duotone" className="h-4 w-4 shrink-0" />
+                  <span>Ver pin en el mapa</span>
                 </Button>
               )}
             </div>
@@ -541,7 +627,8 @@ export function CoordinateAuditTab({
                   'border-primary/50 text-primary font-medium'
               )}
             >
-              {ing.corto} ({ing.total})
+              {ing.corto}
+              {ing.region ? ` · ${ing.region.replace('CHIAPAS', 'CHIS').replace('SOCONUSCO', 'SOC')}` : ''} ({ing.total})
             </Button>
           ))}
         </div>
@@ -667,6 +754,7 @@ export function CoordinateAuditTab({
           open={editModalOpen}
           onOpenChange={setEditModalOpen}
           tienda={tiendaActualCat}
+          ingenieros={ingenieros}
           isAdmin={isAdmin}
           onStoreUpdated={(nuevaLista, tiendaModificada) => {
             onStoreUpdated?.(nuevaLista);
