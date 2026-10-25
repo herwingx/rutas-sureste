@@ -49,7 +49,7 @@ import {
   TypographyMuted,
   TypographyMono,
 } from '@/components/ui/typography';
-import { ESTADOS, INGENIEROS } from '@/lib/brand';
+import { ESTADOS } from '@/lib/brand';
 import {
   cn,
   norm,
@@ -69,7 +69,6 @@ export function CoordinateAuditTab({
   autoSaveOnPaste,
   onToggleAutoSaveOnPaste,
   onSelectStore,
-  onStartNewStore,
   onOpenNewStoreModal,
   onUpdateSelectedName,
   onUpdateSelectedState,
@@ -83,8 +82,6 @@ export function CoordinateAuditTab({
   onExportJson,
   onShowMap,
   isAdmin = false,
-  userSession = null,
-  onRequireAuth = null,
 }) {
   const [filtroTexto, setFiltroTexto] = useState('');
   const [estadoFiltro, setEstadoFiltro] = useState('todas');

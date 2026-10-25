@@ -22,8 +22,6 @@ import {
   DownloadSimple,
   Storefront,
   LockKey,
-  CheckCircle,
-  Crosshair,
   CarProfile,
 } from '@phosphor-icons/react';
 import { Card } from '@/components/ui/card';

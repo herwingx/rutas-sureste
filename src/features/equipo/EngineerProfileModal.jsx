@@ -12,15 +12,10 @@
 import { useState, useEffect } from 'react';
 import {
   CarProfile,
-  GasPump,
   IdentificationBadge,
-  CheckCircle,
   WarningCircle,
   FloppyDiskBack,
-  Buildings,
   Speedometer,
-  ShieldCheck,
-  X,
 } from '@phosphor-icons/react';
 import {
   Dialog,
@@ -42,7 +37,7 @@ import {
   SelectItem,
 } from '@/components/ui/select';
 import { supabase } from '@/lib/supabase';
-import { api, cn } from '@/lib/utils';
+import { api } from '@/lib/utils';
 
 export const REGIONES_SURESTE = [
   'CHIAPAS',

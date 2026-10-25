@@ -20,10 +20,7 @@ import {
   FileXls,
   UserGear,
   CalendarCheck,
-  CheckCircle,
   FloppyDiskBack,
-  Sparkle,
-  Plus,
   Trash,
   GasPump,
   Receipt,
@@ -31,7 +28,6 @@ import {
   ClockCounterClockwise,
   DownloadSimple,
   Stack,
-  ArrowSquareOut,
 } from '@phosphor-icons/react';
 import {
   Dialog,

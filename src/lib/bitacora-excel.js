@@ -47,12 +47,6 @@ const FILL_PEACH = {
   fgColor: { argb: 'FFFDE9D9' },
 };
 
-const FILL_TICKET = {
-  type: 'pattern',
-  pattern: 'solid',
-  fgColor: { argb: 'FFEDEDED' },
-};
-
 /**
  * Calcula el número de semana ISO (1-53) y año correspondiente a partir de una fecha `YYYY-MM-DD`.
  * @param {string} fechaStr

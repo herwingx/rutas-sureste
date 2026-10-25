@@ -41,7 +41,6 @@ import {
   CheckCircle,
   ArrowRight,
   Lightning,
-  CalendarCheck,
 } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -51,7 +50,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Kbd } from '@/components/ui/kbd';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Table,
   TableHeader,
@@ -83,10 +82,8 @@ import {
   pareceUbicacion,
   haversineM,
   clasificarZona,
-  zonasDisponibles,
   pesos,
   duracion,
-  obtenerDiasSemana,
   obtenerCicloOperativoNeto,
 } from '@/lib/utils';
 import { calcularSemanaISO } from '@/lib/bitacora-excel';
@@ -313,8 +310,6 @@ export function RouteBuilderTab({
     }
     return null;
   }, [modoOperativo, mapaAnticipos, ruta.fecha, ruta.paradas.length]);
-
-  const zonas = useMemo(() => zonasDisponibles(tiendas), [tiendas]);
 
   const ultimoPunto = useMemo(() => {
     return ruta.paradas.at(-1) || baseTienda || tiendas[0] || null;

@@ -11,11 +11,8 @@
 import { useState } from 'react';
 import {
   Storefront,
-  MapPin,
   ClipboardText,
-  CheckCircle,
   PlusCircle,
-  Sparkle,
 } from '@phosphor-icons/react';
 import {
   Dialog,

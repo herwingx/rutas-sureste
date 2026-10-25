@@ -14,7 +14,6 @@ import {
   ArrowRight,
   Eye,
   EyeSlash,
-  ShieldCheck,
 } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -489,7 +488,7 @@ export function AuthScreen({ onAuthSuccess, toast }) {
         />
 
         {/* Gradiente */}
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/25 to-slate-950/10" />
+        <div className="absolute inset-0 bg-linear-to-t from-slate-950/90 via-slate-950/25 to-slate-950/10" />
 
         {/* Tarjeta corporativa limpia */}
         <div className="absolute bottom-8 left-8 right-8 p-5 rounded-2xl bg-card/85 backdrop-blur-xl border border-white/10 shadow-2xl">
