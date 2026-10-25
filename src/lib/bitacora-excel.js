@@ -703,7 +703,7 @@ export async function descargarBitacoraNetoExcel({
     }
   }
 
-  // 9. Generar buffer y disparar descarga en el navegador
+  // 9. Generar buffer y disparar descarga compatible con todos los navegadores
   const buffer = await wb.xlsx.writeBuffer();
   const blob = new Blob([buffer], {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -715,14 +715,14 @@ export async function descargarBitacoraNetoExcel({
   const filename = `${nombreIngLimpio}_semana_${semana}.xlsx`;
 
   const url = URL.createObjectURL(blob);
-  const a = Object.assign(document.createElement('a'), {
-    href: url,
-    download: filename,
-  });
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 
   return filename;
 }
+

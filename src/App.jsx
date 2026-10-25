@@ -624,15 +624,21 @@ export default function App() {
   }, [sel, toast]);
 
   const exportarJson = useCallback(() => {
-    const blob = new Blob([JSON.stringify(tiendasRaw, null, 4)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = Object.assign(document.createElement('a'), {
-      href: url,
-      download: `tiendas-sureste-${hoy()}.json`,
-    });
-    a.click();
-    URL.revokeObjectURL(url);
-    toast('Respaldo descargado');
+    try {
+      const dataStr = JSON.stringify(tiendasRaw, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `tiendas-sureste-${hoy()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast(`Respaldo descargado: ${tiendasRaw.length} tiendas`);
+    } catch (e) {
+      toast('Error descargando JSON: ' + e.message, 'err');
+    }
   }, [tiendasRaw, toast]);
 
   useEffect(() => {

@@ -311,3 +311,5 @@ export async function syncHistorialDelete(uuid) {
     console.error('[Supabase Sync] Error en syncHistorialDelete:', err.message);
   }
 }
+
+// ============================================================================

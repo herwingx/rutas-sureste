@@ -160,10 +160,10 @@ export function CoordinateAuditTab({
             </Button>
           )}
         </div>
-        <ActionTooltip label="Descargar respaldo de catálogo (JSON)">
-          <Button variant="ghost" size="xs" onClick={onExportJson}>
+        <ActionTooltip label="Descargar respaldo completo del catálogo (JSON)">
+          <Button variant="outline" size="xs" onClick={onExportJson}>
             <DownloadSimple weight="duotone" />
-            Exportar
+            Descargar JSON ({tiendas.length})
           </Button>
         </ActionTooltip>
       </div>

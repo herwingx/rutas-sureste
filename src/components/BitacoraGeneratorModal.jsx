@@ -281,7 +281,7 @@ export function BitacoraGeneratorModal({
 
   const handleDescargarExcel = async () => {
     if (diasConsolidados.length === 0) {
-      return toast('Selecciona al menos una ruta (la ruta actual o del historial)', 'err');
+      return toast('Agrega al menos una parada a tu ruta o selecciona un día del historial para generar la bitácora', 'err');
     }
     setDescargando(true);
     try {
@@ -852,3 +852,4 @@ export function BitacoraGeneratorModal({
     </Dialog>
   );
 }
+
