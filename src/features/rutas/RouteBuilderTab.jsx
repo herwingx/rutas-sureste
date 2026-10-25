@@ -820,9 +820,9 @@ export function RouteBuilderTab({
           </Card>
         )}
 
-        {/* Paradas intermedias */}
+        {/* Paradas intermedias con scroll interno fijo para no alargar el sidebar */}
         {ruta.paradas.length === 0 ? (
-          <Card className="border-dashed bg-muted/15 px-4 py-6 text-center">
+          <Card className="border-dashed bg-muted/15 px-4 py-5 text-center">
             <div className="flex flex-col items-center justify-center">
               <Path weight="duotone" className="mb-1.5 h-6 w-6 text-muted-foreground/60" />
               <TypographySmall className="text-muted-foreground">
@@ -834,162 +834,175 @@ export function RouteBuilderTab({
             </div>
           </Card>
         ) : (
-          ruta.paradas.map((p, k) => {
-            const idxTramo = offsetBase + k - 1;
-            const tramo = idxTramo >= 0 ? tramos[idxTramo] : null;
-            const tiendaCat = porNombre.get(p.nombre);
-            const zona = !p.temporal && tiendaCat ? clasificarZona(tiendaCat) : null;
+          <div className="rounded-xl border border-border/80 bg-muted/25 p-1.5 space-y-1.5 min-w-0">
+            <div className="flex items-center justify-between px-2 pt-0.5 text-[10px] text-muted-foreground">
+              <span className="font-semibold uppercase tracking-wider">
+                Paradas del recorrido ({ruta.paradas.length})
+              </span>
+              {ruta.paradas.length > 3 && (
+                <span>Desliza para ver todas ({ruta.paradas.length})</span>
+              )}
+            </div>
+            <div className="flex flex-col gap-1.5 max-h-60 overflow-y-auto overscroll-contain pr-0.5">
+              {ruta.paradas.map((p, k) => {
+                const idxTramo = offsetBase + k - 1;
+                const tramo = idxTramo >= 0 ? tramos[idxTramo] : null;
+                const tiendaCat = porNombre.get(p.nombre);
+                const zona = !p.temporal && tiendaCat ? clasificarZona(tiendaCat) : null;
 
-            return (
-              <Card
-                key={`${p.nombre}-${k}`}
-                draggable
-                onDragStart={(e) => {
-                  setDragIdx(k);
-                  e.dataTransfer.effectAllowed = 'move';
-                }}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  if (dragIdx === null || dragIdx === k) return;
-                  setDropTarget(k);
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  if (dragIdx === null || dragIdx === k) return;
-                  onMutateRuta((r) => {
-                    const arr = [...r.paradas];
-                    const [item] = arr.splice(dragIdx, 1);
-                    arr.splice(k, 0, item);
-                    return { ...r, paradas: arr };
-                  });
-                  setDragIdx(null);
-                  setDropTarget(null);
-                }}
-                onDragEnd={() => {
-                  setDragIdx(null);
-                  setDropTarget(null);
-                }}
-                className={cn(
-                  'group relative flex items-center gap-2 px-2.5 py-2 transition-all min-w-0',
-                  dragIdx === k && 'opacity-40',
-                  dropTarget === k
-                    ? 'border-primary ring-1 ring-primary/30'
-                    : 'hover:border-foreground/25'
-                )}
-              >
-                <DotsSixVertical
-                  weight="bold"
-                  className="hidden sm:block h-4 w-4 shrink-0 cursor-grab text-muted-foreground/45 group-hover:text-muted-foreground"
-                />
-                <span
-                  className={cn(
-                    'flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold tabular-nums',
-                    p.temporal
-                      ? 'bg-secondary text-secondary-foreground'
-                      : 'bg-foreground text-background'
-                  )}
-                >
-                  {k + 1}
-                </span>
+                return (
+                  <Card
+                    key={`${p.nombre}-${k}`}
+                    draggable
+                    onDragStart={(e) => {
+                      setDragIdx(k);
+                      e.dataTransfer.effectAllowed = 'move';
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (dragIdx === null || dragIdx === k) return;
+                      setDropTarget(k);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (dragIdx === null || dragIdx === k) return;
+                      onMutateRuta((r) => {
+                        const arr = [...r.paradas];
+                        const [item] = arr.splice(dragIdx, 1);
+                        arr.splice(k, 0, item);
+                        return { ...r, paradas: arr };
+                      });
+                      setDragIdx(null);
+                      setDropTarget(null);
+                    }}
+                    onDragEnd={() => {
+                      setDragIdx(null);
+                      setDropTarget(null);
+                    }}
+                    className={cn(
+                      'group relative flex items-center gap-2 px-2.5 py-2 transition-all min-w-0 shrink-0',
+                      dragIdx === k && 'opacity-40',
+                      dropTarget === k
+                        ? 'border-primary ring-1 ring-primary/30'
+                        : 'hover:border-foreground/25'
+                    )}
+                  >
+                    <DotsSixVertical
+                      weight="bold"
+                      className="hidden sm:block h-4 w-4 shrink-0 cursor-grab text-muted-foreground/45 group-hover:text-muted-foreground"
+                    />
+                    <span
+                      className={cn(
+                        'flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold tabular-nums',
+                        p.temporal
+                          ? 'bg-secondary text-secondary-foreground'
+                          : 'bg-foreground text-background'
+                      )}
+                    >
+                      {k + 1}
+                    </span>
 
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <TypographySmall className="truncate font-medium">{p.nombre}</TypographySmall>
-                    {!p.temporal && tiendaCat?.verificada && (
-                      <ActionTooltip label="Coordenada GPS verificada">
-                        <CheckCircle
-                          weight="fill"
-                          className="h-3.5 w-3.5 text-emerald-500 shrink-0"
-                        />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <TypographySmall className="truncate font-semibold text-xs">
+                          {p.nombre}
+                        </TypographySmall>
+                        {!p.temporal && tiendaCat?.verificada && (
+                          <ActionTooltip label="Coordenada GPS verificada">
+                            <CheckCircle
+                              weight="fill"
+                              className="h-3.5 w-3.5 text-emerald-500 shrink-0"
+                            />
+                          </ActionTooltip>
+                        )}
+                        {p.temporal && (
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
+                            desvío
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground min-w-0">
+                        {zona && <span className="truncate max-w-28">{zona.nombre}</span>}
+                        {zona && (tramo || (calculando && idxTramo >= 0)) && <span>·</span>}
+                        {tramo ? (
+                          <TypographyMono className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+                            +{tramo.km} km ({duracion(tramo.segundos)})
+                          </TypographyMono>
+                        ) : calculando && idxTramo >= 0 ? (
+                          <span className="text-[11px] animate-pulse shrink-0">calculando…</span>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    {/* Acciones por parada */}
+                    <div className="flex items-center gap-0.5 shrink-0 opacity-100 lg:opacity-75 lg:group-hover:opacity-100 transition-opacity">
+                      {!p.temporal && tiendaCat && !tiendaCat.verificada && (
+                        <ActionTooltip label="Verificar coordenada GPS en Catálogo">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="xs"
+                            className="h-6 px-1.5 text-[10px] border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
+                            onClick={() => onJumpToAudit(p.nombre)}
+                          >
+                            <Crosshair weight="duotone" className="h-3 w-3" />
+                            <span>GPS</span>
+                          </Button>
+                        </ActionTooltip>
+                      )}
+                      <ActionTooltip label="Subir">
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          disabled={k === 0}
+                          onClick={() =>
+                            onMutateRuta((r) => {
+                              const arr = [...r.paradas];
+                              [arr[k - 1], arr[k]] = [arr[k], arr[k - 1]];
+                              return { ...r, paradas: arr };
+                            })
+                          }
+                        >
+                          <CaretUp weight="bold" />
+                        </Button>
                       </ActionTooltip>
-                    )}
-                    {p.temporal && (
-                      <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">
-                        desvío
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
-                    {zona && <span className="truncate max-w-36">{zona.nombre}</span>}
-                    {tramo ? (
-                      <TypographyMono className="text-[11px] text-muted-foreground tabular-nums shrink-0">
-                        +{tramo.km} km · {duracion(tramo.segundos)}
-                        {tramo.fuente === 'estimado' ? ' (est.)' : ''}
-                      </TypographyMono>
-                    ) : calculando && idxTramo >= 0 ? (
-                      <span className="text-[11px] animate-pulse">calculando…</span>
-                    ) : null}
-                  </div>
-                </div>
-
-                {/* Acciones por parada */}
-                <div className="flex items-center gap-0.5 shrink-0 opacity-100 lg:opacity-65 lg:group-hover:opacity-100 transition-opacity">
-                  {!p.temporal && tiendaCat && !tiendaCat.verificada && (
-                    <ActionTooltip label="Ajustar coordenada GPS en catálogo">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="xs"
-                        className="h-6 px-1.5 text-[10px] border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
-                        onClick={() => onJumpToAudit(p.nombre)}
-                      >
-                        <Crosshair weight="duotone" className="h-3 w-3" />
-                        <span className="hidden sm:inline">Verificar GPS</span>
-                        <span className="sm:hidden">GPS</span>
-                      </Button>
-                    </ActionTooltip>
-                  )}
-                  <ActionTooltip label="Subir">
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      disabled={k === 0}
-                      onClick={() =>
-                        onMutateRuta((r) => {
-                          const arr = [...r.paradas];
-                          [arr[k - 1], arr[k]] = [arr[k], arr[k - 1]];
-                          return { ...r, paradas: arr };
-                        })
-                      }
-                    >
-                      <CaretUp weight="bold" />
-                    </Button>
-                  </ActionTooltip>
-                  <ActionTooltip label="Bajar">
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      disabled={k === ruta.paradas.length - 1}
-                      onClick={() =>
-                        onMutateRuta((r) => {
-                          const arr = [...r.paradas];
-                          [arr[k + 1], arr[k]] = [arr[k], arr[k + 1]];
-                          return { ...r, paradas: arr };
-                        })
-                      }
-                    >
-                      <CaretDown weight="bold" />
-                    </Button>
-                  </ActionTooltip>
-                  <ActionTooltip label="Quitar">
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      className="text-muted-foreground hover:text-destructive"
-                      onClick={() =>
-                        onMutateRuta((r) => ({
-                          ...r,
-                          paradas: r.paradas.filter((_, idx) => idx !== k),
-                        }))
-                      }
-                    >
-                      <Trash />
-                    </Button>
-                  </ActionTooltip>
-                </div>
-              </Card>
-            );
-          })
+                      <ActionTooltip label="Bajar">
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          disabled={k === ruta.paradas.length - 1}
+                          onClick={() =>
+                            onMutateRuta((r) => {
+                              const arr = [...r.paradas];
+                              [arr[k + 1], arr[k]] = [arr[k], arr[k + 1]];
+                              return { ...r, paradas: arr };
+                            })
+                          }
+                        >
+                          <CaretDown weight="bold" />
+                        </Button>
+                      </ActionTooltip>
+                      <ActionTooltip label="Quitar">
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          className="text-muted-foreground hover:text-destructive"
+                          onClick={() =>
+                            onMutateRuta((r) => ({
+                              ...r,
+                              paradas: r.paradas.filter((_, idx) => idx !== k),
+                            }))
+                          }
+                        >
+                          <Trash />
+                        </Button>
+                      </ActionTooltip>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          </div>
         )}
 
         {/* Regreso a Base */}

@@ -563,7 +563,7 @@ export function CoordinateAuditTab({
       </div>
 
       {/* ================= LISTA DE TIENDAS ================= */}
-      <Card className="divide-y divide-border overflow-hidden">
+      <Card className="divide-y divide-border overflow-hidden max-h-96 overflow-y-auto overscroll-contain">
         {listaFiltrada.length === 0 ? (
           <div className="py-8 text-center">
             <TypographyMuted>Sin tiendas en este filtro.</TypographyMuted>
