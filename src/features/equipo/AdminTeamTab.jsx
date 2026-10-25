@@ -553,10 +553,10 @@ export function AdminTeamTab({
                             <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-card" />
                           </div>
                           <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <TypographySmall className="font-semibold text-xs truncate">
-                                {ing.nombre}
-                              </TypographySmall>
+                            <TypographySmall className="font-semibold text-xs truncate block text-foreground">
+                              {ing.nombre}
+                            </TypographySmall>
+                            <div className="flex flex-wrap items-center gap-1.5 mt-1">
                               {esAdmin && (
                                 <Badge className="bg-primary/15 text-primary border-primary/30 font-semibold text-[10px] px-1.5 py-0 h-4">
                                   Admin
@@ -565,8 +565,14 @@ export function AdminTeamTab({
                               <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                                 {ing.region || 'SURESTE'}
                               </Badge>
+                              <Badge
+                                variant="outline"
+                                className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 px-1.5 py-0"
+                              >
+                                Cuenta activa
+                              </Badge>
                             </div>
-                            <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5 truncate">
+                            <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-1 truncate">
                               <span className="truncate">{ing.email}</span>
                               <span>·</span>
                               <span>Emp. {ing.no_empleado || 'S/N'}</span>
@@ -645,10 +651,10 @@ export function AdminTeamTab({
                           {iniciales}
                         </div>
                         <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <TypographySmall className="font-semibold text-xs truncate">
-                              {ing.nombre}
-                            </TypographySmall>
+                          <TypographySmall className="font-semibold text-xs truncate block text-foreground">
+                            {ing.nombre}
+                          </TypographySmall>
+                          <div className="flex flex-wrap items-center gap-1.5 mt-1">
                             <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                               {ing.region || 'SURESTE'}
                             </Badge>
@@ -659,7 +665,7 @@ export function AdminTeamTab({
                               Sin cuenta aún
                             </Badge>
                           </div>
-                          <TypographyMuted className="text-[11px] truncate block mt-0.5">
+                          <TypographyMuted className="text-[11px] truncate block mt-1">
                             Esperando registro en la app con correo @soyneto.com
                           </TypographyMuted>
                         </div>
