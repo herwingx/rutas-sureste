@@ -59,7 +59,7 @@ function RoutePolylines({ puntos, tramos, tab, sel, dark }) {
     if (!map || !window.google?.maps) return;
 
     if (tab === 'ruta' && puntos.length >= 2) {
-      const strokeColor = dark ? '#38bdf8' : '#2563eb';
+      const strokeColor = dark ? '#38bdf8' : '#1d4ed8';
       for (let i = 0; i < puntos.length - 1; i++) {
         const t = tramos[i];
         const path = t?.polyline
@@ -614,44 +614,66 @@ export function MapCanvas({
                         tab === 'corregir' && sel && !esSel && 'opacity-50 hover:opacity-100'
                       )}
                     >
+                      {/* Marcador Visual del Pin */}
                       <div
                         className={cn(
-                          'flex items-center justify-center rounded-full border-2 border-white font-semibold text-white shadow-md transition-all',
+                          'flex items-center justify-center rounded-full font-semibold shadow-md transition-all',
                           esSel
-                            ? 'h-7 w-7 bg-blue-600 ring-4 ring-blue-500/35 scale-110'
+                            ? 'h-7.5 w-7.5 bg-blue-600 text-white border-2 border-white ring-4 ring-blue-500/40 scale-110 shadow-lg'
                             : nums
-                              ? 'h-6 min-w-6 px-1.5 bg-blue-600 text-[11px] ring-2 ring-blue-500/30'
+                              ? isDarkMap
+                                ? 'h-6.5 min-w-6.5 px-1.5 bg-sky-500 text-slate-950 border-2 border-slate-950 ring-2 ring-sky-400/40 shadow-lg text-[11px] font-bold'
+                                : 'h-6.5 min-w-6.5 px-1.5 bg-blue-600 text-white border-2 border-white ring-2 ring-blue-500/35 shadow-lg text-[11px] font-bold'
                               : esCedis
-                                ? 'h-7 w-7 bg-orange-600 ring-4 ring-orange-500/40 shadow-orange-500/40'
+                                ? isDarkMap
+                                  ? 'h-7 w-7 bg-orange-500 text-white border-2 border-slate-950 ring-4 ring-orange-500/40 shadow-orange-500/40'
+                                  : 'h-7 w-7 bg-orange-600 text-white border-2 border-white ring-4 ring-orange-500/35 shadow-orange-600/30'
                                 : esCrossDock
-                                  ? 'h-7 w-7 bg-purple-600 ring-4 ring-purple-500/40 shadow-purple-500/40'
+                                  ? isDarkMap
+                                    ? 'h-7 w-7 bg-purple-500 text-white border-2 border-slate-950 ring-4 ring-purple-500/40 shadow-purple-500/40'
+                                    : 'h-7 w-7 bg-purple-600 text-white border-2 border-white ring-4 ring-purple-500/35 shadow-purple-600/30'
                                   : esBase || esResguardo
-                                    ? 'h-7 w-7 bg-amber-600 ring-4 ring-amber-500/40 shadow-amber-500/40'
-                                    : 'h-3.5 w-3.5 bg-slate-700 dark:bg-slate-300 hover:bg-blue-600 group-hover:scale-125'
+                                    ? isDarkMap
+                                      ? 'h-7 w-7 bg-amber-500 text-white border-2 border-slate-950 ring-4 ring-amber-500/40 shadow-amber-500/40'
+                                      : 'h-7 w-7 bg-amber-600 text-white border-2 border-white ring-4 ring-amber-500/35 shadow-amber-600/30'
+                                    : isDarkMap
+                                      ? 'h-4 w-4 bg-rose-500 border-2 border-slate-950 ring-2 ring-rose-400/35 shadow-md hover:bg-rose-400 group-hover:scale-135'
+                                      : 'h-4 w-4 bg-rose-600 border-2 border-white ring-2 ring-rose-500/30 shadow-md hover:bg-rose-500 group-hover:scale-135'
                         )}
                       >
                         {nums ? (
                           nums.join(',')
                         ) : esSel ? (
-                          <Crosshair weight="bold" className="h-3.5 w-3.5" />
+                          <Crosshair weight="bold" className="h-4 w-4 text-white" />
                         ) : esCedis || esCrossDock || esResguardo || esBase ? (
                           <Warehouse weight="fill" className="h-4 w-4 text-white" />
                         ) : null}
                       </div>
 
+                      {/* Píldora de Nombre y Badge Adaptada al Tema del Mapa */}
                       <span
                         className={cn(
-                          'pointer-events-none absolute left-full ml-1.5 whitespace-nowrap rounded-md px-2 py-0.5 text-[11px] shadow-md border flex items-center gap-1.5 transition-all',
-                          mostrarLbl ? 'inline-flex' : 'hidden group-hover:inline-flex',
+                          'pointer-events-none absolute left-full ml-1.5 whitespace-nowrap rounded-md px-2 py-0.5 text-[11px] shadow-md border flex items-center gap-1.5 transition-all max-w-[220px]',
+                          mostrarLbl ? 'inline-flex' : 'hidden group-hover:inline-flex group-hover:z-50',
                           (esSel || nums)
-                            ? 'bg-blue-600 text-white border-blue-500 font-semibold'
+                            ? isDarkMap
+                              ? 'bg-sky-500 text-slate-950 border-sky-400 font-bold shadow-sky-500/30'
+                              : 'bg-blue-600 text-white border-blue-500 font-semibold shadow-blue-500/20'
                             : esCedis
-                              ? 'bg-card text-foreground border-orange-500/80 ring-1 ring-orange-500/30 font-semibold'
+                              ? isDarkMap
+                                ? 'bg-slate-900/95 text-slate-100 border-orange-500/80 ring-1 ring-orange-500/30 font-semibold shadow-black/50'
+                                : 'bg-white/95 text-slate-900 border-orange-500 ring-1 ring-orange-500/30 font-semibold shadow-slate-900/15'
                               : esCrossDock
-                                ? 'bg-card text-foreground border-purple-500/80 ring-1 ring-purple-500/30 font-semibold'
+                                ? isDarkMap
+                                  ? 'bg-slate-900/95 text-slate-100 border-purple-500/80 ring-1 ring-purple-500/30 font-semibold shadow-black/50'
+                                  : 'bg-white/95 text-slate-900 border-purple-500 ring-1 ring-purple-500/30 font-semibold shadow-slate-900/15'
                                 : esBase || esResguardo
-                                  ? 'bg-card text-foreground border-amber-500/80 ring-1 ring-amber-500/30 font-semibold'
-                                  : 'bg-card text-foreground border-border/80'
+                                  ? isDarkMap
+                                    ? 'bg-slate-900/95 text-slate-100 border-amber-500/80 ring-1 ring-amber-500/30 font-semibold shadow-black/50'
+                                    : 'bg-white/95 text-slate-900 border-amber-500 ring-1 ring-amber-500/30 font-semibold shadow-slate-900/15'
+                                  : isDarkMap
+                                    ? 'bg-slate-900/95 text-slate-200 border-slate-700/80 shadow-md shadow-black/40 font-medium'
+                                    : 'bg-white/95 text-slate-800 border-slate-300 shadow-sm shadow-slate-900/10 font-medium'
                         )}
                       >
                         {esCedis && (
@@ -659,7 +681,9 @@ export function MapCanvas({
                             className={cn(
                               'rounded px-1.5 py-0.2 text-[9px] font-extrabold uppercase tracking-wider shrink-0 shadow-xs',
                               esSel || nums
-                                ? 'bg-orange-500 text-white ring-1 ring-white/40'
+                                ? isDarkMap
+                                  ? 'bg-orange-600 text-white'
+                                  : 'bg-orange-500 text-white ring-1 ring-white/40'
                                 : 'bg-orange-600 text-white'
                             )}
                           >
@@ -671,7 +695,9 @@ export function MapCanvas({
                             className={cn(
                               'rounded px-1.5 py-0.2 text-[9px] font-extrabold uppercase tracking-wider shrink-0 shadow-xs',
                               esSel || nums
-                                ? 'bg-purple-500 text-white ring-1 ring-white/40'
+                                ? isDarkMap
+                                  ? 'bg-purple-600 text-white'
+                                  : 'bg-purple-500 text-white ring-1 ring-white/40'
                                 : 'bg-purple-600 text-white'
                             )}
                           >
@@ -683,14 +709,16 @@ export function MapCanvas({
                             className={cn(
                               'rounded px-1.5 py-0.2 text-[9px] font-extrabold uppercase tracking-wider shrink-0 shadow-xs',
                               esSel || nums
-                                ? 'bg-amber-500 text-white ring-1 ring-white/40'
+                                ? isDarkMap
+                                  ? 'bg-amber-600 text-white'
+                                  : 'bg-amber-500 text-white ring-1 ring-white/40'
                                 : 'bg-amber-600 text-white'
                             )}
                           >
                             BASE
                           </span>
                         )}
-                        <span className="font-semibold tracking-tight">{t.nombre}</span>
+                        <span className="truncate tracking-tight">{t.nombre}</span>
                       </span>
                     </div>
                   </AdvancedMarker>
