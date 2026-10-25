@@ -1072,7 +1072,7 @@ export default function App() {
             mobileTab === 'mapa' ? 'hidden' : 'flex'
           )}
         >
-          <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4 py-3.5 pt-safe shadow-2xs">
+          <header className="flex min-h-16 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-4 py-3.5 pt-safe shadow-2xs">
             <div className="flex min-w-0 items-center gap-3">
               <BrandLogo className="h-9 w-9" />
               <div className="min-w-0">

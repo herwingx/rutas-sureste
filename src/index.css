@@ -108,10 +108,10 @@
 
 /* Utilidades de área segura (notch / barra de gestos) */
 @utility pb-safe {
-  padding-bottom: env(safe-area-inset-bottom);
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
 }
 @utility pt-safe {
-  padding-top: env(safe-area-inset-top);
+  padding-top: max(0.875rem, env(safe-area-inset-top));
 }
 
 /* Oculta la barra de desplazamiento manteniendo el scroll */
