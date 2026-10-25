@@ -47,6 +47,7 @@ export function HistoryAnalyticsTab({
     const totalRutas = historial.length;
     const totalKm = historial.reduce((s, h) => s + (h.totalKm || 0), 0);
     const totalCosto = historial.reduce((s, h) => s + (h.costo || 0), 0);
+    const totalPeajes = historial.reduce((s, h) => s + (Number(h.peajes) || 0), 0);
     const conteo = new Map();
     historial.forEach((h) =>
       (h.paradas || []).forEach((p) => {
@@ -54,7 +55,7 @@ export function HistoryAnalyticsTab({
       })
     );
     const topTiendas = [...conteo.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
-    return { totalRutas, totalKm, totalCosto, topTiendas };
+    return { totalRutas, totalKm, totalCosto, totalPeajes, topTiendas };
   }, [historial]);
 
   const filtrados = useMemo(() => {
@@ -204,6 +205,11 @@ export function HistoryAnalyticsTab({
                   </div>
                   <span className="text-xs font-mono text-muted-foreground tabular-nums shrink-0">
                     {h.totalKm} km · {pesos(h.costo || 0)}
+                    {Number(h.peajes) > 0 && (
+                      <span className="text-amber-600 dark:text-amber-400 font-semibold ml-1">
+                        + {pesos(h.peajes).replace('.00', '')} peajes
+                      </span>
+                    )}
                   </span>
                 </div>
                 <TypographyMuted className="mt-1.5 text-[11px] leading-relaxed">

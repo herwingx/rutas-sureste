@@ -38,7 +38,10 @@ import {
   CheckCircle,
   ArrowRight,
   Lightning,
+  Ticket,
+  Coins,
 } from '@phosphor-icons/react';
+import { PeajesDialog } from './PeajesDialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -83,6 +86,10 @@ export function RouteBuilderTab({
   tramos,
   calculando,
   totales,
+  peajesInfo = { detectadas: [], activas: [], personalizadas: [], omitidas: [], total: 0 },
+  onToggleCasetaOmitida,
+  onAddCasetaPersonalizada,
+  onRemoveCasetaPersonalizada,
   filasExcel,
   onMutateRuta,
   onUndo,
@@ -112,6 +119,7 @@ export function RouteBuilderTab({
   const [batchText, setBatchText] = useState('');
   const [dragIdx, setDragIdx] = useState(null);
   const [dropTarget, setDropTarget] = useState(null);
+  const [peajesModalOpen, setPeajesModalOpen] = useState(false);
 
   const [varianteAnticipo, setVarianteAnticipo] = useState(() => {
     try {
@@ -276,6 +284,18 @@ export function RouteBuilderTab({
     });
     return Math.round(sum);
   }, [cicloInfo.dias, ruta.fecha, totales.km, mapaDiasHistorial]);
+
+  const peajesAcumuladoSemana = useMemo(() => {
+    let sum = 0;
+    cicloInfo.dias.forEach((d) => {
+      if (ruta.fecha === d.fecha) {
+        sum += totales.peajes || 0;
+      } else if (mapaDiasHistorial[d.fecha]) {
+        sum += Number(mapaDiasHistorial[d.fecha].peajes) || 0;
+      }
+    });
+    return Math.round(sum);
+  }, [cicloInfo.dias, ruta.fecha, totales.peajes, mapaDiasHistorial]);
 
   const anticipoDisponibleParaImportar = useMemo(() => {
     if (modoOperativo !== 'comprobacion') return null;
@@ -995,39 +1015,82 @@ export function RouteBuilderTab({
         )}
       </div>
 
+      {/* Aviso interactivo si hay casetas en la ruta */}
+      {peajesInfo?.detectadas?.length > 0 && (
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => setPeajesModalOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') setPeajesModalOpen(true);
+          }}
+          className="shrink-0 flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/15 border border-amber-500/30 text-xs text-amber-800 dark:text-amber-200 cursor-pointer transition-colors shadow-xs"
+        >
+          <div className="flex items-center gap-1.5 truncate">
+            <Ticket weight="fill" className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            <span className="truncate font-medium">
+              {peajesInfo.activas.length} caseta(s) en ruta ({pesos(totales.peajes).replace('.00', '')})
+            </span>
+          </div>
+          <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 underline underline-offset-2 shrink-0 ml-2">
+            Ver / Alternar libre
+          </span>
+        </div>
+      )}
+
       {/* ================= 3. DOCK INFERIOR FIJO: MÉTRICAS + GUARDADO + BITÁCORA ================= */}
       <Card className="shrink-0 p-2.5 space-y-2 min-w-0">
-        {/* Cinta unificada de 4 métricas */}
-        <div className="grid grid-cols-4 divide-x divide-border rounded-lg border border-border/70 bg-muted/40 py-1.5 text-center">
-          <div className="px-1">
-            <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground block">
+        {/* Cinta unificada de 5 métricas */}
+        <div className="grid grid-cols-5 divide-x divide-border rounded-lg border border-border/70 bg-muted/40 py-1.5 text-center">
+          <div className="px-0.5">
+            <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground block truncate">
               Distancia
             </span>
-            <span className={cn('text-xs font-bold tabular-nums', calculando && 'opacity-50')}>
+            <span className={cn('text-xs font-bold tabular-nums block truncate', calculando && 'opacity-50')}>
               {totales.km} km
             </span>
           </div>
-          <div className="px-1">
-            <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground block">
+          <div className="px-0.5">
+            <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground block truncate">
               Gasolina
             </span>
-            <span className={cn('text-xs font-bold tabular-nums text-emerald-600 dark:text-emerald-400', calculando && 'opacity-50')}>
+            <span className={cn('text-xs font-bold tabular-nums text-emerald-600 dark:text-emerald-400 block truncate', calculando && 'opacity-50')}>
               {pesos(totales.costo).replace('.00', '')}
             </span>
           </div>
-          <div className="px-1">
-            <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground block">
+          <button
+            type="button"
+            onClick={() => setPeajesModalOpen(true)}
+            className="px-0.5 hover:bg-amber-500/10 active:bg-amber-500/20 transition-colors rounded cursor-pointer group flex flex-col items-center justify-center focus:outline-hidden"
+            title="Ver y configurar casetas y peajes"
+          >
+            <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground group-hover:text-amber-600 dark:group-hover:text-amber-400 block truncate transition-colors">
+              Peajes
+            </span>
+            <span
+              className={cn(
+                'text-xs font-bold tabular-nums block truncate transition-colors',
+                totales.peajes > 0
+                  ? 'text-amber-600 dark:text-amber-400'
+                  : 'text-muted-foreground'
+              )}
+            >
+              {pesos(totales.peajes || 0).replace('.00', '')}
+            </span>
+          </button>
+          <div className="px-0.5">
+            <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground block truncate">
               Tiempo
             </span>
-            <span className={cn('text-xs font-bold tabular-nums', calculando && 'opacity-50')}>
+            <span className={cn('text-xs font-bold tabular-nums block truncate', calculando && 'opacity-50')}>
               {totales.seg ? duracion(totales.seg) : '0m'}
             </span>
           </div>
-          <div className="px-1">
-            <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground block">
+          <div className="px-0.5">
+            <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground block truncate">
               Litros
             </span>
-            <span className="text-xs font-bold tabular-nums">
+            <span className="text-xs font-bold tabular-nums block truncate">
               {totales.litros.toFixed(1)} L
             </span>
           </div>
@@ -1073,10 +1136,24 @@ export function RouteBuilderTab({
             <span className="truncate">Bitácora Sem. {semanaInfo.semana} (.xlsx)</span>
           </span>
           <span className="font-mono text-[11px] bg-black/20 px-1.5 py-0.5 rounded shrink-0">
-            {diasListosSemana.length}/{diasSemana.length} días · {kmAcumuladoSemana} km
+            {diasListosSemana.length}/{cicloInfo.dias.length} días · {kmAcumuladoSemana} km
+            {peajesAcumuladoSemana > 0 && ` · ${pesos(peajesAcumuladoSemana).replace('.00', '')} peajes`}
           </span>
         </Button>
       </Card>
+
+      {/* Modal de Casetas y Peajes */}
+      <PeajesDialog
+        open={peajesModalOpen}
+        onOpenChange={setPeajesModalOpen}
+        casetasDetectadas={peajesInfo?.detectadas || []}
+        casetasOmitidas={peajesInfo?.omitidas || []}
+        casetasPersonalizadas={peajesInfo?.personalizadas || []}
+        onToggleCasetaOmitida={onToggleCasetaOmitida}
+        onAddCasetaPersonalizada={onAddCasetaPersonalizada}
+        onRemoveCasetaPersonalizada={onRemoveCasetaPersonalizada}
+        totalPeajes={totales.peajes}
+      />
 
       {/* ================= MODAL DE PEGADO POR LOTE ================= */}
       <Dialog open={batchModalOpen} onOpenChange={setBatchModalOpen}>

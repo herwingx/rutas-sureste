@@ -49,6 +49,7 @@ import { EngineerProfileModal, esFichaCompleta } from '@/features/equipo/Enginee
 import { AuthScreen } from '@/features/auth/AuthScreen';
 import { NewStoreModal } from '@/features/catalogo/NewStoreModal';
 import { MapCanvas } from '@/features/rutas/MapCanvas';
+import { detectarPeajesRuta } from '@/lib/peajes';
 import { AccountMenu } from '@/app/AccountMenu';
 import { BottomNav } from '@/app/BottomNav';
 import { navVisible } from '@/app/nav';
@@ -86,6 +87,8 @@ function rutaVacia() {
     paradas: [],
     baseInicio: true,
     baseFin: true,
+    casetasOmitidas: [],
+    casetasPersonalizadas: [],
   };
 }
 
@@ -409,14 +412,37 @@ export default function App() {
   const puntosRuta = useMemo(() => {
     const pts = [];
     if (ruta.baseInicio && baseTienda) {
-      pts.push({ nombre: baseTienda.nombre, lat: baseTienda.lat, lng: baseTienda.lng, tipo: 'base' });
+      pts.push({ ...baseTienda, tipo: 'base' });
     }
-    ruta.paradas.forEach((p, idx) => pts.push({ ...p, tipo: 'parada', idx }));
+    ruta.paradas.forEach((p, idx) => {
+      const infoTienda = porNombre.get(p.nombre);
+      pts.push({ ...(infoTienda || {}), ...p, tipo: 'parada', idx });
+    });
     if (ruta.baseFin && baseTienda && (ruta.paradas.length > 0 || !ruta.baseInicio)) {
-      pts.push({ nombre: baseTienda.nombre, lat: baseTienda.lat, lng: baseTienda.lng, tipo: 'base' });
+      pts.push({ ...baseTienda, tipo: 'base' });
     }
     return pts;
-  }, [ruta, baseTienda]);
+  }, [ruta, baseTienda, porNombre]);
+
+  const peajesInfo = useMemo(() => {
+    const detectados = detectarPeajesRuta(puntosRuta);
+    const omitidas = new Set(ruta.casetasOmitidas || []);
+    const activas = detectados.casetas.filter((c) => !omitidas.has(c.tramoClave));
+    const personalizadas = ruta.casetasPersonalizadas || [];
+    const sumaActivas = activas.reduce((s, c) => s + c.costo, 0);
+    const sumaPersonalizadas = personalizadas.reduce(
+      (s, c) => s + (Number(c.costo) || 0),
+      0
+    );
+    const total = sumaActivas + sumaPersonalizadas;
+    return {
+      detectadas: detectados.casetas,
+      activas,
+      personalizadas,
+      omitidas: ruta.casetasOmitidas || [],
+      total,
+    };
+  }, [puntosRuta, ruta.casetasOmitidas, ruta.casetasPersonalizadas]);
 
   const calcSeq = useRef(0);
   useEffect(() => {
@@ -450,9 +476,11 @@ export default function App() {
     const km = tramos.reduce((s, t) => s + (t.km || 0), 0);
     const seg = tramos.reduce((s, t) => s + (t.segundos || 0), 0);
     const litros = km / (Number(ajustes.kmPorLitro) || 12.5);
-    const costo = litros * (Number(ajustes.precioLitro) || 23.99);
-    return { km, seg, litros, costo };
-  }, [tramos, ajustes.kmPorLitro, ajustes.precioLitro]);
+    const costoGasolina = litros * (Number(ajustes.precioLitro) || 23.99);
+    const peajes = peajesInfo.total;
+    const costoTotal = costoGasolina + peajes;
+    return { km, seg, litros, costo: costoGasolina, peajes, costoTotal };
+  }, [tramos, ajustes.kmPorLitro, ajustes.precioLitro, peajesInfo.total]);
 
   const filasExcel = useMemo(() => {
     const filas = [];
@@ -609,11 +637,41 @@ export default function App() {
       `Recorrido: ${puntosRuta.map((p) => p.nombre).join(' → ')}`,
       `Distancia: ${totales.km} km (${duracion(totales.seg)})`,
       `Combustible estimado: ${pesos(totales.costo)} (${totales.litros.toFixed(1)} L)`,
+      totales.peajes > 0 ? `Peajes / Casetas: ${pesos(totales.peajes)}` : null,
+      totales.peajes > 0 ? `Total viáticos: ${pesos(totales.costoTotal)}` : null,
       `Mapa: ${linkMaps}`,
-    ].join('\n');
+    ]
+      .filter(Boolean)
+      .join('\n');
     await navigator.clipboard.writeText(resumen);
     toast('Resumen copiado');
   }, [puntosRuta, ruta.fecha, ruta.nombre, totales, toast]);
+
+  const toggleCasetaOmitida = useCallback((tramoClave) => {
+    mutarRuta((r) => {
+      const actual = new Set(r.casetasOmitidas || []);
+      if (actual.has(tramoClave)) {
+        actual.delete(tramoClave);
+      } else {
+        actual.add(tramoClave);
+      }
+      return { ...r, casetasOmitidas: Array.from(actual) };
+    });
+  }, [mutarRuta]);
+
+  const addCasetaPersonalizada = useCallback((nuevaCaseta) => {
+    mutarRuta((r) => ({
+      ...r,
+      casetasPersonalizadas: [...(r.casetasPersonalizadas || []), nuevaCaseta],
+    }));
+  }, [mutarRuta]);
+
+  const removeCasetaPersonalizada = useCallback((id) => {
+    mutarRuta((r) => ({
+      ...r,
+      casetasPersonalizadas: (r.casetasPersonalizadas || []).filter((c) => c.id !== id),
+    }));
+  }, [mutarRuta]);
 
   const cargarRutaDeHistorial = useCallback(
     (h, nuevaFecha = null) => {
@@ -628,6 +686,8 @@ export default function App() {
         }),
         baseInicio: h.baseInicio !== false,
         baseFin: h.baseFin !== false,
+        casetasOmitidas: h.casetasOmitidas || h.casetas_omitidas || [],
+        casetasPersonalizadas: h.casetasPersonalizadas || h.casetas_personalizadas || [],
       });
       if (h.baseNombre) {
         setAjustes((prev) => ({ ...prev, base: h.baseNombre }));
@@ -660,6 +720,10 @@ export default function App() {
           litros: Math.round(totales.litros * 100) / 100,
           segundos: totales.seg,
           costo: Math.round(totales.costo * 100) / 100,
+          peajes: Math.round(totales.peajes * 100) / 100,
+          casetas: peajesInfo.activas.concat(peajesInfo.personalizadas),
+          casetasOmitidas: ruta.casetasOmitidas || [],
+          casetasPersonalizadas: ruta.casetasPersonalizadas || [],
         });
         setRuta((r) => ({ ...r, id: item.id }));
         const hList = await api('GET', '/api/historial');
@@ -673,7 +737,7 @@ export default function App() {
         toast(e.message, 'err');
       }
     },
-    [ruta, tramos, totales, ingenieroActivo, ajustes.base, userSession, modoOperativo, toast]
+    [ruta, tramos, totales, peajesInfo, ingenieroActivo, ajustes.base, userSession, modoOperativo, toast]
   );
 
   const seleccionarDiaSemana = useCallback(
@@ -1141,6 +1205,10 @@ export default function App() {
                   tramos={tramos}
                   calculando={calculando}
                   totales={totales}
+                  peajesInfo={peajesInfo}
+                  onToggleCasetaOmitida={toggleCasetaOmitida}
+                  onAddCasetaPersonalizada={addCasetaPersonalizada}
+                  onRemoveCasetaPersonalizada={removeCasetaPersonalizada}
                   filasExcel={filasExcel}
                   onMutateRuta={mutarRuta}
                   onUndo={deshacer}
