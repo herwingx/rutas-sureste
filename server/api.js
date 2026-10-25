@@ -108,13 +108,11 @@ const rutas = {
     motor: dist.estadoMotor(),
   }),
 
-  /** Devuelve el catálogo completo de tiendas (local o sincronizado desde Supabase) */
+  /** Devuelve el catálogo completo de tiendas (Supabase central como fuente primaria) */
   'GET /api/tiendas': async () => {
-    const tiendas = db.cargar();
-    if (tiendas && tiendas.length > 0) return tiendas;
     if (db.supabaseActivo()) {
       try {
-        const res = await fetch(`${cfg.SUPABASE_URL}/rest/v1/tiendas?select=*`, {
+        const res = await fetch(`${cfg.SUPABASE_URL}/rest/v1/tiendas?select=*&order=nombre.asc`, {
           headers: {
             apikey: cfg.SUPABASE_KEY,
             Authorization: `Bearer ${cfg.SUPABASE_KEY}`,
@@ -124,22 +122,20 @@ const rutas = {
         });
         if (res.ok) {
           const rows = await res.json();
-          if (rows && rows.length > 0) return rows;
+          if (Array.isArray(rows) && rows.length > 0) return rows;
         }
       } catch (err) {
-        console.warn('[Fallback Supabase Tiendas Error]:', err.message);
+        console.warn('[Supabase Tiendas] Consulta tabla central falló, usando fallback local:', err.message);
       }
     }
-    return [];
+    return db.cargar() || [];
   },
 
-  /** Devuelve la lista de perfiles de ingenieros */
+  /** Devuelve la lista de perfiles de ingenieros (Supabase central como fuente primaria) */
   'GET /api/ingenieros': async () => {
-    const ingenieros = db.cargarIngenieros();
-    if (ingenieros && ingenieros.length > 0) return ingenieros;
     if (db.supabaseActivo()) {
       try {
-        const res = await fetch(`${cfg.SUPABASE_URL}/rest/v1/ingenieros?select=*`, {
+        const res = await fetch(`${cfg.SUPABASE_URL}/rest/v1/ingenieros?select=*&order=nombre.asc`, {
           headers: {
             apikey: cfg.SUPABASE_KEY,
             Authorization: `Bearer ${cfg.SUPABASE_KEY}`,
@@ -149,13 +145,13 @@ const rutas = {
         });
         if (res.ok) {
           const rows = await res.json();
-          if (rows && rows.length > 0) return rows;
+          if (Array.isArray(rows) && rows.length > 0) return rows;
         }
       } catch (err) {
-        console.warn('[Fallback Supabase Ingenieros Error]:', err.message);
+        console.warn('[Supabase Ingenieros] Consulta tabla central falló, usando fallback local:', err.message);
       }
     }
-    return [];
+    return db.cargarIngenieros() || [];
   },
 
   /** Actualiza o crea un perfil de ingeniero y lo sincroniza con Supabase */
@@ -200,7 +196,7 @@ const rutas = {
     else lista.push(actualizado);
 
     const guardados = db.guardarIngenieros(lista);
-    db.syncIngenieroUpsert(actualizado);
+    await db.syncIngenieroUpsert(actualizado);
     return guardados;
   },
 
@@ -228,9 +224,28 @@ const rutas = {
         ? { verificada: true, fechaVerificacion: new Date().toISOString().slice(0, 10) }
         : {}),
     };
-    const res = db.guardar([...tiendas, nueva]);
-    db.syncTiendaUpsert(nueva);
-    return res;
+    db.guardar([...tiendas, nueva]);
+    await db.syncTiendaUpsert(nueva);
+
+    // Si Supabase está activo, consultar la lista central fresca
+    if (db.supabaseActivo()) {
+      try {
+        const freshRes = await fetch(`${cfg.SUPABASE_URL}/rest/v1/tiendas?select=*&order=nombre.asc`, {
+          headers: {
+            apikey: cfg.SUPABASE_KEY,
+            Authorization: `Bearer ${cfg.SUPABASE_KEY}`,
+            'Accept-Profile': cfg.SUPABASE_SCHEMA,
+            'Content-Profile': cfg.SUPABASE_SCHEMA,
+          },
+        });
+        if (freshRes.ok) {
+          const rows = await freshRes.json();
+          if (Array.isArray(rows) && rows.length > 0) return rows;
+        }
+      } catch {}
+    }
+
+    return db.cargar();
   },
 
   /** Actualiza coordenadas, nombre, estado o verificación de una tienda existente */
@@ -282,20 +297,57 @@ const rutas = {
     }
 
     tiendas[idx] = actual;
-    const res = db.guardar(tiendas);
-    db.syncTiendaUpsert(actual, original);
-    return res;
+    db.guardar(tiendas);
+    await db.syncTiendaUpsert(actual, original !== actual.nombre ? original : null);
+
+    // Devolver lista fresca desde Supabase si está disponible
+    if (db.supabaseActivo()) {
+      try {
+        const freshRes = await fetch(`${cfg.SUPABASE_URL}/rest/v1/tiendas?select=*&order=nombre.asc`, {
+          headers: {
+            apikey: cfg.SUPABASE_KEY,
+            Authorization: `Bearer ${cfg.SUPABASE_KEY}`,
+            'Accept-Profile': cfg.SUPABASE_SCHEMA,
+            'Content-Profile': cfg.SUPABASE_SCHEMA,
+          },
+        });
+        if (freshRes.ok) {
+          const rows = await freshRes.json();
+          if (Array.isArray(rows) && rows.length > 0) return rows;
+        }
+      } catch {}
+    }
+
+    return db.cargar();
   },
 
   /** Elimina una tienda del catálogo activo (conservando copia en `data/backups/`) */
-  'DELETE /api/tiendas': (body) => {
+  'DELETE /api/tiendas': async (body) => {
     const nombre = db.normalizarNombre(body.nombre);
     const tiendas = db.cargar();
     const filtradas = tiendas.filter((t) => t.nombre !== nombre);
     if (filtradas.length === tiendas.length) throw httpError(404, `No se encontró "${nombre}"`);
-    const res = db.guardar(filtradas);
-    db.syncTiendaDelete(nombre);
-    return res;
+    db.guardar(filtradas);
+    await db.syncTiendaDelete(nombre);
+
+    if (db.supabaseActivo()) {
+      try {
+        const freshRes = await fetch(`${cfg.SUPABASE_URL}/rest/v1/tiendas?select=*&order=nombre.asc`, {
+          headers: {
+            apikey: cfg.SUPABASE_KEY,
+            Authorization: `Bearer ${cfg.SUPABASE_KEY}`,
+            'Accept-Profile': cfg.SUPABASE_SCHEMA,
+            'Content-Profile': cfg.SUPABASE_SCHEMA,
+          },
+        });
+        if (freshRes.ok) {
+          const rows = await freshRes.json();
+          if (Array.isArray(rows) && rows.length > 0) return rows;
+        }
+      } catch {}
+    }
+
+    return db.cargar();
   },
 
   /** Calcula los tramos carreteros consecutivos de una ruta */

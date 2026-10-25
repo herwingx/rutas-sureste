@@ -178,7 +178,7 @@ export function supabaseActivo() {
 }
 
 export async function syncTiendaUpsert(tienda, nombreOriginal = null) {
-  if (!supabaseActivo()) return;
+  if (!supabaseActivo()) return null;
   try {
     const { lat, lng } = parseCoords(tienda.coords || '');
     const payload = {
@@ -198,38 +198,54 @@ export async function syncTiendaUpsert(tienda, nombreOriginal = null) {
       fecha_verificacion: tienda.fechaVerificacion || null,
     };
 
+    let res;
     if (nombreOriginal && nombreOriginal !== tienda.nombre) {
-      await fetch(
+      res = await fetch(
         `${SUPABASE_URL}/rest/v1/tiendas?nombre=eq.${encodeURIComponent(nombreOriginal)}`,
         {
           method: 'PATCH',
-          headers: supabaseHeaders({ Prefer: 'return=minimal' }),
+          headers: supabaseHeaders({ Prefer: 'return=representation' }),
           body: JSON.stringify(payload),
         }
       );
     } else {
-      await fetch(`${SUPABASE_URL}/rest/v1/tiendas?on_conflict=nombre`, {
+      res = await fetch(`${SUPABASE_URL}/rest/v1/tiendas?on_conflict=nombre`, {
         method: 'POST',
         headers: supabaseHeaders({
-          Prefer: 'resolution=merge-duplicates,return=minimal',
+          Prefer: 'resolution=merge-duplicates,return=representation',
         }),
         body: JSON.stringify(payload),
       });
     }
+
+    if (!res.ok) {
+      const txt = await res.text();
+      console.error('[Supabase Sync] Error HTTP en syncTiendaUpsert:', res.status, txt);
+      return null;
+    }
+    return payload;
   } catch (err) {
     console.error('[Supabase Sync] Error en syncTiendaUpsert:', err.message);
+    return null;
   }
 }
 
 export async function syncTiendaDelete(nombre) {
-  if (!supabaseActivo()) return;
+  if (!supabaseActivo()) return null;
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/tiendas?nombre=eq.${encodeURIComponent(nombre)}`, {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/tiendas?nombre=eq.${encodeURIComponent(nombre)}`, {
       method: 'DELETE',
-      headers: supabaseHeaders({ Prefer: 'return=minimal' }),
+      headers: supabaseHeaders({ Prefer: 'return=representation' }),
     });
+    if (!res.ok) {
+      const txt = await res.text();
+      console.error('[Supabase Sync] Error HTTP en syncTiendaDelete:', res.status, txt);
+      return null;
+    }
+    return true;
   } catch (err) {
     console.error('[Supabase Sync] Error en syncTiendaDelete:', err.message);
+    return null;
   }
 }
 
