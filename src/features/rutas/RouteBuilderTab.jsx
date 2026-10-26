@@ -301,6 +301,9 @@ export function RouteBuilderTab({
     const out = [];
 
     for (const t of tiendas) {
+      // Las bases/resguardos no se agregan como paradas intermedias de ruta
+      if (t.nombre?.toUpperCase().includes('RESGUARDO')) continue;
+
       const fullSearch = norm(
         `${t.nombre} ${t.eco || ''} ${t.ceco || ''} ${t.zona || ''} ${t.estado || ''} ${t.ingeniero || ''}`
       );

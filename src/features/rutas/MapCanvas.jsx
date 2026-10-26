@@ -580,6 +580,12 @@ export function MapCanvas({
                 const esResguardo = Boolean(
                   t.nombre?.toUpperCase().includes('RESGUARDO')
                 );
+
+                // En modo ruta, los resguardos personales de otros ingenieros no se muestran en el mapa
+                if (tab !== 'corregir' && esResguardo && !esBase) {
+                  return null;
+                }
+
                 const esHubLogistico = esCedis || esCrossDock || esResguardo || esBase;
 
                 const pos =
