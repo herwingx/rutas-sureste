@@ -731,7 +731,9 @@ export default function App() {
         });
         if (!silencioso) {
           toast(`Iniciando ruta para ${fechaMX(fechaTarget)}`);
-          setTimeout(() => searchInputRef.current?.focus(), 40);
+          if (window.matchMedia?.('(pointer: fine)').matches) {
+            setTimeout(() => searchInputRef.current?.focus(), 40);
+          }
         }
       }
     },
@@ -826,7 +828,9 @@ export default function App() {
     const limpiar = () => {
       setTramos([]);
       mutarRuta((r) => rutaVacia(r.fecha, modoOperativo));
-      setTimeout(() => searchInputRef.current?.focus(), 40);
+      if (window.matchMedia?.('(pointer: fine)').matches) {
+        setTimeout(() => searchInputRef.current?.focus(), 40);
+      }
     };
     if (ruta.paradas.length && !ruta.id) {
       setConfirmDialog({

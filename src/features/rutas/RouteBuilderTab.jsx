@@ -423,12 +423,12 @@ export function RouteBuilderTab({
         <Card className="p-2.5 space-y-2 min-w-0">
           {/* Fila 1: Selector Comprobación / Anticipo + Calendario integrado */}
           <div className="flex items-center justify-between gap-1.5 min-w-0">
-            <div className="grid grid-cols-2 flex-1 p-0.5 rounded-lg bg-muted border border-border/60 min-w-0">
+            <div className="grid grid-cols-2 flex-1 h-9 p-0.5 rounded-lg bg-muted border border-border/60 min-w-0">
               <button
                 type="button"
                 onClick={() => onSetModoOperativo?.('comprobacion')}
                 className={cn(
-                  'flex items-center justify-center gap-1 py-1.5 px-2 rounded-md text-xs transition-all cursor-pointer min-w-0',
+                  'flex items-center justify-center gap-1 h-full px-2 rounded-md text-xs transition-all cursor-pointer min-w-0',
                   modoOperativo === 'comprobacion'
                     ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
                     : 'text-muted-foreground hover:text-foreground'
@@ -441,7 +441,7 @@ export function RouteBuilderTab({
                 type="button"
                 onClick={() => onSetModoOperativo?.('anticipo')}
                 className={cn(
-                  'flex items-center justify-center gap-1 py-1.5 px-2 rounded-md text-xs transition-all cursor-pointer min-w-0',
+                  'flex items-center justify-center gap-1 h-full px-2 rounded-md text-xs transition-all cursor-pointer min-w-0',
                   modoOperativo === 'anticipo'
                     ? 'bg-amber-600 text-white font-semibold shadow-xs'
                     : 'text-muted-foreground hover:text-foreground'
@@ -454,6 +454,7 @@ export function RouteBuilderTab({
 
             <DatePicker
               value={ruta.fecha}
+              className="h-9 pointer-coarse:h-9"
               onChange={(fecha) => {
                 if (modoOperativo === 'anticipo' && varianteAnticipo === 'ciclo_neto') {
                   const d = new Date(fecha + 'T12:00:00');
@@ -735,7 +736,7 @@ export function RouteBuilderTab({
         </div>
 
         {/* Barra compacta de Base (Salida/Regreso) + Herramientas de Ruta */}
-        <div className="flex flex-wrap items-center justify-between gap-1 px-0.5 min-w-0">
+        <div className="flex items-center justify-between gap-1 px-0.5 min-w-0">
           {baseTienda ? (
             <div className="flex items-center gap-1 shrink-0">
               <ActionTooltip label={`Incluir salida desde ${baseTienda.nombre}`}>
@@ -743,7 +744,7 @@ export function RouteBuilderTab({
                   type="button"
                   onClick={() => onMutateRuta((r) => ({ ...r, baseInicio: !r.baseInicio }))}
                   className={cn(
-                    'inline-flex items-center gap-1 h-7 px-1.5 sm:px-2 rounded-lg border text-[11px] font-medium transition-all cursor-pointer shrink-0',
+                    'inline-flex items-center gap-1 h-7 px-2 rounded-lg border text-[11px] font-medium transition-all cursor-pointer shrink-0',
                     ruta.baseInicio
                       ? 'border-primary/40 bg-primary/10 text-primary'
                       : 'border-border bg-card/60 text-muted-foreground line-through opacity-70'
@@ -759,7 +760,7 @@ export function RouteBuilderTab({
                   type="button"
                   onClick={() => onMutateRuta((r) => ({ ...r, baseFin: !r.baseFin }))}
                   className={cn(
-                    'inline-flex items-center gap-1 h-7 px-1.5 sm:px-2 rounded-lg border text-[11px] font-medium transition-all cursor-pointer shrink-0',
+                    'inline-flex items-center gap-1 h-7 px-2 rounded-lg border text-[11px] font-medium transition-all cursor-pointer shrink-0',
                     ruta.baseFin
                       ? 'border-primary/40 bg-primary/10 text-primary'
                       : 'border-border bg-card/60 text-muted-foreground line-through opacity-70'
@@ -782,7 +783,7 @@ export function RouteBuilderTab({
                 size="icon-xs"
                 disabled={ruta.paradas.length < 3}
                 onClick={onOptimize}
-                className="bg-card h-7 w-6.5 sm:w-7 pointer-coarse:h-7 pointer-coarse:w-6.5 sm:pointer-coarse:w-7"
+                className="bg-card h-7 w-7 pointer-coarse:h-7 pointer-coarse:w-7"
               >
                 <CompassTool weight="duotone" />
               </Button>
@@ -798,7 +799,7 @@ export function RouteBuilderTab({
                     paradas: [...r.paradas].reverse(),
                   }))
                 }
-                className="bg-card h-7 w-6.5 sm:w-7 pointer-coarse:h-7 pointer-coarse:w-6.5 sm:pointer-coarse:w-7"
+                className="bg-card h-7 w-7 pointer-coarse:h-7 pointer-coarse:w-7"
               >
                 <ArrowsDownUp weight="bold" />
               </Button>
@@ -809,7 +810,7 @@ export function RouteBuilderTab({
                 size="icon-xs"
                 disabled={!canUndo}
                 onClick={onUndo}
-                className="bg-card h-7 w-6.5 sm:w-7 pointer-coarse:h-7 pointer-coarse:w-6.5 sm:pointer-coarse:w-7"
+                className="bg-card h-7 w-7 pointer-coarse:h-7 pointer-coarse:w-7"
               >
                 <ArrowUUpLeft weight="bold" />
               </Button>
@@ -820,7 +821,7 @@ export function RouteBuilderTab({
                 size="icon-xs"
                 disabled={filasExcel.length === 0}
                 onClick={onCopyExcel}
-                className="bg-card h-7 w-6.5 sm:w-7 pointer-coarse:h-7 pointer-coarse:w-6.5 sm:pointer-coarse:w-7"
+                className="bg-card h-7 w-7 pointer-coarse:h-7 pointer-coarse:w-7"
               >
                 <CopySimple weight="duotone" />
               </Button>
@@ -831,7 +832,7 @@ export function RouteBuilderTab({
                 size="icon-xs"
                 disabled={filasExcel.length === 0}
                 onClick={onCopyWhatsApp}
-                className="bg-card h-7 w-6.5 sm:w-7 pointer-coarse:h-7 pointer-coarse:w-6.5 sm:pointer-coarse:w-7"
+                className="bg-card h-7 w-7 pointer-coarse:h-7 pointer-coarse:w-7"
               >
                 <ShareNetwork weight="duotone" />
               </Button>
@@ -840,12 +841,12 @@ export function RouteBuilderTab({
               <ActionTooltip label="Limpiar paradas del día">
                 <Button
                   variant="outline"
-                  size="xs"
+                  size="icon-xs"
                   onClick={onNewRoute}
-                  className="h-7 pointer-coarse:h-7 px-1.5 text-[11px] font-medium border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/15 hover:text-destructive gap-1"
+                  aria-label="Limpiar paradas del día"
+                  className="h-7 w-7 pointer-coarse:h-7 pointer-coarse:w-7 border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:text-destructive"
                 >
-                  <Trash weight="duotone" className="h-3 w-3 shrink-0" />
-                  <span>Limpiar</span>
+                  <Trash weight="duotone" />
                 </Button>
               </ActionTooltip>
             )}
