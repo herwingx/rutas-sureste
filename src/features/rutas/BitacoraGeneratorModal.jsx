@@ -156,9 +156,11 @@ export function BitacoraGeneratorModal({
   // Modo de exportación: 'ambas' (hojas COMPROBACION y ANTICIPO juntas), 'comprobacion' o 'anticipo'
   const [modoHojas, setModoHojas] = useState('ambas');
 
-  // Cálculo automático de semana ISO y año
-  const fechaReferencia = rutaActual?.fecha || new Date().toISOString().slice(0, 10);
-  const calcDef = useMemo(() => calcularSemanaISO(fechaReferencia), [fechaReferencia]);
+  // Cálculo automático de semana ISO y año (Comprobación = semana actual; Anticipo = semana siguiente)
+  const fechaHoyComp = new Date().toLocaleDateString('en-CA');
+  const fechaRefComp =
+    rutaActual?.fecha && rutaActual?.tipo !== 'anticipo' ? rutaActual.fecha : fechaHoyComp;
+  const calcDef = useMemo(() => calcularSemanaISO(fechaRefComp), [fechaRefComp]);
   const [semana, setSemana] = useState(calcDef.semana);
   const [anio, setAnio] = useState(calcDef.anio);
 
@@ -166,38 +168,17 @@ export function BitacoraGeneratorModal({
   const [dispersion, setDispersion] = useState(0);
   const [complementos, setComplementos] = useState(0);
 
-  const [obsAnticipo, setObsAnticipo] = useState(
-    () =>
-      `ANTICIPO PARA LA SEMANA ${calcDef.semana} SE REALIZARAN MANTENIMIENTOS PREVENTIVOS Y ATENCIÓN A SUCURSALES EN REGIÓN ${perfilActual.region || 'TUXTLA'}.`
-  );
-  const [obsComprobacion, setObsComprobacion] = useState(
-    () =>
-      `COMPROBACION DE RUTA SEMANA ${calcDef.semana} POR MANTENIMIENTOS PREVENTIVOS Y ATENCIÓN A SUCURSALES EN REGIÓN ${perfilActual.region || 'TUXTLA'}.`
-  );
-
-  const [incluirRutaActual, setIncluirRutaActual] = useState(true);
-  const [idsComprobacionSel, setIdsComprobacionSel] = useState([]);
-  const [idsAnticipoSel, setIdsAnticipoSel] = useState([]);
-  const [subTabDias, setSubTabDias] = useState('comprobacion'); // 'comprobacion' | 'anticipo'
+  // Lunes base del ciclo para la semana de Comprobación seleccionada
+  const fechaLunesBase = useMemo(() => {
+    return obtenerLunesDeSemanaISO(semana, anio);
+  }, [semana, anio]);
 
   // Opciones de ciclo para el anticipo: 'ciclo_neto' (Mar -> Lun próx) o 'semana_natural' (Lun -> Sáb)
   const [varianteAnticipo, setVarianteAnticipo] = useState('ciclo_neto');
   // Flag por si al ingeniero se le olvidó pedir el lunes anterior y lo incluye ahora
   const [incluirLunesOlvido, setIncluirLunesOlvido] = useState(false);
 
-  const [puntosNuevosExtra, setPuntosNuevosExtra] = useState([]);
-  const [descargando, setDescargando] = useState(false);
-  const [guardandoSupabase, setGuardandoSupabase] = useState(false);
-
-  // Lista de bitácoras guardadas en Supabase / local
-  const [bitacorasGuardadas, setBitacorasGuardadas] = useState([]);
-
-  // Lunes base del ciclo para la semana y año seleccionados
-  const fechaLunesBase = useMemo(() => {
-    return obtenerLunesDeSemanaISO(semana, anio);
-  }, [semana, anio]);
-
-  // Ciclo operativo Tiendas Neto (Comprobación y Anticipo con próximo lunes)
+  // Ciclo base de Comprobación (Semana actual)
   const cicloNetoModal = useMemo(() => {
     return obtenerCicloOperativoNeto(fechaLunesBase, {
       modo: 'anticipo',
@@ -205,6 +186,50 @@ export function BitacoraGeneratorModal({
       incluirLunesOlvido,
     });
   }, [fechaLunesBase, varianteAnticipo, incluirLunesOlvido]);
+
+  // Ciclo de Anticipo (Semana siguiente automática: +7 días respecto al lunes de comprobación)
+  const fechaLunesAnticipo = cicloNetoModal.fechaProximoLunes || fechaLunesBase;
+  const semanaAnticipo = useMemo(
+    () => calcularSemanaISO(fechaLunesAnticipo).semana,
+    [fechaLunesAnticipo]
+  );
+  const cicloNetoAnticipo = useMemo(() => {
+    return obtenerCicloOperativoNeto(fechaLunesAnticipo, {
+      modo: 'anticipo',
+      variante: varianteAnticipo,
+      incluirLunesOlvido,
+    });
+  }, [fechaLunesAnticipo, varianteAnticipo, incluirLunesOlvido]);
+
+  const [obsAnticipo, setObsAnticipo] = useState(
+    () =>
+      `ANTICIPO PARA LA SEMANA ${semanaAnticipo} SE REALIZARAN MANTENIMIENTOS PREVENTIVOS Y ATENCIÓN A SUCURSALES EN REGIÓN ${perfilActual.region || 'TUXTLA'}.`
+  );
+  const [obsComprobacion, setObsComprobacion] = useState(
+    () =>
+      `COMPROBACION DE RUTA SEMANA ${calcDef.semana} POR MANTENIMIENTOS PREVENTIVOS Y ATENCIÓN A SUCURSALES EN REGIÓN ${perfilActual.region || 'TUXTLA'}.`
+  );
+
+  useEffect(() => {
+    setObsComprobacion(
+      `COMPROBACION DE RUTA SEMANA ${semana} POR MANTENIMIENTOS PREVENTIVOS Y ATENCIÓN A SUCURSALES EN REGIÓN ${perfilActual.region || 'TUXTLA'}.`
+    );
+    setObsAnticipo(
+      `ANTICIPO PARA LA SEMANA ${semanaAnticipo} SE REALIZARAN MANTENIMIENTOS PREVENTIVOS Y ATENCIÓN A SUCURSALES EN REGIÓN ${perfilActual.region || 'TUXTLA'}.`
+    );
+  }, [semana, semanaAnticipo, perfilActual.region]);
+
+  const [incluirRutaActual, setIncluirRutaActual] = useState(true);
+  const [idsComprobacionSel, setIdsComprobacionSel] = useState([]);
+  const [idsAnticipoSel, setIdsAnticipoSel] = useState([]);
+  const [subTabDias, setSubTabDias] = useState('comprobacion'); // 'comprobacion' | 'anticipo'
+
+  const [puntosNuevosExtra, setPuntosNuevosExtra] = useState([]);
+  const [descargando, setDescargando] = useState(false);
+  const [guardandoSupabase, setGuardandoSupabase] = useState(false);
+
+  // Lista de bitácoras guardadas en Supabase / local
+  const [bitacorasGuardadas, setBitacorasGuardadas] = useState([]);
 
   // Validación estricta: Ficha vehicular obligatoria para poder generar/descargar bitácora
   const perfilCompleto = useMemo(() => {
@@ -222,12 +247,23 @@ export function BitacoraGeneratorModal({
   }, [perfilActual]);
 
   useEffect(() => {
-    if (rutaActual?.fecha) {
+    if (!rutaActual?.fecha) return;
+    if (rutaActual?.tipo === 'anticipo') {
+      // Si la ruta activa es de Anticipo (semana siguiente), la base de Comprobación es la semana previa (-7 días)
+      const d = new Date(rutaActual.fecha + 'T12:00:00');
+      d.setDate(d.getDate() - 7);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const dia = String(d.getDate()).padStart(2, '0');
+      const c = calcularSemanaISO(`${y}-${m}-${dia}`);
+      setSemana(c.semana);
+      setAnio(c.anio);
+    } else {
       const c = calcularSemanaISO(rutaActual.fecha);
       setSemana(c.semana);
       setAnio(c.anio);
     }
-  }, [rutaActual?.fecha]);
+  }, [rutaActual?.fecha, rutaActual?.tipo]);
 
   // Cargar lista de bitácoras guardadas al abrir el modal y auto-seleccionar días
   useEffect(() => {
@@ -242,7 +278,7 @@ export function BitacoraGeneratorModal({
         })
         .catch(() => {});
 
-      // 1. Auto-seleccionar rutas para Comprobación (Semana concluida: Lunes a Sábado)
+      // 1. Auto-seleccionar rutas para Comprobación (Semana actual concluida: Lunes a Sábado)
       const fechasCompValidas = new Set(
         cicloNetoModal.diasSemanaNatural.slice(0, 6).map((d) => d.fecha)
       );
@@ -254,17 +290,25 @@ export function BitacoraGeneratorModal({
       });
       setIdsComprobacionSel(rutasComp.map((h) => h.id));
 
-      // 2. Auto-seleccionar rutas para Anticipo (Ciclo Neto: Martes a Sábado + Lunes siguiente)
-      const fechasAntValidas = new Set(cicloNetoModal.dias.map((d) => d.fecha));
-      const rutasAnt = (historial || []).filter((h) => {
+      // 2. Auto-seleccionar rutas para Anticipo (Semana siguiente: Ciclo Neto Mar a Sáb + Lunes próx)
+      const fechasAntSiguiente = new Set(cicloNetoAnticipo.dias.map((d) => d.fecha));
+      const fechasAntActual = new Set(cicloNetoModal.dias.map((d) => d.fecha));
+      const rutasAntSig = (historial || []).filter((h) => {
         if (!h.fecha) return false;
         const mismoIng = !h.ingeniero || !formIng.nombre || h.ingeniero === formIng.nombre;
-        const tipoAnt = h.tipo === 'anticipo';
-        return mismoIng && tipoAnt && fechasAntValidas.has(h.fecha);
+        return mismoIng && h.tipo === 'anticipo' && fechasAntSiguiente.has(h.fecha);
       });
-      setIdsAnticipoSel(rutasAnt.map((h) => h.id));
+      const rutasAntFallback =
+        rutasAntSig.length > 0
+          ? rutasAntSig
+          : (historial || []).filter((h) => {
+              if (!h.fecha) return false;
+              const mismoIng = !h.ingeniero || !formIng.nombre || h.ingeniero === formIng.nombre;
+              return mismoIng && h.tipo === 'anticipo' && fechasAntActual.has(h.fecha);
+            });
+      setIdsAnticipoSel(rutasAntFallback.map((h) => h.id));
     }
-  }, [open, modoInicial, semana, anio, formIng.nombre, historial, cicloNetoModal]);
+  }, [open, modoInicial, semana, anio, formIng.nombre, historial, cicloNetoModal, cicloNetoAnticipo]);
 
   // Días consolidados para COMPROBACION (hasta 7 días por hoja)
   const diasComprobacion = useMemo(() => {
@@ -329,7 +373,10 @@ export function BitacoraGeneratorModal({
       rutaActual?.paradas?.length > 0 &&
       rutaActual?.tipo === 'anticipo'
     ) {
-      const fechasAntValidas = new Set(cicloNetoModal.dias.map((d) => d.fecha));
+      const fechasAntValidas = new Set([
+        ...cicloNetoAnticipo.dias.map((d) => d.fecha),
+        ...cicloNetoModal.dias.map((d) => d.fecha),
+      ]);
       if (fechasAntValidas.has(rutaActual.fecha)) {
         const tramosAct = construirTramosDeRuta(
           { ...rutaActual, baseNombre, tramos: tramosActuales },
@@ -370,6 +417,7 @@ export function BitacoraGeneratorModal({
     porNombre,
     baseNombre,
     cicloNetoModal,
+    cicloNetoAnticipo,
   ]);
 
   // Detección automática de puntos especiales combinando ambas listas
@@ -515,7 +563,9 @@ export function BitacoraGeneratorModal({
     const dataUsar = overrideData || {
       modo: modoHojas,
       ingeniero: formIng,
-      semana,
+      semana: modoHojas === 'anticipo' ? semanaAnticipo : semana,
+      semanaComprobacion: semana,
+      semanaAnticipo,
       kmInicial,
       rendimiento: formIng.rendimiento,
       costoLitro: formIng.costo_litro,
@@ -1102,7 +1152,10 @@ export function BitacoraGeneratorModal({
 
                     {historial
                       .filter((h) => {
-                        const fechasAntValidas = new Set(cicloNetoModal.dias.map((d) => d.fecha));
+                        const fechasAntValidas = new Set([
+                          ...cicloNetoAnticipo.dias.map((d) => d.fecha),
+                          ...cicloNetoModal.dias.map((d) => d.fecha),
+                        ]);
                         return fechasAntValidas.has(h.fecha) && h.tipo === 'anticipo';
                       })
                       .map((h) => {
@@ -1111,7 +1164,9 @@ export function BitacoraGeneratorModal({
                           rutaActual?.id === h.id &&
                           rutaActual?.tipo === 'anticipo';
                         const checked = esMismaActual || idsAnticipoSel.includes(h.id);
-                        const esProx = h.fecha === cicloNetoModal.fechaProximoLunes;
+                        const esProx =
+                          h.fecha === cicloNetoAnticipo.fechaProximoLunes ||
+                          h.fecha === cicloNetoModal.fechaProximoLunes;
                         return (
                           <div
                             key={h.id}

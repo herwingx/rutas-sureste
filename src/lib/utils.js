@@ -228,6 +228,60 @@ export const obtenerCicloOperativoNeto = (
 };
 
 /**
+ * Calcula la fecha inicial y semana base por defecto según el modo operativo:
+ * - 'comprobacion': siempre se ubica en la semana actual (hoy si es Lun-Sáb, o Lunes actual si hoy es Domingo).
+ * - 'anticipo': se ubica automáticamente en la semana siguiente (+7 días respecto a la semana actual/comprobación).
+ *
+ * @param {'comprobacion' | 'anticipo'} [modo='comprobacion']
+ * @param {Object} [opciones]
+ * @param {'ciclo_neto' | 'semana_natural' | 'completa'} [opciones.variante='ciclo_neto']
+ * @param {boolean} [opciones.incluirLunesOlvido=false]
+ * @param {string} [opciones.fechaBaseComprobacion]
+ */
+export const obtenerFechaInicialModo = (
+  modo = 'comprobacion',
+  {
+    variante = 'ciclo_neto',
+    incluirLunesOlvido = false,
+    fechaBaseComprobacion = null,
+  } = {}
+) => {
+  const fechaHoy = hoy();
+  const baseComp = fechaBaseComprobacion || fechaHoy;
+  const cicloActual = obtenerCicloOperativoNeto(baseComp, { modo: 'comprobacion' });
+
+  if (modo === 'comprobacion') {
+    const dHoy = new Date(fechaHoy + 'T12:00:00');
+    const esDomingo = dHoy.getDay() === 0;
+    const fechaInicial =
+      !esDomingo && cicloActual.dias.some((d) => d.fecha === fechaHoy)
+        ? fechaHoy
+        : cicloActual.fechaLunesActual || fechaHoy;
+    return {
+      fechaInicial,
+      fechaSemanaBase: cicloActual.fechaLunesActual || fechaHoy,
+      ciclo: cicloActual,
+    };
+  }
+
+  // Modo anticipo: automáticamente la semana siguiente a la semana de comprobación
+  const lunesSiguienteSemana = cicloActual.fechaProximoLunes || fechaHoy;
+  const cicloSiguiente = obtenerCicloOperativoNeto(lunesSiguienteSemana, {
+    modo: 'anticipo',
+    variante,
+    incluirLunesOlvido,
+  });
+  const fechaInicial =
+    cicloSiguiente.dias[0]?.fecha || lunesSiguienteSemana;
+
+  return {
+    fechaInicial,
+    fechaSemanaBase: lunesSiguienteSemana,
+    ciclo: cicloSiguiente,
+  };
+};
+
+/**
  * Formatea un monto numérico como moneda en Pesos Mexicanos (`$1,234.56`).
  * @param {number} n
  * @returns {string}

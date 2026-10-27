@@ -64,6 +64,7 @@ import {
   parseCoords,
   coordsLocales,
   api,
+  obtenerFechaInicialModo,
 } from '@/lib/utils';
 
 /**
@@ -78,10 +79,12 @@ const AJUSTES_DEF = {
   incluirTotal: false,
 };
 
-function rutaVacia() {
+function rutaVacia(fecha = null, tipo = 'comprobacion') {
+  const fechaDef = fecha || obtenerFechaInicialModo('comprobacion').fechaInicial;
   return {
     id: null,
-    fecha: hoy(),
+    fecha: fechaDef,
+    tipo,
     nombre: '',
     paradas: [],
     baseInicio: true,
@@ -116,20 +119,9 @@ export default function App() {
   const [mobileTab, setMobileTab] = useState('panel'); // 'panel' | 'mapa'
   const [bitacoraOpen, setBitacoraOpen] = useState(false);
   const [modoModalBitacora, setModoModalBitacora] = useState('ambas');
-  const [modoOperativo, setModoOperativo] = useState(() => {
-    try {
-      return localStorage.getItem('neto_modo_operativo') || 'comprobacion';
-    } catch {
-      return 'comprobacion';
-    }
-  });
-
-  const cambiarModoOperativo = useCallback((modo) => {
-    setModoOperativo(modo);
-    try {
-      localStorage.setItem('neto_modo_operativo', modo);
-    } catch {}
-  }, []);
+  // Al entrar a la aplicación siempre inicia por defecto en Comprobación (semana actual)
+  const [modoOperativo, setModoOperativo] = useState('comprobacion');
+  const initialSyncDoneRef = useRef(false);
   const [newStoreModalOpen, setNewStoreModalOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [isOnboardingMode, setIsOnboardingMode] = useState(false);
@@ -141,11 +133,18 @@ export default function App() {
   }));
 
   const [ruta, setRuta] = useState(() => {
+    const { fechaInicial, ciclo } = obtenerFechaInicialModo('comprobacion');
     try {
-      return { ...rutaVacia(), ...JSON.parse(localStorage.getItem('ruteo.borrador') || 'null') };
-    } catch {
-      return rutaVacia();
-    }
+      const borrador = JSON.parse(localStorage.getItem('ruteo.borrador') || 'null');
+      const enSemanaActual =
+        borrador?.fecha &&
+        ciclo.dias.some((d) => d.fecha === borrador.fecha) &&
+        (borrador.tipo || 'comprobacion') === 'comprobacion';
+      if (enSemanaActual && borrador.fecha === fechaInicial) {
+        return { ...rutaVacia(fechaInicial, 'comprobacion'), ...borrador, tipo: 'comprobacion' };
+      }
+    } catch {}
+    return rutaVacia(fechaInicial, 'comprobacion');
   });
 
   const [undoStack, setUndoStack] = useState([]);
@@ -620,9 +619,13 @@ export default function App() {
 
   const cargarRutaDeHistorial = useCallback(
     (h, nuevaFecha = null) => {
+      if (Array.isArray(h.tramos) && h.tramos.length > 0 && !nuevaFecha) {
+        setTramos(h.tramos);
+      }
       mutarRuta({
         id: nuevaFecha ? null : h.id,
         fecha: nuevaFecha || h.fecha,
+        tipo: h.tipo || 'comprobacion',
         nombre: h.nombre || '',
         paradas: (h.paradas || []).map((p) => {
           if (p.temporal) return p;
@@ -638,6 +641,21 @@ export default function App() {
     },
     [mutarRuta, porNombre]
   );
+
+  // Sincronización inicial al cargar historial: si el día actual de la semana en curso tiene ruta guardada en Comprobación, cargarla
+  useEffect(() => {
+    if (initialSyncDoneRef.current || !historial.length || !porNombre.size) return;
+    initialSyncDoneRef.current = true;
+    const { fechaInicial } = obtenerFechaInicialModo('comprobacion');
+    const guardadaHoy = historial.find((h) => {
+      const coincideIng = !h.ingeniero || !ingenieroActivo || h.ingeniero === ingenieroActivo;
+      const tipoRuta = h.tipo || 'comprobacion';
+      return h.fecha === fechaInicial && coincideIng && tipoRuta === 'comprobacion';
+    });
+    if (guardadaHoy && ruta.paradas.length === 0) {
+      cargarRutaDeHistorial(guardadaHoy);
+    }
+  }, [historial, porNombre, ingenieroActivo, ruta.paradas.length, cargarRutaDeHistorial]);
 
   const guardarDia = useCallback(
     async (modo = modoOperativo) => {
@@ -664,7 +682,7 @@ export default function App() {
           segundos: totales.seg,
           costo: Math.round(totales.costo * 100) / 100,
         });
-        setRuta((r) => ({ ...r, id: item.id }));
+        setRuta((r) => ({ ...r, id: item.id, tipo: tipoGuardar }));
         const hList = await api('GET', '/api/historial');
         setHistorial(hList);
         toast(
@@ -680,36 +698,75 @@ export default function App() {
   );
 
   const seleccionarDiaSemana = useCallback(
-    (fechaTarget, guardadoDirecto = null) => {
+    (fechaTarget, guardadoDirecto = null, modoOverride = null, silencioso = false) => {
+      const modoTarget = modoOverride || modoOperativo;
       if (guardadoDirecto) {
         cargarRutaDeHistorial(guardadoDirecto);
-        toast(`Cargada ruta guardada: ${fechaMX(fechaTarget)}`);
+        if (!silencioso) toast(`Cargada ruta guardada: ${fechaMX(fechaTarget)}`);
         return;
       }
 
       const guardada = (historial || []).find((h) => {
         const coincideIng = !h.ingeniero || !ingenieroActivo || h.ingeniero === ingenieroActivo;
         const tipoRuta = h.tipo || 'comprobacion';
-        return h.fecha === fechaTarget && coincideIng && tipoRuta === modoOperativo;
+        return h.fecha === fechaTarget && coincideIng && tipoRuta === modoTarget;
       });
 
       if (guardada) {
         cargarRutaDeHistorial(guardada);
-        toast(`Cargada ruta guardada: ${fechaMX(fechaTarget)}`);
+        if (!silencioso) toast(`Cargada ruta guardada: ${fechaMX(fechaTarget)}`);
       } else {
+        setTramos([]);
         mutarRuta({
           id: null,
           fecha: fechaTarget,
+          tipo: modoTarget,
           nombre: '',
           paradas: [],
           baseInicio: true,
           baseFin: true,
         });
-        toast(`Iniciando ruta para ${fechaMX(fechaTarget)}`);
-        setTimeout(() => searchInputRef.current?.focus(), 40);
+        if (!silencioso) {
+          toast(`Iniciando ruta para ${fechaMX(fechaTarget)}`);
+          setTimeout(() => searchInputRef.current?.focus(), 40);
+        }
       }
     },
     [historial, ingenieroActivo, modoOperativo, cargarRutaDeHistorial, mutarRuta, toast]
+  );
+
+  const cambiarModoOperativo = useCallback(
+    (nuevoModo) => {
+      if (nuevoModo === modoOperativo) return;
+      setModoOperativo(nuevoModo);
+
+      let variante = 'ciclo_neto';
+      let incluirLunesOlvido = false;
+      try {
+        variante = localStorage.getItem('neto_variante_anticipo') || 'ciclo_neto';
+        incluirLunesOlvido = localStorage.getItem('neto_incluir_lunes_olvido') === 'true';
+      } catch {}
+
+      const { fechaInicial, ciclo } = obtenerFechaInicialModo(nuevoModo, {
+        variante,
+        incluirLunesOlvido,
+      });
+
+      // Si hay algún día ya guardado en esa semana para ese modo, priorizar el día inicial o el primero con datos
+      const guardadaInicial = (historial || []).find((h) => {
+        const coincideIng = !h.ingeniero || !ingenieroActivo || h.ingeniero === ingenieroActivo;
+        const tipoRuta = h.tipo || 'comprobacion';
+        return h.fecha === fechaInicial && coincideIng && tipoRuta === nuevoModo;
+      });
+
+      seleccionarDiaSemana(fechaInicial, guardadaInicial || null, nuevoModo, true);
+      toast(
+        nuevoModo === 'comprobacion'
+          ? `Comprobación · Semana actual (${fechaMX(ciclo.dias[0]?.fecha || fechaInicial)})`
+          : `Anticipo · Semana siguiente (${fechaMX(fechaInicial)})`
+      );
+    },
+    [modoOperativo, historial, ingenieroActivo, seleccionarDiaSemana, toast]
   );
 
   const guardarYPasarSiguienteDia = useCallback(
@@ -723,7 +780,7 @@ export default function App() {
       const diaNum = String(d.getDate()).padStart(2, '0');
       const siguienteFecha = `${y}-${m}-${diaNum}`;
 
-      seleccionarDiaSemana(siguienteFecha);
+      seleccionarDiaSemana(siguienteFecha, null, modo);
     },
     [guardarDia, ruta.fecha, seleccionarDiaSemana, modoOperativo]
   );
@@ -742,6 +799,7 @@ export default function App() {
       mutarRuta({
         id: null,
         fecha: fechaTarget,
+        tipo: 'comprobacion',
         nombre: ant.nombre ? `${ant.nombre} (Comprobación)` : 'Comprobación de ruta',
         paradas: (ant.paradas || []).map((p) => {
           if (p.temporal) return p;
@@ -763,7 +821,8 @@ export default function App() {
 
   const nuevaRuta = useCallback(() => {
     const limpiar = () => {
-      mutarRuta(rutaVacia());
+      setTramos([]);
+      mutarRuta((r) => rutaVacia(r.fecha, modoOperativo));
       setTimeout(() => searchInputRef.current?.focus(), 40);
     };
     if (ruta.paradas.length && !ruta.id) {
@@ -779,7 +838,7 @@ export default function App() {
       return;
     }
     limpiar();
-  }, [ruta.paradas.length, ruta.id, mutarRuta]);
+  }, [ruta.paradas.length, ruta.id, modoOperativo, mutarRuta]);
 
   // ================= ACCIONES DE CATÁLOGO Y COORDENADAS =================
   const seleccionarTiendaAudit = useCallback(

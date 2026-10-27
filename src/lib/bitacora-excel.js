@@ -688,6 +688,8 @@ export async function descargarBitacoraNetoExcel({
   modo = 'ambas', // 'ambas' | 'comprobacion' | 'anticipo'
   ingeniero = {},
   semana = 44,
+  semanaComprobacion = null,
+  semanaAnticipo = null,
   kmInicial = 0,
   rendimiento = 12.5,
   costoLitro = 23.99,
@@ -724,7 +726,7 @@ export async function descargarBitacoraNetoExcel({
     construirHojaBitacora(wsComp, {
       nombreHoja: 'COMPROBACION',
       ingeniero,
-      semana,
+      semana: semanaComprobacion || semana,
       kmInicial,
       rendimiento,
       costoLitro,
@@ -742,7 +744,7 @@ export async function descargarBitacoraNetoExcel({
     construirHojaBitacora(wsAnt, {
       nombreHoja: 'ANTICIPO',
       ingeniero,
-      semana,
+      semana: semanaAnticipo || semana,
       kmInicial,
       rendimiento,
       costoLitro,

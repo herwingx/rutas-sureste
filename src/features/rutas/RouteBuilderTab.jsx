@@ -143,16 +143,16 @@ export function RouteBuilderTab({
 
   useEffect(() => {
     if (!ruta.fecha) return;
-    const dentroDeCiclo =
-      cicloInfo.dias.some((d) => d.fecha === ruta.fecha) ||
-      ruta.fecha === cicloInfo.fechaLunesActual ||
-      ruta.fecha === cicloInfo.fechaProximoLunes;
+    const dentroDeCiclo = cicloInfo.dias.some((d) => d.fecha === ruta.fecha);
     if (!dentroDeCiclo) {
       setFechaSemanaBase(ruta.fecha);
     }
-  }, [ruta.fecha, cicloInfo]);
+  }, [ruta.fecha, cicloInfo.dias]);
 
-  const semanaInfo = useMemo(() => calcularSemanaISO(fechaSemanaBase), [fechaSemanaBase]);
+  const semanaInfo = useMemo(
+    () => calcularSemanaISO(cicloInfo.fechaLunesActual || fechaSemanaBase),
+    [cicloInfo.fechaLunesActual, fechaSemanaBase]
+  );
   const diasSemana = cicloInfo.dias;
 
   const handleCambiarVarianteAnticipo = (nueva) => {
@@ -160,16 +160,30 @@ export function RouteBuilderTab({
     try {
       localStorage.setItem('neto_variante_anticipo', nueva);
     } catch {}
+    const nuevoCiclo = obtenerCicloOperativoNeto(cicloInfo.fechaLunesActual || fechaSemanaBase, {
+      modo: 'anticipo',
+      variante: nueva,
+      incluirLunesOlvido,
+    });
+    if (!nuevoCiclo.dias.some((d) => d.fecha === ruta.fecha) && nuevoCiclo.dias[0]?.fecha) {
+      onSelectDay?.(nuevoCiclo.dias[0].fecha);
+    }
   };
 
   const handleToggleLunesOlvido = () => {
-    setIncluirLunesOlvido((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem('neto_incluir_lunes_olvido', String(next));
-      } catch {}
-      return next;
+    const next = !incluirLunesOlvido;
+    setIncluirLunesOlvido(next);
+    try {
+      localStorage.setItem('neto_incluir_lunes_olvido', String(next));
+    } catch {}
+    const nuevoCiclo = obtenerCicloOperativoNeto(cicloInfo.fechaLunesActual || fechaSemanaBase, {
+      modo: 'anticipo',
+      variante: varianteAnticipo,
+      incluirLunesOlvido: next,
     });
+    if (!nuevoCiclo.dias.some((d) => d.fecha === ruta.fecha) && nuevoCiclo.dias[0]?.fecha) {
+      onSelectDay?.(nuevoCiclo.dias[0].fecha);
+    }
   };
 
   const mapaDiasHistorial = useMemo(() => {
@@ -268,7 +282,7 @@ export function RouteBuilderTab({
   const kmAcumuladoSemana = useMemo(() => {
     let sum = 0;
     cicloInfo.dias.forEach((d) => {
-      if (ruta.fecha === d.fecha) {
+      if (ruta.fecha === d.fecha && totales.km > 0) {
         sum += totales.km;
       } else if (mapaDiasHistorial[d.fecha]) {
         sum += Number(mapaDiasHistorial[d.fecha].totalKm) || 0;
@@ -440,7 +454,10 @@ export function RouteBuilderTab({
 
             <DatePicker
               value={ruta.fecha}
-              onChange={(fecha) => onMutateRuta((r) => ({ ...r, fecha }))}
+              onChange={(fecha) => {
+                setFechaSemanaBase(fecha);
+                onSelectDay?.(fecha);
+              }}
             />
           </div>
 
@@ -709,15 +726,15 @@ export function RouteBuilderTab({
         </div>
 
         {/* Barra compacta de Base (Salida/Regreso) + Herramientas de Ruta */}
-        <div className="flex items-center justify-between gap-1.5 px-0.5 min-w-0">
+        <div className="flex flex-wrap items-center justify-between gap-1 px-0.5 min-w-0">
           {baseTienda ? (
-            <div className="flex items-center gap-1 min-w-0">
+            <div className="flex items-center gap-1 shrink-0">
               <ActionTooltip label={`Incluir salida desde ${baseTienda.nombre}`}>
                 <button
                   type="button"
                   onClick={() => onMutateRuta((r) => ({ ...r, baseInicio: !r.baseInicio }))}
                   className={cn(
-                    'inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[11px] font-medium transition-all cursor-pointer',
+                    'inline-flex items-center gap-1 h-7 px-1.5 sm:px-2 rounded-lg border text-[11px] font-medium transition-all cursor-pointer shrink-0',
                     ruta.baseInicio
                       ? 'border-primary/40 bg-primary/10 text-primary'
                       : 'border-border bg-card/60 text-muted-foreground line-through opacity-70'
@@ -733,7 +750,7 @@ export function RouteBuilderTab({
                   type="button"
                   onClick={() => onMutateRuta((r) => ({ ...r, baseFin: !r.baseFin }))}
                   className={cn(
-                    'inline-flex items-center gap-1 px-2 py-1 rounded-lg border text-[11px] font-medium transition-all cursor-pointer',
+                    'inline-flex items-center gap-1 h-7 px-1.5 sm:px-2 rounded-lg border text-[11px] font-medium transition-all cursor-pointer shrink-0',
                     ruta.baseFin
                       ? 'border-primary/40 bg-primary/10 text-primary'
                       : 'border-border bg-card/60 text-muted-foreground line-through opacity-70'
@@ -749,14 +766,14 @@ export function RouteBuilderTab({
           )}
 
           {/* Herramientas rápidas de ruta */}
-          <div className="flex items-center gap-0.5 shrink-0">
+          <div className="flex items-center gap-0.5 shrink-0 ml-auto">
             <ActionTooltip label="Optimizar orden (menor kilometraje)" shortcut="Alt+O">
               <Button
                 variant="outline"
                 size="icon-xs"
                 disabled={ruta.paradas.length < 3}
                 onClick={onOptimize}
-                className="bg-card"
+                className="bg-card h-7 w-6.5 sm:w-7 pointer-coarse:h-7 pointer-coarse:w-6.5 sm:pointer-coarse:w-7"
               >
                 <CompassTool weight="duotone" />
               </Button>
@@ -772,7 +789,7 @@ export function RouteBuilderTab({
                     paradas: [...r.paradas].reverse(),
                   }))
                 }
-                className="bg-card"
+                className="bg-card h-7 w-6.5 sm:w-7 pointer-coarse:h-7 pointer-coarse:w-6.5 sm:pointer-coarse:w-7"
               >
                 <ArrowsDownUp weight="bold" />
               </Button>
@@ -783,7 +800,7 @@ export function RouteBuilderTab({
                 size="icon-xs"
                 disabled={!canUndo}
                 onClick={onUndo}
-                className="bg-card"
+                className="bg-card h-7 w-6.5 sm:w-7 pointer-coarse:h-7 pointer-coarse:w-6.5 sm:pointer-coarse:w-7"
               >
                 <ArrowUUpLeft weight="bold" />
               </Button>
@@ -794,7 +811,7 @@ export function RouteBuilderTab({
                 size="icon-xs"
                 disabled={filasExcel.length === 0}
                 onClick={onCopyExcel}
-                className="bg-card"
+                className="bg-card h-7 w-6.5 sm:w-7 pointer-coarse:h-7 pointer-coarse:w-6.5 sm:pointer-coarse:w-7"
               >
                 <CopySimple weight="duotone" />
               </Button>
@@ -805,7 +822,7 @@ export function RouteBuilderTab({
                 size="icon-xs"
                 disabled={filasExcel.length === 0}
                 onClick={onCopyWhatsApp}
-                className="bg-card"
+                className="bg-card h-7 w-6.5 sm:w-7 pointer-coarse:h-7 pointer-coarse:w-6.5 sm:pointer-coarse:w-7"
               >
                 <ShareNetwork weight="duotone" />
               </Button>
@@ -813,12 +830,13 @@ export function RouteBuilderTab({
             {ruta.paradas.length > 0 && (
               <ActionTooltip label="Limpiar paradas del día">
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="xs"
                   onClick={onNewRoute}
-                  className="h-6 px-1.5 text-[11px] text-muted-foreground hover:text-destructive"
+                  className="h-7 pointer-coarse:h-7 px-1.5 text-[11px] font-medium border-destructive/30 bg-destructive/5 text-destructive hover:bg-destructive/15 hover:text-destructive gap-1"
                 >
-                  Limpiar
+                  <Trash weight="duotone" className="h-3 w-3 shrink-0" />
+                  <span>Limpiar</span>
                 </Button>
               </ActionTooltip>
             )}
