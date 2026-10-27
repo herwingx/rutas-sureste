@@ -110,20 +110,13 @@ const rutas = {
 
   /** Devuelve el catálogo completo de tiendas (Supabase central como fuente primaria) */
   'GET /api/tiendas': async () => {
-    if (db.supabaseActivo()) {
+    if (cfg.supabaseServer) {
       try {
-        const res = await fetch(`${cfg.SUPABASE_URL}/rest/v1/tiendas?select=*&order=nombre.asc`, {
-          headers: {
-            apikey: cfg.SUPABASE_KEY,
-            Authorization: `Bearer ${cfg.SUPABASE_KEY}`,
-            'Accept-Profile': cfg.SUPABASE_SCHEMA,
-            'Content-Profile': cfg.SUPABASE_SCHEMA,
-          },
-        });
-        if (res.ok) {
-          const rows = await res.json();
-          if (Array.isArray(rows) && rows.length > 0) return rows;
-        }
+        const { data: rows, error } = await cfg.supabaseServer
+          .from('tiendas')
+          .select('*')
+          .order('nombre', { ascending: true });
+        if (!error && Array.isArray(rows) && rows.length > 0) return rows;
       } catch (err) {
         console.warn('[Supabase Tiendas] Consulta tabla central falló, usando fallback local:', err.message);
       }
@@ -133,20 +126,13 @@ const rutas = {
 
   /** Devuelve la lista de perfiles de ingenieros (Supabase central como fuente primaria) */
   'GET /api/ingenieros': async () => {
-    if (db.supabaseActivo()) {
+    if (cfg.supabaseServer) {
       try {
-        const res = await fetch(`${cfg.SUPABASE_URL}/rest/v1/ingenieros?select=*&order=nombre.asc`, {
-          headers: {
-            apikey: cfg.SUPABASE_KEY,
-            Authorization: `Bearer ${cfg.SUPABASE_KEY}`,
-            'Accept-Profile': cfg.SUPABASE_SCHEMA,
-            'Content-Profile': cfg.SUPABASE_SCHEMA,
-          },
-        });
-        if (res.ok) {
-          const rows = await res.json();
-          if (Array.isArray(rows) && rows.length > 0) return rows;
-        }
+        const { data: rows, error } = await cfg.supabaseServer
+          .from('ingenieros')
+          .select('*')
+          .order('nombre', { ascending: true });
+        if (!error && Array.isArray(rows) && rows.length > 0) return rows;
       } catch (err) {
         console.warn('[Supabase Ingenieros] Consulta tabla central falló, usando fallback local:', err.message);
       }
@@ -158,7 +144,16 @@ const rutas = {
   'PATCH /api/ingenieros': async (body) => {
     const nombre = db.normalizarNombre(body.nombre);
     if (!nombre) throw httpError(400, 'Se requiere el nombre del ingeniero');
-    const lista = db.cargarIngenieros();
+    let lista = db.cargarIngenieros();
+    if (cfg.supabaseServer) {
+      try {
+        const { data: rows } = await cfg.supabaseServer
+          .from('ingenieros')
+          .select('*')
+          .order('nombre', { ascending: true });
+        if (Array.isArray(rows) && rows.length > 0) lista = rows;
+      } catch {}
+    }
     const idx = lista.findIndex((i) => db.normalizarNombre(i.nombre) === nombre);
     const prev = idx >= 0 ? lista[idx] : { nombre };
     const actualizado = {
@@ -190,6 +185,9 @@ const rutas = {
       ).trim(),
       domicilio_link: String(body.domicilio_link ?? prev.domicilio_link ?? '').trim(),
       km_inicial_ultimo: Number(body.km_inicial_ultimo ?? prev.km_inicial_ultimo ?? 0) || 0,
+      ...(body.email ? { email: String(body.email).trim().toLowerCase() } : {}),
+      ...(body.auth_id ? { auth_id: body.auth_id } : {}),
+      ...(body.rol ? { rol: body.rol } : {}),
     };
 
     if (idx >= 0) lista[idx] = actualizado;
@@ -197,6 +195,15 @@ const rutas = {
 
     const guardados = db.guardarIngenieros(lista);
     await db.syncIngenieroUpsert(actualizado);
+    if (cfg.supabaseServer) {
+      try {
+        const { data: rows } = await cfg.supabaseServer
+          .from('ingenieros')
+          .select('*')
+          .order('nombre', { ascending: true });
+        if (Array.isArray(rows) && rows.length > 0) return rows;
+      } catch {}
+    }
     return guardados;
   },
 
@@ -205,7 +212,13 @@ const rutas = {
     const nombre = db.normalizarNombre(body.nombre);
     if (!nombre) throw httpError(400, 'Escribe el nombre de la tienda');
     const c = puntoValido(body) ? punto(body) : await extraerCoordenadas(body.texto || '');
-    const tiendas = db.cargar();
+    let tiendas = db.cargar();
+    if (cfg.supabaseServer) {
+      try {
+        const { data: rows } = await cfg.supabaseServer.from('tiendas').select('*');
+        if (Array.isArray(rows) && rows.length > 0) tiendas = rows;
+      } catch {}
+    }
     if (tiendas.some((t) => t.nombre === nombre)) {
       throw httpError(409, `Ya existe "${nombre}"`);
     }
@@ -227,21 +240,13 @@ const rutas = {
     db.guardar([...tiendas, nueva]);
     await db.syncTiendaUpsert(nueva);
 
-    // Si Supabase está activo, consultar la lista central fresca
-    if (db.supabaseActivo()) {
+    if (cfg.supabaseServer) {
       try {
-        const freshRes = await fetch(`${cfg.SUPABASE_URL}/rest/v1/tiendas?select=*&order=nombre.asc`, {
-          headers: {
-            apikey: cfg.SUPABASE_KEY,
-            Authorization: `Bearer ${cfg.SUPABASE_KEY}`,
-            'Accept-Profile': cfg.SUPABASE_SCHEMA,
-            'Content-Profile': cfg.SUPABASE_SCHEMA,
-          },
-        });
-        if (freshRes.ok) {
-          const rows = await freshRes.json();
-          if (Array.isArray(rows) && rows.length > 0) return rows;
-        }
+        const { data: rows } = await cfg.supabaseServer
+          .from('tiendas')
+          .select('*')
+          .order('nombre', { ascending: true });
+        if (Array.isArray(rows) && rows.length > 0) return rows;
       } catch {}
     }
 
@@ -251,7 +256,13 @@ const rutas = {
   /** Actualiza coordenadas, nombre, estado o verificación de una tienda existente */
   'PATCH /api/tiendas': async (body) => {
     const original = db.normalizarNombre(body.nombreOriginal || body.nombre);
-    const tiendas = db.cargar();
+    let tiendas = db.cargar();
+    if (cfg.supabaseServer) {
+      try {
+        const { data: rows } = await cfg.supabaseServer.from('tiendas').select('*');
+        if (Array.isArray(rows) && rows.length > 0) tiendas = rows;
+      } catch {}
+    }
     const idx = tiendas.findIndex((t) => t.nombre === original);
     if (idx === -1) throw httpError(404, `No se encontró "${original}"`);
     const actual = { ...tiendas[idx] };
@@ -277,7 +288,6 @@ const rutas = {
       const movio = Math.abs(prev.lat - c.lat) > 1e-5 || Math.abs(prev.lng - c.lng) > 1e-5;
       if (movio && !actual.coordsAnteriores) actual.coordsAnteriores = actual.coords;
       actual.coords = db.formatCoords(c.lat, c.lng);
-      // Si el pin se desplazó físicamente, invalidar en caché solo los tramos que tocaban ese punto
       if (movio) dist.invalidarPunto(prev);
     }
 
@@ -300,21 +310,13 @@ const rutas = {
     db.guardar(tiendas);
     await db.syncTiendaUpsert(actual, original !== actual.nombre ? original : null);
 
-    // Devolver lista fresca desde Supabase si está disponible
-    if (db.supabaseActivo()) {
+    if (cfg.supabaseServer) {
       try {
-        const freshRes = await fetch(`${cfg.SUPABASE_URL}/rest/v1/tiendas?select=*&order=nombre.asc`, {
-          headers: {
-            apikey: cfg.SUPABASE_KEY,
-            Authorization: `Bearer ${cfg.SUPABASE_KEY}`,
-            'Accept-Profile': cfg.SUPABASE_SCHEMA,
-            'Content-Profile': cfg.SUPABASE_SCHEMA,
-          },
-        });
-        if (freshRes.ok) {
-          const rows = await freshRes.json();
-          if (Array.isArray(rows) && rows.length > 0) return rows;
-        }
+        const { data: rows } = await cfg.supabaseServer
+          .from('tiendas')
+          .select('*')
+          .order('nombre', { ascending: true });
+        if (Array.isArray(rows) && rows.length > 0) return rows;
       } catch {}
     }
 
@@ -324,26 +326,25 @@ const rutas = {
   /** Elimina una tienda del catálogo activo (conservando copia en `data/backups/`) */
   'DELETE /api/tiendas': async (body) => {
     const nombre = db.normalizarNombre(body.nombre);
-    const tiendas = db.cargar();
+    let tiendas = db.cargar();
+    if (cfg.supabaseServer) {
+      try {
+        const { data: rows } = await cfg.supabaseServer.from('tiendas').select('*');
+        if (Array.isArray(rows) && rows.length > 0) tiendas = rows;
+      } catch {}
+    }
     const filtradas = tiendas.filter((t) => t.nombre !== nombre);
     if (filtradas.length === tiendas.length) throw httpError(404, `No se encontró "${nombre}"`);
     db.guardar(filtradas);
     await db.syncTiendaDelete(nombre);
 
-    if (db.supabaseActivo()) {
+    if (cfg.supabaseServer) {
       try {
-        const freshRes = await fetch(`${cfg.SUPABASE_URL}/rest/v1/tiendas?select=*&order=nombre.asc`, {
-          headers: {
-            apikey: cfg.SUPABASE_KEY,
-            Authorization: `Bearer ${cfg.SUPABASE_KEY}`,
-            'Accept-Profile': cfg.SUPABASE_SCHEMA,
-            'Content-Profile': cfg.SUPABASE_SCHEMA,
-          },
-        });
-        if (freshRes.ok) {
-          const rows = await freshRes.json();
-          if (Array.isArray(rows) && rows.length > 0) return rows;
-        }
+        const { data: rows } = await cfg.supabaseServer
+          .from('tiendas')
+          .select('*')
+          .order('nombre', { ascending: true });
+        if (Array.isArray(rows) && rows.length > 0) return rows;
       } catch {}
     }
 
@@ -379,40 +380,30 @@ const rutas = {
 
   /** Devuelve el historial de rutas guardadas (Supabase central como fuente primaria) */
   'GET /api/historial': async () => {
-    if (db.supabaseActivo()) {
+    if (cfg.supabaseServer) {
       try {
-        const res = await fetch(
-          `${cfg.SUPABASE_URL}/rest/v1/rutas_historial?select=*&order=fecha.desc`,
-          {
-            headers: {
-              apikey: cfg.SUPABASE_KEY,
-              Authorization: `Bearer ${cfg.SUPABASE_KEY}`,
-              'Accept-Profile': cfg.SUPABASE_SCHEMA,
-              'Content-Profile': cfg.SUPABASE_SCHEMA,
-            },
-          }
-        );
-        if (res.ok) {
-          const rows = await res.json();
-          if (Array.isArray(rows)) {
-            return rows.map((r) => ({
-              id: r.uuid || String(r.id),
-              fecha: r.fecha,
-              nombre: r.nombre || '',
-              tipo: r.tipo || 'comprobacion',
-              ingeniero: r.ingeniero || '',
-              baseNombre: r.base_nombre || '',
-              paradas: r.paradas || [],
-              tramos: r.tramos || [],
-              baseInicio: r.base_inicio ?? true,
-              baseFin: r.base_fin ?? true,
-              totalKm: Number(r.total_km || 0),
-              litros: Number(r.litros || 0),
-              segundos: Number(r.duracion_segundos || 0),
-              costo: Number(r.costo || 0),
-              guardadoEn: r.created_at,
-            }));
-          }
+        const { data: rows, error } = await cfg.supabaseServer
+          .from('rutas_historial')
+          .select('*')
+          .order('fecha', { ascending: false });
+        if (!error && Array.isArray(rows)) {
+          return rows.map((r) => ({
+            id: r.uuid || String(r.id),
+            fecha: r.fecha,
+            nombre: r.nombre || '',
+            tipo: r.tipo || 'comprobacion',
+            ingeniero: r.ingeniero || '',
+            baseNombre: r.base_nombre || '',
+            paradas: r.paradas || [],
+            tramos: r.tramos || [],
+            baseInicio: r.base_inicio ?? true,
+            baseFin: r.base_fin ?? true,
+            totalKm: Number(r.total_km || 0),
+            litros: Number(r.litros || 0),
+            segundos: Number(r.duracion_segundos || 0),
+            costo: Number(r.costo || 0),
+            guardadoEn: r.created_at,
+          }));
         }
       } catch (err) {
         console.warn('[Supabase Historial] Error en consulta central, usando local:', err.message);
@@ -423,23 +414,14 @@ const rutas = {
 
   /** Devuelve la lista de bitácoras semanales guardadas (Supabase central como fuente primaria) */
   'GET /api/bitacoras': async () => {
-    if (db.supabaseActivo()) {
+    if (cfg.supabaseServer) {
       try {
-        const res = await fetch(
-          `${cfg.SUPABASE_URL}/rest/v1/bitacoras_semanales?select=*&order=anio.desc,semana.desc`,
-          {
-            headers: {
-              apikey: cfg.SUPABASE_KEY,
-              Authorization: `Bearer ${cfg.SUPABASE_KEY}`,
-              'Accept-Profile': cfg.SUPABASE_SCHEMA,
-              'Content-Profile': cfg.SUPABASE_SCHEMA,
-            },
-          }
-        );
-        if (res.ok) {
-          const rows = await res.json();
-          if (Array.isArray(rows) && rows.length > 0) return rows;
-        }
+        const { data: rows, error } = await cfg.supabaseServer
+          .from('bitacoras_semanales')
+          .select('*')
+          .order('anio', { ascending: false })
+          .order('semana', { ascending: false });
+        if (!error && Array.isArray(rows)) return rows;
       } catch (err) {
         console.warn('[Fallback Supabase Bitacoras Error]:', err.message);
       }
@@ -502,6 +484,16 @@ const rutas = {
       );
     db.guardarBitacoras(bitacoras);
     await db.syncBitacoraDelete(ingeniero, semana, anio);
+    if (cfg.supabaseServer) {
+      try {
+        const { data: rows } = await cfg.supabaseServer
+          .from('bitacoras_semanales')
+          .select('*')
+          .order('anio', { ascending: false })
+          .order('semana', { ascending: false });
+        if (Array.isArray(rows)) return rows;
+      } catch {}
+    }
     return bitacoras;
   },
 
@@ -525,12 +517,13 @@ const rutas = {
       costo: Number(body.costo || 0),
       guardadoEn: new Date().toISOString(),
     };
+    const synced = await db.syncHistorialUpsert(item);
+    if (synced?.id) item.id = synced.id;
     const idx = h.findIndex((x) => x.id === item.id);
     if (idx >= 0) h[idx] = item;
     else h.unshift(item);
     h.sort((a, b) => b.fecha.localeCompare(a.fecha));
     guardarHistorial(h);
-    await db.syncHistorialUpsert(item);
     return item;
   },
 

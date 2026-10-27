@@ -455,6 +455,15 @@ export function RouteBuilderTab({
             <DatePicker
               value={ruta.fecha}
               onChange={(fecha) => {
+                if (modoOperativo === 'anticipo' && varianteAnticipo === 'ciclo_neto') {
+                  const d = new Date(fecha + 'T12:00:00');
+                  if (d.getDay() === 1 && !incluirLunesOlvido) {
+                    setIncluirLunesOlvido(true);
+                    try {
+                      localStorage.setItem('neto_incluir_lunes_olvido', 'true');
+                    } catch {}
+                  }
+                }
                 setFechaSemanaBase(fecha);
                 onSelectDay?.(fecha);
               }}

@@ -642,18 +642,21 @@ export default function App() {
     [mutarRuta, porNombre]
   );
 
-  // Sincronización inicial al cargar historial: si el día actual de la semana en curso tiene ruta guardada en Comprobación, cargarla
+  // Sincronización inicial al cargar historial o cambiar de ingeniero al iniciar sesión
   useEffect(() => {
-    if (initialSyncDoneRef.current || !historial.length || !porNombre.size) return;
-    initialSyncDoneRef.current = true;
+    if (!historial.length || !porNombre.size || !ingenieroActivo) return;
+    if (initialSyncDoneRef.current === ingenieroActivo) return;
+    initialSyncDoneRef.current = ingenieroActivo;
     const { fechaInicial } = obtenerFechaInicialModo('comprobacion');
     const guardadaHoy = historial.find((h) => {
-      const coincideIng = !h.ingeniero || !ingenieroActivo || h.ingeniero === ingenieroActivo;
+      const coincideIng = !h.ingeniero || h.ingeniero === ingenieroActivo;
       const tipoRuta = h.tipo || 'comprobacion';
       return h.fecha === fechaInicial && coincideIng && tipoRuta === 'comprobacion';
     });
-    if (guardadaHoy && ruta.paradas.length === 0) {
+    if (guardadaHoy) {
       cargarRutaDeHistorial(guardadaHoy);
+    } else if (ruta.paradas.length === 0) {
+      setRuta(rutaVacia(fechaInicial, 'comprobacion'));
     }
   }, [historial, porNombre, ingenieroActivo, ruta.paradas.length, cargarRutaDeHistorial]);
 
@@ -1097,13 +1100,21 @@ export default function App() {
     return (
       <TooltipProvider delayDuration={200}>
         <AuthScreen
-          onAuthSuccess={(user) => {
+          onAuthSuccess={async (user) => {
             setUserSession(user);
             if (user?.email?.includes('herwing')) {
               setIngenieroActivo('HERWING EDUARDO VAZQUEZ MACIAS');
             } else if (user?.user_metadata?.nombre) {
               setIngenieroActivo(user.user_metadata.nombre);
             }
+            try {
+              const [ingList, hList] = await Promise.all([
+                api('GET', '/api/ingenieros').catch(() => null),
+                api('GET', '/api/historial').catch(() => null),
+              ]);
+              if (Array.isArray(ingList) && ingList.length) setIngenieros(ingList);
+              if (Array.isArray(hList)) setHistorial(hList);
+            } catch {}
           }}
           toast={toast}
           ingenierosExistentes={ingenieros}

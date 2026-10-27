@@ -7,6 +7,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { createClient } from '@supabase/supabase-js';
 
 /** Directorio raíz del repositorio */
 export const ROOT = path.resolve(import.meta.dirname, '..');
@@ -47,11 +48,28 @@ export const BUNDLED_BITACORAS_FILE = path.join(BUNDLED_DATA_DIR, 'bitacoras-sem
 export const HISTORIAL_FILE = path.join(DATA_DIR, 'historial-rutas.json');
 export const BUNDLED_HISTORIAL_FILE = path.join(BUNDLED_DATA_DIR, 'historial-rutas.json');
 
-/** Credenciales opcionales para sincronización en tiempo real con Supabase */
-export const SUPABASE_URL = process.env.SUPABASE_URL || '';
+/** Credenciales para sincronización en tiempo real con Supabase (@supabase/supabase-js) */
+export const SUPABASE_URL =
+  process.env.SUPABASE_URL ||
+  process.env.VITE_SUPABASE_URL ||
+  'https://dldttdqpcpdtribtgzsa.supabase.co';
 export const SUPABASE_KEY =
-  process.env.SUPABASE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
-export const SUPABASE_SCHEMA = process.env.SUPABASE_SCHEMA || 'rutas_sureste';
+  process.env.SUPABASE_KEY ||
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.SUPABASE_ANON_KEY ||
+  process.env.VITE_SUPABASE_ANON_KEY ||
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRsZHR0ZHFwY3BkdHJpYnRnenNhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM4Njg3OTYsImV4cCI6MjA4OTQ0NDc5Nn0.ItMe0uFz0f4EOmyHS8DhN8eYoWfpaU-BbNsCPndDK2Y';
+export const SUPABASE_SCHEMA =
+  process.env.SUPABASE_SCHEMA || process.env.VITE_SUPABASE_SCHEMA || 'rutas_sureste';
+
+/** Instancia oficial de @supabase/supabase-js para el servidor y funciones Serverless */
+export const supabaseServer =
+  SUPABASE_URL && SUPABASE_KEY
+    ? createClient(SUPABASE_URL, SUPABASE_KEY, {
+        db: { schema: SUPABASE_SCHEMA },
+        auth: { persistSession: false, autoRefreshToken: false },
+      })
+    : null;
 
 /** Carpeta para la caché persistente de tramos carreteros */
 export const CACHE_DIR = path.join(DATA_DIR, 'cache');

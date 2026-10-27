@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { API_KEY, CACHE_DIR, SUPABASE_URL, SUPABASE_KEY, SUPABASE_SCHEMA } from './config.js';
+import { API_KEY, CACHE_DIR, supabaseServer } from './config.js';
 import { haversineKm } from './coords.js';
 
 const CACHE_FILE = path.join(CACHE_DIR, 'distancias.json');
@@ -15,46 +15,34 @@ try {
   cache = {};
 }
 
-function supabaseHeaders(extra = {}) {
-  return {
-    apikey: SUPABASE_KEY,
-    Authorization: `Bearer ${SUPABASE_KEY}`,
-    'Content-Type': 'application/json',
-    'Accept-Profile': SUPABASE_SCHEMA,
-    'Content-Profile': SUPABASE_SCHEMA,
-    ...extra,
-  };
-}
-
 async function consultarCacheCentral(key) {
-  if (!SUPABASE_URL || !SUPABASE_KEY) return null;
+  if (!supabaseServer) return null;
   try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/cache_distancias?clave=eq.${encodeURIComponent(key)}&select=*`,
-      { headers: supabaseHeaders() }
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    return Array.isArray(data) && data.length ? data[0] : null;
+    const { data, error } = await supabaseServer
+      .from('cache_distancias')
+      .select('*')
+      .eq('clave', key)
+      .maybeSingle();
+    if (error || !data) return null;
+    return data;
   } catch {
     return null;
   }
 }
 
 async function guardarEnCacheCentral(key, r) {
-  if (!SUPABASE_URL || !SUPABASE_KEY) return;
+  if (!supabaseServer) return;
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/cache_distancias?on_conflict=clave`, {
-      method: 'POST',
-      headers: supabaseHeaders({ Prefer: 'resolution=merge-duplicates,return=minimal' }),
-      body: JSON.stringify({
+    await supabaseServer.from('cache_distancias').upsert(
+      {
         clave: key,
         metros: r.metros || 0,
         segundos: r.segundos || 0,
         polyline: r.polyline || null,
         fuente: r.fuente || 'routes',
-      }),
-    });
+      },
+      { onConflict: 'clave' }
+    );
   } catch (err) {
     console.warn('[Cache Central Sync]:', err.message);
   }
@@ -211,19 +199,15 @@ export async function calcularRuta(puntos, concurrencia = 6) {
     }
   }
 
-  if (clavesBuscar.length > 0 && SUPABASE_URL && SUPABASE_KEY) {
+  if (clavesBuscar.length > 0 && supabaseServer) {
     try {
-      const inList = clavesBuscar.map((k) => `"${k}"`).join(',');
-      const res = await fetch(
-        `${SUPABASE_URL}/rest/v1/cache_distancias?clave=in.(${encodeURIComponent(inList)})&select=*`,
-        { headers: supabaseHeaders() }
-      );
-      if (res.ok) {
-        const rows = await res.json();
-        if (Array.isArray(rows)) {
-          for (const row of rows) {
-            cache[row.clave] = { ...row, ts: Date.now() };
-          }
+      const { data: rows } = await supabaseServer
+        .from('cache_distancias')
+        .select('*')
+        .in('clave', clavesBuscar);
+      if (Array.isArray(rows)) {
+        for (const row of rows) {
+          cache[row.clave] = { ...row, ts: Date.now() };
         }
       }
     } catch {}

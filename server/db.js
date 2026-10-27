@@ -15,9 +15,7 @@ import {
   BITACORAS_FILE,
   BUNDLED_BITACORAS_FILE,
   BACKUP_DIR,
-  SUPABASE_URL,
-  SUPABASE_KEY,
-  SUPABASE_SCHEMA,
+  supabaseServer,
 } from './config.js';
 
 const MAX_BACKUPS = 40;
@@ -159,26 +157,15 @@ export function guardarBitacoras(bitacoras) {
 }
 
 // ============================================================================
-// SINCRONIZACIÓN ASÍNCRONA CON SUPABASE (PostgREST)
+// SINCRONIZACIÓN CON SUPABASE (@supabase/supabase-js)
 // ============================================================================
 
-function supabaseHeaders(extra = {}) {
-  return {
-    'Content-Type': 'application/json',
-    apikey: SUPABASE_KEY,
-    Authorization: `Bearer ${SUPABASE_KEY}`,
-    'Accept-Profile': SUPABASE_SCHEMA,
-    'Content-Profile': SUPABASE_SCHEMA,
-    ...extra,
-  };
-}
-
 export function supabaseActivo() {
-  return Boolean(SUPABASE_URL && SUPABASE_KEY);
+  return Boolean(supabaseServer);
 }
 
 export async function syncTiendaUpsert(tienda, nombreOriginal = null) {
-  if (!supabaseActivo()) return null;
+  if (!supabaseServer) return null;
   try {
     const { lat, lng } = parseCoords(tienda.coords || '');
     const payload = {
@@ -186,7 +173,7 @@ export async function syncTiendaUpsert(tienda, nombreOriginal = null) {
       ceco: tienda.ceco || '0',
       nombre: tienda.nombre,
       coords: tienda.coords || '',
-      coords_anteriores: tienda.coordsAnteriores || null,
+      coords_anteriores: tienda.coordsAnteriores || tienda.coords_anteriores || null,
       lat: Number.isFinite(lat) ? lat : null,
       lng: Number.isFinite(lng) ? lng : null,
       estado: tienda.estado || 'Chiapas',
@@ -195,33 +182,26 @@ export async function syncTiendaUpsert(tienda, nombreOriginal = null) {
       zona: tienda.zona || '',
       ingeniero: tienda.ingeniero || '',
       verificada: Boolean(tienda.verificada),
-      fecha_verificacion: tienda.fechaVerificacion || null,
+      fecha_verificacion: tienda.fechaVerificacion || tienda.fecha_verificacion || null,
     };
 
-    let res;
     if (nombreOriginal && nombreOriginal !== tienda.nombre) {
-      res = await fetch(
-        `${SUPABASE_URL}/rest/v1/tiendas?nombre=eq.${encodeURIComponent(nombreOriginal)}`,
-        {
-          method: 'PATCH',
-          headers: supabaseHeaders({ Prefer: 'return=representation' }),
-          body: JSON.stringify(payload),
-        }
-      );
+      const { error } = await supabaseServer
+        .from('tiendas')
+        .update(payload)
+        .eq('nombre', nombreOriginal);
+      if (error) {
+        console.error('[Supabase Sync] Error en syncTiendaUpsert (update):', error.message);
+        return null;
+      }
     } else {
-      res = await fetch(`${SUPABASE_URL}/rest/v1/tiendas?on_conflict=nombre`, {
-        method: 'POST',
-        headers: supabaseHeaders({
-          Prefer: 'resolution=merge-duplicates,return=representation',
-        }),
-        body: JSON.stringify(payload),
-      });
-    }
-
-    if (!res.ok) {
-      const txt = await res.text();
-      console.error('[Supabase Sync] Error HTTP en syncTiendaUpsert:', res.status, txt);
-      return null;
+      const { error } = await supabaseServer
+        .from('tiendas')
+        .upsert(payload, { onConflict: 'nombre' });
+      if (error) {
+        console.error('[Supabase Sync] Error en syncTiendaUpsert (upsert):', error.message);
+        return null;
+      }
     }
     return payload;
   } catch (err) {
@@ -231,15 +211,11 @@ export async function syncTiendaUpsert(tienda, nombreOriginal = null) {
 }
 
 export async function syncTiendaDelete(nombre) {
-  if (!supabaseActivo()) return null;
+  if (!supabaseServer) return null;
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/tiendas?nombre=eq.${encodeURIComponent(nombre)}`, {
-      method: 'DELETE',
-      headers: supabaseHeaders({ Prefer: 'return=representation' }),
-    });
-    if (!res.ok) {
-      const txt = await res.text();
-      console.error('[Supabase Sync] Error HTTP en syncTiendaDelete:', res.status, txt);
+    const { error } = await supabaseServer.from('tiendas').delete().eq('nombre', nombre);
+    if (error) {
+      console.error('[Supabase Sync] Error en syncTiendaDelete:', error.message);
       return null;
     }
     return true;
@@ -250,7 +226,7 @@ export async function syncTiendaDelete(nombre) {
 }
 
 export async function syncIngenieroUpsert(ing) {
-  if (!supabaseActivo()) return;
+  if (!supabaseServer) return;
   try {
     const payload = {
       nombre: ing.nombre,
@@ -268,25 +244,42 @@ export async function syncIngenieroUpsert(ing) {
       domicilio_direccion: ing.domicilio_direccion || '',
       domicilio_link: ing.domicilio_link || '',
       km_inicial_ultimo: Number(ing.km_inicial_ultimo || 0),
+      ...(ing.email ? { email: ing.email } : {}),
+      ...(ing.auth_id ? { auth_id: ing.auth_id } : {}),
+      ...(ing.rol ? { rol: ing.rol } : {}),
       updated_at: new Date().toISOString(),
     };
-    await fetch(`${SUPABASE_URL}/rest/v1/ingenieros?on_conflict=nombre`, {
-      method: 'POST',
-      headers: supabaseHeaders({
-        Prefer: 'resolution=merge-duplicates,return=minimal',
-      }),
-      body: JSON.stringify(payload),
-    });
+    const { error } = await supabaseServer
+      .from('ingenieros')
+      .upsert(payload, { onConflict: 'nombre' });
+    if (error) {
+      console.error('[Supabase Sync] Error en syncIngenieroUpsert:', error.message);
+    }
   } catch (err) {
     console.error('[Supabase Sync] Error en syncIngenieroUpsert:', err.message);
   }
 }
 
 export async function syncHistorialUpsert(item) {
-  if (!supabaseActivo()) return null;
+  if (!supabaseServer) return null;
   try {
+    // Evitar duplicados si se guarda el mismo día (fecha + ingeniero + tipo) desde otro dispositivo
+    let uuidUsar = item.id;
+    if (item.fecha && item.ingeniero) {
+      const { data: existente } = await supabaseServer
+        .from('rutas_historial')
+        .select('uuid')
+        .eq('fecha', item.fecha)
+        .eq('ingeniero', item.ingeniero)
+        .eq('tipo', item.tipo || 'comprobacion')
+        .maybeSingle();
+      if (existente?.uuid) {
+        uuidUsar = existente.uuid;
+      }
+    }
+
     const payload = {
-      uuid: item.id,
+      uuid: uuidUsar,
       fecha: item.fecha,
       nombre: item.nombre || '',
       tipo: item.tipo || 'comprobacion',
@@ -300,19 +293,14 @@ export async function syncHistorialUpsert(item) {
       duracion_segundos: Number(item.segundos || 0),
       ingeniero: item.ingeniero || '',
     };
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/rutas_historial?on_conflict=uuid`, {
-      method: 'POST',
-      headers: supabaseHeaders({
-        Prefer: 'resolution=merge-duplicates,return=representation',
-      }),
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      const txt = await res.text();
-      console.error('[Supabase Sync] Error HTTP en syncHistorialUpsert:', res.status, txt);
+    const { error } = await supabaseServer
+      .from('rutas_historial')
+      .upsert(payload, { onConflict: 'uuid' });
+    if (error) {
+      console.error('[Supabase Sync] Error en syncHistorialUpsert:', error.message);
       return null;
     }
-    return payload;
+    return { ...payload, id: uuidUsar };
   } catch (err) {
     console.error('[Supabase Sync] Error en syncHistorialUpsert:', err.message);
     return null;
@@ -320,18 +308,11 @@ export async function syncHistorialUpsert(item) {
 }
 
 export async function syncHistorialDelete(uuid) {
-  if (!supabaseActivo()) return null;
+  if (!supabaseServer) return null;
   try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/rutas_historial?uuid=eq.${encodeURIComponent(uuid)}`,
-      {
-        method: 'DELETE',
-        headers: supabaseHeaders({ Prefer: 'return=representation' }),
-      }
-    );
-    if (!res.ok) {
-      const txt = await res.text();
-      console.error('[Supabase Sync] Error HTTP en syncHistorialDelete:', res.status, txt);
+    const { error } = await supabaseServer.from('rutas_historial').delete().eq('uuid', uuid);
+    if (error) {
+      console.error('[Supabase Sync] Error en syncHistorialDelete:', error.message);
       return null;
     }
     return true;
@@ -342,7 +323,7 @@ export async function syncHistorialDelete(uuid) {
 }
 
 export async function syncBitacoraUpsert(b) {
-  if (!supabaseActivo()) return null;
+  if (!supabaseServer) return null;
   try {
     const payload = {
       ingeniero: b.ingeniero,
@@ -363,19 +344,11 @@ export async function syncBitacoraUpsert(b) {
       total_importe: Number(b.total_importe || 0),
       updated_at: new Date().toISOString(),
     };
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/bitacoras_semanales?on_conflict=ingeniero,anio,semana`,
-      {
-        method: 'POST',
-        headers: supabaseHeaders({
-          Prefer: 'resolution=merge-duplicates,return=representation',
-        }),
-        body: JSON.stringify(payload),
-      }
-    );
-    if (!res.ok) {
-      const txt = await res.text();
-      console.error('[Supabase Sync] Error HTTP en syncBitacoraUpsert:', res.status, txt);
+    const { error } = await supabaseServer
+      .from('bitacoras_semanales')
+      .upsert(payload, { onConflict: 'ingeniero,anio,semana' });
+    if (error) {
+      console.error('[Supabase Sync] Error en syncBitacoraUpsert:', error.message);
       return null;
     }
     return payload;
@@ -386,20 +359,16 @@ export async function syncBitacoraUpsert(b) {
 }
 
 export async function syncBitacoraDelete(ingeniero, semana, anio) {
-  if (!supabaseActivo()) return null;
+  if (!supabaseServer) return null;
   try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/bitacoras_semanales?ingeniero=eq.${encodeURIComponent(
-        ingeniero
-      )}&semana=eq.${semana}&anio=eq.${anio}`,
-      {
-        method: 'DELETE',
-        headers: supabaseHeaders({ Prefer: 'return=representation' }),
-      }
-    );
-    if (!res.ok) {
-      const txt = await res.text();
-      console.error('[Supabase Sync] Error HTTP en syncBitacoraDelete:', res.status, txt);
+    const { error } = await supabaseServer
+      .from('bitacoras_semanales')
+      .delete()
+      .eq('ingeniero', ingeniero)
+      .eq('semana', semana)
+      .eq('anio', anio);
+    if (error) {
+      console.error('[Supabase Sync] Error en syncBitacoraDelete:', error.message);
       return null;
     }
     return true;
