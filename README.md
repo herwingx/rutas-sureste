@@ -228,4 +228,5 @@ El proyecto implementa 4 candados técnicos en [`server/distancias.js`](./server
 Para conocer a fondo los endpoints de la API interna, la estructura de los archivos JSON, los algoritmos matemáticos (Haversine, 2-Opt, decodificación de polilíneas) y las guías de despliegue en la nube, consulta:
 
 - **[`docs/ARQUITECTURA.md`](./docs/ARQUITECTURA.md)** — Manual de Arquitectura, Endpoints REST y Algoritmos Internos.
+- **[`docs/INTEGRACION_BOT_SLACK.md`](./docs/INTEGRACION_BOT_SLACK.md)** — Guía de Integración con el Bot de Telegram/Slack (`neto-slack-bot`) y Esquema Unificado en Supabase.
 
