@@ -902,6 +902,12 @@ export default function App() {
             lat: actual.lat,
             lng: actual.lng,
             verificada: true,
+            ...(actual.eco !== undefined ? { eco: actual.eco } : {}),
+            ...(actual.ceco !== undefined ? { ceco: actual.ceco } : {}),
+            ...(actual.zona !== undefined ? { zona: actual.zona } : {}),
+            ...(actual.region !== undefined ? { region: actual.region } : {}),
+            ...(actual.ingeniero !== undefined ? { ingeniero: actual.ingeniero } : {}),
+            ...(actual.ingeniero_id !== undefined ? { ingeniero_id: actual.ingeniero_id } : {}),
           });
           toast(`Tienda creada: ${nombreNuevo.toUpperCase()}`);
         } else {

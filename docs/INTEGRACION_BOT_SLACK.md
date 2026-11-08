@@ -103,3 +103,4 @@ Cuando un ingeniero autenticado envía `/start` al bot:
    - **Llegada y Traslado Estándar:** Con botón directo para compartir en WhatsApp.
    - **Mantenimiento Preventivo:** Carga por etapas (Antes ➡️ Después ➡️ Adicionales) con particionado automático en bloques de 10 fotos dentro del hilo de Slack.
    - **Implementación por Apertura:** Llegada con 4 fotos obligatorias (`1_Fachada`, `2_Frente`, `3_Izquierda`, `4_Derecha`) y conclusión técnica interactiva con más de 80 fotografías en hilo.
+
